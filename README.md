@@ -1,79 +1,72 @@
 # ktooi.pve_inference
 
-An Ansible Collection to build and operate **CT-based inference environments on Proxmox VE**.
+An Ansible Collection for building and operating **CT-based inference environments on Proxmox VE**.
 
-This project is designed around practical, declarative operations with clear separation of responsibilities:
-- **Proxmox host side**: GPU prerequisites and host-level configuration.
-- **CT side**: runtime foundation, inference runtime installation, and systemd-managed services.
+This collection follows these principles:
+- Keep **host-side** and **CT-side** responsibilities clearly separated.
+- Keep runtime-specific logic isolated per role (`ct_runtime_*`).
+- Prefer declarative lifecycle management for repeatability.
+
+---
 
 ## Scope
 
 ### In scope
-- Host-side GPU prerequisite setup.
-- Declarative CT lifecycle management (create/update/delete).
-- CT runtime foundation (Python, directories, service prerequisites).
-- Runtime-specific roles (initially vLLM).
-- Validation and health checks.
+- Proxmox host GPU prerequisites.
+- CT lifecycle management on PVE.
+- Runtime foundation in CT (Python, user, directories).
+- Runtime deployment (initially vLLM).
+- Post-deployment validation checks.
 
-### Out of scope (initial phase)
-- Kubernetes orchestration.
-- VM-first workflows.
-- Multi-node distributed inference orchestration.
-- Nested Docker/Podman operation as the primary path.
+### Out of scope (initial)
+- Kubernetes cluster orchestration.
+- VM-first architecture as the primary support path.
+- Full multi-node distributed inference orchestration.
+- Nested Docker/Podman as primary operational mode.
+
+---
 
 ## Support policy (summary)
-- **Proxmox VE 8.x**: supported.
-- **Proxmox VE 9.x**: beta support.
-- Initial vendor/runtime focus: **NVIDIA + vLLM**.
-- The structure is intentionally extensible for future **AMD** and additional runtimes.
+- **PVE 8.x**: supported
+- **PVE 9.x**: beta support
+- Initial main path: **NVIDIA + vLLM**
+- Designed to expand toward additional vendors/runtimes
 
-See `docs/support-policy.md`, `docs/gpu-matrix.md`, and `docs/runtime-matrix.md` for details.
+See:
+- [`docs/support-policy.md`](docs/support-policy.md)
+- [`docs/gpu-matrix.md`](docs/gpu-matrix.md)
+- [`docs/runtime-matrix.md`](docs/runtime-matrix.md)
 
-## Collection layout
+---
 
-```text
-ktooi.pve_inference/
-  galaxy.yml
-  meta/runtime.yml
-  docs/
-  playbooks/
-  roles/
-  plugins/
-  tests/
+## Collection and Role relationship (Mermaid)
+
+```mermaid
+flowchart TD
+    A[playbooks/host_nvidia_gpu.yml] --> B[role: host_gpu_common]
+    A --> C[role: host_nvidia_gpu]
+
+    D[playbooks/ct_create.yml] --> E[role: ct_instance]
+
+    F[playbooks/runtime_vllm.yml] --> G[role: ct_runtime_common]
+    F --> H[role: ct_runtime_vllm]
+
+    I[playbooks/validate.yml] --> J[role: ct_validate]
+
+    C --> K[(PVE host GPU ready)]
+    E --> L[(CT exists)]
+    G --> M[(CT common runtime ready)]
+    H --> N[(vLLM systemd service)]
+    J --> O[(Validation result)]
 ```
 
-## Roles
+---
 
-- `host_gpu_common`
-- `host_nvidia_gpu`
-- `host_amd_gpu` (stub for future implementation)
-- `ct_instance`
-- `ct_runtime_common`
-- `ct_runtime_vllm`
-- `ct_runtime_sglang` (stub)
-- `ct_runtime_tgi` (stub)
-- `ct_runtime_ollama` (stub)
-- `ct_validate`
+## Installation
 
-## Typical flow
-
-1. Prepare PVE host for GPU usage.
-2. Create or update CT definition.
-3. Bootstrap CT runtime common foundation.
-4. Install/configure inference runtime.
-5. Validate service and API readiness.
-
-## Requirements
-
+### Requirements
 - Ansible Core `>=2.16`
-- Collection dependency:
-  - `community.proxmox >=1.6.0`
-
-Install dependencies:
-
-```bash
-ansible-galaxy collection install -r requirements.yml
-```
+- `community.proxmox >=1.6.0`
 
 Example `requirements.yml`:
 
@@ -83,7 +76,41 @@ collections:
     version: ">=1.6.0"
 ```
 
-## Example inventory groups
+Install:
+
+```bash
+ansible-galaxy collection install -r requirements.yml
+```
+
+---
+
+## Usage
+
+### 1) Prepare Proxmox API token (on PVE)
+
+You need an API token with permissions to manage containers on the target node/storage.
+
+Example (adapt for your policy):
+
+```bash
+# create automation user
+pveum user add ansible@pve --password 'REPLACE_ME'
+
+# create a role with required privileges (example)
+pveum role add AnsiblePVE -privs "VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit"
+
+# assign role to user (scope: /)
+pveum aclmod / -user ansible@pve -role AnsiblePVE
+
+# create token
+pveum user token add ansible@pve ci-token --privsep 0
+```
+
+Store the token ID and secret securely (for example in `ansible-vault`).
+
+### 2) Prepare inventory and vars
+
+`inventory.ini`:
 
 ```ini
 [pve_hosts]
@@ -93,25 +120,83 @@ pve01 ansible_host=192.0.2.10
 ct-infer-01 ansible_host=198.51.100.20
 ```
 
-## Example execution
+`group_vars/pve_hosts.yml` (example):
 
-```bash
-ansible-playbook playbooks/host_nvidia_gpu.yml -i inventory.ini
-ansible-playbook playbooks/ct_create.yml -i inventory.ini
-ansible-playbook playbooks/runtime_vllm.yml -i inventory.ini
-ansible-playbook playbooks/validate.yml -i inventory.ini
+```yaml
+ct_instance_api_host: "192.0.2.10"
+ct_instance_api_user: "ansible@pve"
+ct_instance_api_token_id: "ansible@pve!ci-token"
+ct_instance_api_token_secret: "{{ vault_pve_api_token_secret }}"
+ct_instance_node: "pve01"
+ct_instance_vmid: 120
+ct_instance_hostname: "ct-infer-01"
+ct_instance_storage: "local-lvm"
+ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 ```
 
-## Design notes
+`group_vars/ct_targets.yml` (example):
 
-- Runtime roles are split by engine (`ct_runtime_*`) to keep migrations manageable.
-- Host vendor differences are isolated in `host_*` roles.
-- `ct_instance` manages CT lifecycle separately from runtime provisioning.
-- Initial implementation favors direct process execution under systemd for clearer troubleshooting.
+```yaml
+ct_runtime_vllm_model: "meta-llama/Llama-3.1-8B-Instruct"
+ct_runtime_vllm_tensor_parallel_size: 4
+ct_runtime_vllm_port: 8000
+```
 
-## Current status
+### 3) Execute playbooks
 
-This repository currently provides a clean and extensible baseline with production-oriented defaults for initial single-node deployments.
+```bash
+ansible-playbook -i inventory.ini playbooks/host_nvidia_gpu.yml
+ansible-playbook -i inventory.ini playbooks/ct_create.yml
+ansible-playbook -i inventory.ini playbooks/runtime_vllm.yml
+ansible-playbook -i inventory.ini playbooks/validate.yml
+```
+
+---
+
+## Required variables quick reference (collection-level)
+
+> This table contains variables that are typically **required** for practical execution.
+> For complete variable lists, see each role README.
+
+| Variable | Description | Default | Allowed values |
+|---|---|---|---|
+| `ct_instance_api_host` | Proxmox API endpoint host/IP | `{{ inventory_hostname }}` | Valid hostname/IP |
+| `ct_instance_api_user` | Proxmox API user | `root@pam` | Valid PVE API user (e.g. `ansible@pve`) |
+| `ct_instance_api_token_id` | API token ID | `""` | `<user>!<token_name>` |
+| `ct_instance_api_token_secret` | API token secret | `""` | Token secret string |
+| `ct_instance_node` | Target PVE node | `pve` | Existing node name |
+| `ct_instance_vmid` | CT VMID | `100` | Positive integer, unique on cluster |
+| `ct_instance_storage` | Storage for rootfs | `local-lvm` | Existing PVE storage ID |
+| `ct_instance_ostemplate` | CT OS template | Debian 12 template path | Existing `vztmpl` path |
+| `ct_runtime_vllm_model` | Model ID served by vLLM | `mistralai/Mistral-7B-Instruct-v0.3` | Valid Hugging Face/local model identifier |
+| `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |
+
+Detailed role docs:
+- [`roles/host_gpu_common/README.md`](roles/host_gpu_common/README.md)
+- [`roles/host_nvidia_gpu/README.md`](roles/host_nvidia_gpu/README.md)
+- [`roles/host_amd_gpu/README.md`](roles/host_amd_gpu/README.md)
+- [`roles/ct_instance/README.md`](roles/ct_instance/README.md)
+- [`roles/ct_runtime_common/README.md`](roles/ct_runtime_common/README.md)
+- [`roles/ct_runtime_vllm/README.md`](roles/ct_runtime_vllm/README.md)
+- [`roles/ct_runtime_sglang/README.md`](roles/ct_runtime_sglang/README.md)
+- [`roles/ct_runtime_tgi/README.md`](roles/ct_runtime_tgi/README.md)
+- [`roles/ct_runtime_ollama/README.md`](roles/ct_runtime_ollama/README.md)
+- [`roles/ct_validate/README.md`](roles/ct_validate/README.md)
+
+---
+
+## Playbooks
+
+- `playbooks/host_nvidia_gpu.yml`
+- `playbooks/host_amd_gpu.yml`
+- `playbooks/ct_create.yml`
+- `playbooks/runtime_vllm.yml`
+- `playbooks/runtime_sglang.yml`
+- `playbooks/runtime_tgi.yml`
+- `playbooks/runtime_ollama.yml`
+- `playbooks/validate.yml`
+
+---
 
 ## License
 
