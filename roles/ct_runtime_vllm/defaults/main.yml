@@ -5,11 +5,41 @@ ct_runtime_vllm_venv: /opt/inference/venv
 ct_runtime_vllm_workdir: /opt/inference
 ct_runtime_vllm_env_file: /etc/default/vllm
 ct_runtime_vllm_service_name: vllm.service
+
+# API endpoint
 ct_runtime_vllm_bind_host: 0.0.0.0
 ct_runtime_vllm_port: 8000
+
+# Model and parallelism
 ct_runtime_vllm_model: mistralai/Mistral-7B-Instruct-v0.3
+ct_runtime_vllm_served_model_name: ""
 ct_runtime_vllm_tensor_parallel_size: 1
-ct_runtime_vllm_max_model_len: 8192
+ct_runtime_vllm_pipeline_parallel_size: 1
+
+# Throughput / memory tuning
 ct_runtime_vllm_gpu_memory_utilization: 0.9
+ct_runtime_vllm_dtype: auto
+ct_runtime_vllm_kv_cache_dtype: auto
+ct_runtime_vllm_max_model_len: 8192
+ct_runtime_vllm_max_num_seqs: 32
+ct_runtime_vllm_max_num_batched_tokens: 4096
+
+# Tool/reasoning parsing
+ct_runtime_vllm_tool_call_parser: ""
+ct_runtime_vllm_reasoning_parser: ""
+
+# NCCL / comms
+ct_runtime_vllm_nccl_p2p_disable: 0
+ct_runtime_vllm_nccl_ib_disable: 0
+ct_runtime_vllm_nccl_p2p_level: 5
+ct_runtime_vllm_nccl_debug: INFO
+ct_runtime_vllm_nccl_ignore_disabled_p2p: 1
+
+# Runtime environment
+ct_runtime_vllm_omp_num_threads: ""
+ct_runtime_vllm_ld_library_path: /usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu
+ct_runtime_vllm_hf_cache_dir: ""
+
+# Package and extensibility
 ct_runtime_vllm_extra_args: ""
 ct_runtime_vllm_version: ""

@@ -108,6 +108,28 @@ pveum user token add ansible@pve ci-token --privsep 0
 
 Store the token ID and secret securely (for example in `ansible-vault`).
 
+Example vault workflow:
+
+```bash
+# create/edit encrypted vars file
+ansible-vault create group_vars/pve_hosts/vault.yml
+
+# or edit existing encrypted file
+ansible-vault edit group_vars/pve_hosts/vault.yml
+
+# run playbook with vault prompt
+ansible-playbook -i inventory.ini playbooks/ct_create.yml --ask-vault-pass
+
+# (alternative) use a vault password file
+ansible-playbook -i inventory.ini playbooks/ct_create.yml --vault-password-file .vault_pass.txt
+```
+
+`group_vars/pve_hosts/vault.yml` example:
+
+```yaml
+vault_pve_api_token_secret: "REPLACE_WITH_REAL_TOKEN_SECRET"
+```
+
 ### 2) Prepare inventory and vars
 
 `inventory.ini`:

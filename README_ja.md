@@ -108,6 +108,28 @@ pveum user token add ansible@pve ci-token --privsep 0
 
 Token ID / Secret は `ansible-vault` 等で安全に管理してください。
 
+`ansible-vault` 利用例:
+
+```bash
+# 暗号化された変数ファイルを新規作成
+ansible-vault create group_vars/pve_hosts/vault.yml
+
+# 既存の暗号化ファイルを編集
+ansible-vault edit group_vars/pve_hosts/vault.yml
+
+# vault パスワード入力で実行
+ansible-playbook -i inventory.ini playbooks/ct_create.yml --ask-vault-pass
+
+# （代替）vault パスワードファイル利用
+ansible-playbook -i inventory.ini playbooks/ct_create.yml --vault-password-file .vault_pass.txt
+```
+
+`group_vars/pve_hosts/vault.yml` 例:
+
+```yaml
+vault_pve_api_token_secret: "REPLACE_WITH_REAL_TOKEN_SECRET"
+```
+
 ### 2) Inventory / 変数を準備
 
 `inventory.ini`:
