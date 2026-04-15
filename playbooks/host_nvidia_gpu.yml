@@ -1,0 +1,7 @@
+---
+- name: Prepare PVE host for NVIDIA GPU inference workloads
+  hosts: pve_hosts
+  become: true
+  roles:
+    - role: ktooi.pve_inference.host_gpu_common
+    - role: ktooi.pve_inference.host_nvidia_gpu

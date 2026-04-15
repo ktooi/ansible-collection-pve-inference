@@ -1,0 +1,17 @@
+---
+- name: Install NVIDIA packages
+  ansible.builtin.package:
+    name: "{{ host_nvidia_gpu_packages }}"
+    state: present
+
+- name: Ensure nvidia-persistenced service state
+  ansible.builtin.service:
+    name: nvidia-persistenced
+    enabled: true
+    state: started
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Validate nvidia-smi availability
+  ansible.builtin.command: nvidia-smi -L
+  register: nvidia_smi_devices
+  changed_when: false

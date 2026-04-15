@@ -1,0 +1,7 @@
+---
+- name: AMD GPU role placeholder
+  ansible.builtin.debug:
+    msg: >-
+      host_amd_gpu role is currently a scaffold. Implement ROCm/amdgpu setup
+      according to your platform policy.
+  when: not host_amd_gpu_enabled

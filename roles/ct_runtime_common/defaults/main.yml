@@ -1,0 +1,16 @@
+---
+ct_runtime_common_user: infer
+ct_runtime_common_group: infer
+ct_runtime_common_home: /opt/inference
+ct_runtime_common_venv: /opt/inference/venv
+ct_runtime_common_packages:
+  - python3
+  - python3-venv
+  - python3-pip
+  - curl
+  - git
+ct_runtime_common_directories:
+  - /opt/inference
+  - /opt/inference/bin
+  - /var/log/inference
+  - /var/cache/inference

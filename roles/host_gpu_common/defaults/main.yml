@@ -1,0 +1,7 @@
+---
+host_gpu_common_packages:
+  - pciutils
+  - lshw
+  - curl
+host_gpu_common_sysctl: {}
+host_gpu_common_limits: []

@@ -1,0 +1,5 @@
+---
+host_nvidia_gpu_packages:
+  - nvidia-driver
+  - nvidia-smi
+host_nvidia_gpu_enable_persistenced: true

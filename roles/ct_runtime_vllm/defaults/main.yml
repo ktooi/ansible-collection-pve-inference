@@ -1,0 +1,15 @@
+---
+ct_runtime_vllm_user: infer
+ct_runtime_vllm_group: infer
+ct_runtime_vllm_venv: /opt/inference/venv
+ct_runtime_vllm_workdir: /opt/inference
+ct_runtime_vllm_env_file: /etc/default/vllm
+ct_runtime_vllm_service_name: vllm.service
+ct_runtime_vllm_bind_host: 0.0.0.0
+ct_runtime_vllm_port: 8000
+ct_runtime_vllm_model: mistralai/Mistral-7B-Instruct-v0.3
+ct_runtime_vllm_tensor_parallel_size: 1
+ct_runtime_vllm_max_model_len: 8192
+ct_runtime_vllm_gpu_memory_utilization: 0.9
+ct_runtime_vllm_extra_args: ""
+ct_runtime_vllm_version: ""

@@ -1,0 +1,6 @@
+---
+- name: Validate inference CT readiness
+  hosts: ct_targets
+  become: true
+  roles:
+    - role: ktooi.pve_inference.ct_validate

@@ -1,0 +1,31 @@
+---
+- name: Install vLLM package
+  ansible.builtin.pip:
+    name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
+    virtualenv: "{{ ct_runtime_vllm_venv }}"
+
+- name: Render vLLM environment file
+  ansible.builtin.template:
+    src: vllm.env.j2
+    dest: "{{ ct_runtime_vllm_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart vllm
+
+- name: Render vLLM systemd service unit
+  ansible.builtin.template:
+    src: vllm.service.j2
+    dest: "/etc/systemd/system/{{ ct_runtime_vllm_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart vllm
+
+- name: Enable and start vLLM service
+  ansible.builtin.service:
+    name: "{{ ct_runtime_vllm_service_name }}"
+    enabled: true
+    state: started

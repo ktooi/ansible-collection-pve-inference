@@ -1,0 +1,14 @@
+---
+- name: Install common host packages
+  ansible.builtin.package:
+    name: "{{ host_gpu_common_packages }}"
+    state: present
+
+- name: Configure common sysctl values
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ host_gpu_common_sysctl | dict2items }}"
+  when: host_gpu_common_sysctl | length > 0

@@ -1,0 +1,21 @@
+---
+- name: Check GPU visibility
+  ansible.builtin.command: "{{ ct_validate_check_gpu_command }}"
+  register: ct_validate_gpu
+  changed_when: false
+
+- name: Check service status
+  ansible.builtin.service_facts:
+
+- name: Assert service exists
+  ansible.builtin.assert:
+    that:
+      - "ct_validate_check_service_name in ansible_facts.services"
+    fail_msg: "Service {{ ct_validate_check_service_name }} was not found"
+
+- name: Check API health endpoint
+  ansible.builtin.uri:
+    url: "{{ ct_validate_check_api_url }}"
+    method: GET
+    status_code: 200
+  register: ct_validate_api

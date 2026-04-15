@@ -1,0 +1,8 @@
+---
+requires_ansible: ">=2.16.0"
+action_groups: {}
+plugin_routing: {}
+
+# Collection-level dependencies.
+dependencies:
+  community.proxmox: ">=1.6.0"

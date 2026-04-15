@@ -1,0 +1,6 @@
+---
+- name: Runtime role placeholder
+  ansible.builtin.debug:
+    msg: >-
+      This runtime role is currently a scaffold for future implementation.
+  when: not role_enabled
