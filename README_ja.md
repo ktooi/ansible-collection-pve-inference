@@ -49,6 +49,7 @@ flowchart TD
     D[playbooks/ct_create.yml] --> E[role: ct_instance]
 
     F[playbooks/runtime_vllm.yml] --> G[role: ct_runtime_common]
+    F --> G2[role: ct_runtime_launcher_common]
     F --> H[role: ct_runtime_vllm]
 
     I[playbooks/validate.yml] --> J[role: ct_validate]
@@ -56,6 +57,7 @@ flowchart TD
     C --> K[(PVE host GPU ready)]
     E --> L[(CT exists)]
     G --> M[(CT common runtime ready)]
+    G2 --> M2[(shared launcher vars)]
     H --> N[(vLLM systemd service)]
     J --> O[(Validation result)]
 ```
@@ -152,6 +154,9 @@ ct_instance_api_token_secret: "{{ vault_pve_api_token_secret }}"
 ct_instance_node: "pve01"
 ct_instance_vmid: 120
 ct_instance_hostname: "ct-infer-01"
+ct_instance_cores: 16            # CT の CPU コア数
+ct_instance_memory: 131072       # CT のメモリサイズ (MiB)
+ct_instance_rootfs_size: 512     # CT のディスクサイズ (GiB)
 ct_instance_storage: "local-lvm"
 ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 ```
@@ -159,10 +164,30 @@ ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 `group_vars/ct_targets.yml` 例:
 
 ```yaml
-ct_runtime_vllm_model: "meta-llama/Llama-3.1-8B-Instruct"
-ct_runtime_vllm_tensor_parallel_size: 4
-ct_runtime_vllm_port: 8000
+# ランタイム共通のランチャー変数
+ct_runtime_launcher_model: "meta-llama/Llama-3.1-8B-Instruct"
+ct_runtime_launcher_context_length: 32768   # LLM のコンテキスト長
+ct_runtime_launcher_tensor_parallel_size: 4
+ct_runtime_launcher_pipeline_parallel_size: 1
+ct_runtime_launcher_gpu_memory_utilization: 0.9
+ct_runtime_launcher_max_num_seqs: 64
+ct_runtime_launcher_max_num_batched_tokens: 8192
+ct_runtime_launcher_port: 8000
+
+# ランタイム固有変数も引き続き指定可能
+ct_runtime_vllm_dtype: "auto"
+ct_runtime_vllm_kv_cache_dtype: "auto"
 ```
+
+### 調整頻度が高い変数
+
+ハードウェア構成やモデル特性に応じて、次の変数は調整頻度が高くなります。
+- `ct_instance_cores`, `ct_instance_memory`, `ct_instance_rootfs_size`
+- `ct_runtime_launcher_context_length`
+- `ct_runtime_launcher_tensor_parallel_size`, `ct_runtime_launcher_pipeline_parallel_size`
+- `ct_runtime_launcher_gpu_memory_utilization`
+- `ct_runtime_launcher_max_num_seqs`, `ct_runtime_launcher_max_num_batched_tokens`
+- `ct_runtime_vllm_dtype`, `ct_runtime_vllm_kv_cache_dtype`
 
 ### 3) Playbook 実行
 
@@ -188,10 +213,14 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_api_token_secret` | API Token Secret | `""` | Token secret 文字列 |
 | `ct_instance_node` | CT 作成対象ノード | `pve` | 既存ノード名 |
 | `ct_instance_vmid` | CT VMID | `100` | 正の整数（クラスタ内一意） |
+| `ct_instance_cores` | CT の CPU コア数 | `8` | `1` 以上の整数 |
+| `ct_instance_memory` | CT のメモリサイズ (MiB) | `32768` | `512` 以上の整数 |
+| `ct_instance_rootfs_size` | CT のディスクサイズ (GiB) | `128` | `8` 以上の整数 |
 | `ct_instance_storage` | rootfs 配置ストレージ | `local-lvm` | 既存ストレージ ID |
 | `ct_instance_ostemplate` | CT OS テンプレート | Debian 12 template path | 既存 `vztmpl` パス |
 | `ct_runtime_vllm_model` | vLLM 配信モデル ID | `mistralai/Mistral-7B-Instruct-v0.3` | 有効な HF/ローカルモデル識別子 |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor Parallel 数 | `1` | `1` 以上の整数 |
+| `ct_runtime_vllm_max_model_len` | LLM コンテキスト長 | `8192` | `1` 以上の整数 |
 
 Role 詳細:
 - [`roles/host_gpu_common/README.md`](roles/host_gpu_common/README.md)
@@ -199,6 +228,7 @@ Role 詳細:
 - [`roles/host_amd_gpu/README.md`](roles/host_amd_gpu/README.md)
 - [`roles/ct_instance/README.md`](roles/ct_instance/README.md)
 - [`roles/ct_runtime_common/README.md`](roles/ct_runtime_common/README.md)
+- [`roles/ct_runtime_launcher_common/README.md`](roles/ct_runtime_launcher_common/README.md)
 - [`roles/ct_runtime_vllm/README.md`](roles/ct_runtime_vllm/README.md)
 - [`roles/ct_runtime_sglang/README.md`](roles/ct_runtime_sglang/README.md)
 - [`roles/ct_runtime_tgi/README.md`](roles/ct_runtime_tgi/README.md)

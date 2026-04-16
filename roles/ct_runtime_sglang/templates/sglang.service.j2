@@ -1,0 +1,18 @@
+[Unit]
+Description=SGLang API server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ ct_runtime_sglang_user }}
+Group={{ ct_runtime_sglang_group }}
+WorkingDirectory={{ ct_runtime_sglang_workdir }}
+EnvironmentFile={{ ct_runtime_sglang_env_file }}
+ExecStart={{ ct_runtime_sglang_venv }}/bin/python -m sglang.launch_server --host ${SGLANG_BIND_HOST} --port ${SGLANG_PORT} --model-path ${SGLANG_MODEL} --tp-size ${SGLANG_TENSOR_PARALLEL_SIZE} --context-length ${SGLANG_CONTEXT_LENGTH} --dtype ${SGLANG_DTYPE} ${SGLANG_EXTRA_ARGS}
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

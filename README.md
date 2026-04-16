@@ -49,6 +49,7 @@ flowchart TD
     D[playbooks/ct_create.yml] --> E[role: ct_instance]
 
     F[playbooks/runtime_vllm.yml] --> G[role: ct_runtime_common]
+    F --> G2[role: ct_runtime_launcher_common]
     F --> H[role: ct_runtime_vllm]
 
     I[playbooks/validate.yml] --> J[role: ct_validate]
@@ -56,6 +57,7 @@ flowchart TD
     C --> K[(PVE host GPU ready)]
     E --> L[(CT exists)]
     G --> M[(CT common runtime ready)]
+    G2 --> M2[(shared launcher vars)]
     H --> N[(vLLM systemd service)]
     J --> O[(Validation result)]
 ```
@@ -152,6 +154,9 @@ ct_instance_api_token_secret: "{{ vault_pve_api_token_secret }}"
 ct_instance_node: "pve01"
 ct_instance_vmid: 120
 ct_instance_hostname: "ct-infer-01"
+ct_instance_cores: 16            # CT CPU cores
+ct_instance_memory: 131072       # CT memory (MiB)
+ct_instance_rootfs_size: 512     # CT rootfs size (GiB)
 ct_instance_storage: "local-lvm"
 ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 ```
@@ -159,10 +164,30 @@ ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 `group_vars/ct_targets.yml` (example):
 
 ```yaml
-ct_runtime_vllm_model: "meta-llama/Llama-3.1-8B-Instruct"
-ct_runtime_vllm_tensor_parallel_size: 4
-ct_runtime_vllm_port: 8000
+# shared launcher variables (runtime-agnostic)
+ct_runtime_launcher_model: "meta-llama/Llama-3.1-8B-Instruct"
+ct_runtime_launcher_context_length: 32768   # LLM context size
+ct_runtime_launcher_tensor_parallel_size: 4
+ct_runtime_launcher_pipeline_parallel_size: 1
+ct_runtime_launcher_gpu_memory_utilization: 0.9
+ct_runtime_launcher_max_num_seqs: 64
+ct_runtime_launcher_max_num_batched_tokens: 8192
+ct_runtime_launcher_port: 8000
+
+# runtime-specific variables are still valid
+ct_runtime_vllm_dtype: "auto"
+ct_runtime_vllm_kv_cache_dtype: "auto"
 ```
+
+### Frequently tuned variables
+
+These variables often vary by hardware size, model family, and throughput target:
+- `ct_instance_cores`, `ct_instance_memory`, `ct_instance_rootfs_size`
+- `ct_runtime_launcher_context_length`
+- `ct_runtime_launcher_tensor_parallel_size`, `ct_runtime_launcher_pipeline_parallel_size`
+- `ct_runtime_launcher_gpu_memory_utilization`
+- `ct_runtime_launcher_max_num_seqs`, `ct_runtime_launcher_max_num_batched_tokens`
+- `ct_runtime_vllm_dtype`, `ct_runtime_vllm_kv_cache_dtype`
 
 ### 3) Execute playbooks
 
@@ -188,10 +213,14 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_api_token_secret` | API token secret | `""` | Token secret string |
 | `ct_instance_node` | Target PVE node | `pve` | Existing node name |
 | `ct_instance_vmid` | CT VMID | `100` | Positive integer, unique on cluster |
+| `ct_instance_cores` | CT CPU core count | `8` | Integer `>=1` |
+| `ct_instance_memory` | CT memory size (MiB) | `32768` | Integer `>=512` |
+| `ct_instance_rootfs_size` | CT rootfs size (GiB) | `128` | Integer `>=8` |
 | `ct_instance_storage` | Storage for rootfs | `local-lvm` | Existing PVE storage ID |
 | `ct_instance_ostemplate` | CT OS template | Debian 12 template path | Existing `vztmpl` path |
 | `ct_runtime_vllm_model` | Model ID served by vLLM | `mistralai/Mistral-7B-Instruct-v0.3` | Valid Hugging Face/local model identifier |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |
+| `ct_runtime_vllm_max_model_len` | LLM context size | `8192` | Integer `>=1` |
 
 Detailed role docs:
 - [`roles/host_gpu_common/README.md`](roles/host_gpu_common/README.md)
@@ -199,6 +228,7 @@ Detailed role docs:
 - [`roles/host_amd_gpu/README.md`](roles/host_amd_gpu/README.md)
 - [`roles/ct_instance/README.md`](roles/ct_instance/README.md)
 - [`roles/ct_runtime_common/README.md`](roles/ct_runtime_common/README.md)
+- [`roles/ct_runtime_launcher_common/README.md`](roles/ct_runtime_launcher_common/README.md)
 - [`roles/ct_runtime_vllm/README.md`](roles/ct_runtime_vllm/README.md)
 - [`roles/ct_runtime_sglang/README.md`](roles/ct_runtime_sglang/README.md)
 - [`roles/ct_runtime_tgi/README.md`](roles/ct_runtime_tgi/README.md)

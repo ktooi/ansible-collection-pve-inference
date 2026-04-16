@@ -3,6 +3,8 @@
 ## Purpose
 Install/configure vLLM inside CT and manage it with systemd.
 
+This role can consume shared values from `ct_runtime_launcher_common`, while runtime-specific variables (for example `ct_runtime_vllm_model`) continue to work as before.
+
 ## Usage
 ```yaml
 - hosts: ct_targets

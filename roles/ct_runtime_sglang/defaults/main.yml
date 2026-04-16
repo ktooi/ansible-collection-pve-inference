@@ -1,2 +1,15 @@
 ---
-role_enabled: false
+ct_runtime_sglang_user: infer
+ct_runtime_sglang_group: infer
+ct_runtime_sglang_venv: /opt/inference/venv
+ct_runtime_sglang_workdir: /opt/inference
+ct_runtime_sglang_env_file: /etc/default/sglang
+ct_runtime_sglang_service_name: sglang.service
+ct_runtime_sglang_bind_host: "{{ ct_runtime_launcher_bind_host | default('0.0.0.0') }}"
+ct_runtime_sglang_port: "{{ ct_runtime_launcher_port | default(8000) }}"
+ct_runtime_sglang_model: "{{ ct_runtime_launcher_model | default('Qwen/Qwen2.5-7B-Instruct', true) }}"
+ct_runtime_sglang_tensor_parallel_size: "{{ ct_runtime_launcher_tensor_parallel_size | default(1) }}"
+ct_runtime_sglang_context_length: "{{ ct_runtime_launcher_context_length | default(8192) }}"
+ct_runtime_sglang_dtype: "{{ ct_runtime_launcher_dtype | default('auto') }}"
+ct_runtime_sglang_extra_args: "{{ ct_runtime_launcher_extra_args | default('') }}"
+ct_runtime_sglang_version: ""

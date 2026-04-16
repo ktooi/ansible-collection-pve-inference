@@ -1,6 +1,31 @@
 ---
-- name: Runtime role placeholder
-  ansible.builtin.debug:
-    msg: >-
-      This runtime role is currently a scaffold for future implementation.
-  when: not role_enabled
+- name: Install TGI launcher package(s)
+  ansible.builtin.pip:
+    name: "{{ ct_runtime_tgi_packages }}"
+    executable: pip3
+
+- name: Render TGI environment file
+  ansible.builtin.template:
+    src: tgi.env.j2
+    dest: "{{ ct_runtime_tgi_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart tgi
+
+- name: Render TGI systemd service unit
+  ansible.builtin.template:
+    src: tgi.service.j2
+    dest: "/etc/systemd/system/{{ ct_runtime_tgi_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart tgi
+
+- name: Enable and start TGI service
+  ansible.builtin.service:
+    name: "{{ ct_runtime_tgi_service_name }}"
+    enabled: true
+    state: started

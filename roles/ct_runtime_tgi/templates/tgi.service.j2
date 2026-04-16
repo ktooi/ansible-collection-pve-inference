@@ -1,0 +1,18 @@
+[Unit]
+Description=Text Generation Inference server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ ct_runtime_tgi_user }}
+Group={{ ct_runtime_tgi_group }}
+WorkingDirectory={{ ct_runtime_tgi_workdir }}
+EnvironmentFile={{ ct_runtime_tgi_env_file }}
+ExecStart={{ ct_runtime_tgi_launcher_cmd }} --hostname ${TGI_BIND_HOST} --port ${TGI_PORT} --model-id ${TGI_MODEL} --dtype ${TGI_DTYPE} --max-input-length ${TGI_MAX_INPUT_LENGTH} --max-total-tokens ${TGI_MAX_TOTAL_TOKENS} --max-concurrent-requests ${TGI_MAX_CONCURRENT_REQUESTS} ${TGI_EXTRA_ARGS}
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

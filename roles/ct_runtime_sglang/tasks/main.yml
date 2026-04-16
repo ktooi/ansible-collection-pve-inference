@@ -1,6 +1,31 @@
 ---
-- name: Runtime role placeholder
-  ansible.builtin.debug:
-    msg: >-
-      This runtime role is currently a scaffold for future implementation.
-  when: not role_enabled
+- name: Install SGLang package
+  ansible.builtin.pip:
+    name: "{{ ('sglang==' ~ ct_runtime_sglang_version) if ct_runtime_sglang_version | length > 0 else 'sglang' }}"
+    virtualenv: "{{ ct_runtime_sglang_venv }}"
+
+- name: Render SGLang environment file
+  ansible.builtin.template:
+    src: sglang.env.j2
+    dest: "{{ ct_runtime_sglang_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart sglang
+
+- name: Render SGLang systemd service unit
+  ansible.builtin.template:
+    src: sglang.service.j2
+    dest: "/etc/systemd/system/{{ ct_runtime_sglang_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart sglang
+
+- name: Enable and start SGLang service
+  ansible.builtin.service:
+    name: "{{ ct_runtime_sglang_service_name }}"
+    enabled: true
+    state: started

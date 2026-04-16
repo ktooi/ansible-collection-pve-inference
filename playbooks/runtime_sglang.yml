@@ -4,4 +4,5 @@
   become: true
   roles:
     - role: ktooi.pve_inference.ct_runtime_common
+    - role: ktooi.pve_inference.ct_runtime_launcher_common
     - role: ktooi.pve_inference.ct_runtime_sglang

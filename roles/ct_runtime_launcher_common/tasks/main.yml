@@ -1,0 +1,19 @@
+---
+- name: Build effective shared launcher configuration
+  ansible.builtin.set_fact:
+    ct_runtime_launcher_effective:
+      bind_host: "{{ ct_runtime_launcher_bind_host }}"
+      port: "{{ ct_runtime_launcher_port }}"
+      model: "{{ ct_runtime_launcher_model }}"
+      served_model_name: "{{ ct_runtime_launcher_served_model_name }}"
+      context_length: "{{ ct_runtime_launcher_context_length }}"
+      tensor_parallel_size: "{{ ct_runtime_launcher_tensor_parallel_size }}"
+      pipeline_parallel_size: "{{ ct_runtime_launcher_pipeline_parallel_size }}"
+      gpu_memory_utilization: "{{ ct_runtime_launcher_gpu_memory_utilization }}"
+      dtype: "{{ ct_runtime_launcher_dtype }}"
+      kv_cache_dtype: "{{ ct_runtime_launcher_kv_cache_dtype }}"
+      max_num_seqs: "{{ ct_runtime_launcher_max_num_seqs }}"
+      max_num_batched_tokens: "{{ ct_runtime_launcher_max_num_batched_tokens }}"
+      tool_call_parser: "{{ ct_runtime_launcher_tool_call_parser }}"
+      reasoning_parser: "{{ ct_runtime_launcher_reasoning_parser }}"
+      extra_args: "{{ ct_runtime_launcher_extra_args }}"
