@@ -115,7 +115,7 @@
 - name: Determine if primary modprobe pass succeeded
   ansible.builtin.set_fact:
     host_nvidia_modprobe_primary_failed: >-
-      {{ (host_nvidia_modprobe_primary.results | selectattr('rc','ne',0) | list | length) > 0 }}
+      {{ (host_nvidia_modprobe_primary.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) > 0 }}
 
 - name: Try fallback NVIDIA module set
   ansible.builtin.command: "modprobe --ignore-install {{ item }}"
@@ -125,16 +125,27 @@
   failed_when: false
   when: host_nvidia_modprobe_primary_failed
 
+- name: Determine if fallback modprobe pass succeeded
+  ansible.builtin.set_fact:
+    host_nvidia_modprobe_fallback_failed: >-
+      {{ (host_nvidia_modprobe_fallback.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) > 0 }}
+  when: host_nvidia_modprobe_primary_failed
+
+- name: Set fallback result to success when fallback is not required
+  ansible.builtin.set_fact:
+    host_nvidia_modprobe_fallback_failed: false
+  when: not host_nvidia_modprobe_primary_failed
+
 - name: Assert NVIDIA modules could be loaded
   ansible.builtin.assert:
     that:
-      - not host_nvidia_modprobe_primary_failed or ((host_nvidia_modprobe_fallback.results | default([]) | selectattr('rc','ne',0) | list | length) == 0)
+      - not host_nvidia_modprobe_primary_failed or not host_nvidia_modprobe_fallback_failed
     fail_msg: >-
       Failed to load NVIDIA modules for kernel {{ ansible_kernel }}.
       Found module files in /lib/modules: {{ host_nvidia_module_files.matched }}.
       DKMS status: {{ host_nvidia_dkms_status_after.stdout | default('n/a') }}.
-      Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('rc','ne',0) | map(attribute='stderr') | list }}
-      Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('rc','ne',0) | map(attribute='stderr') | list }}
+      Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
+      Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
 - name: Verify NVIDIA device files exist
   ansible.builtin.find:
     paths: /dev
