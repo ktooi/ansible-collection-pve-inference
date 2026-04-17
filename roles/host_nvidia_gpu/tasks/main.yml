@@ -20,18 +20,21 @@
     state: present
     update_cache: true
 
-- name: Install matching kernel headers (preferred exact match)
+- name: Install exact matching Proxmox kernel headers
   ansible.builtin.apt:
     name: "{{ host_nvidia_gpu_header_packages[0] }}"
     state: present
   register: host_nvidia_headers_exact
   failed_when: false
 
-- name: Install generic Proxmox headers (fallback)
-  ansible.builtin.apt:
-    name: "{{ host_nvidia_gpu_header_packages[1] }}"
-    state: present
-  when: host_nvidia_headers_exact is failed
+- name: Assert exact kernel headers are installed
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_headers_exact is not failed
+    fail_msg: >-
+      Exact headers package {{ host_nvidia_gpu_header_packages[0] }} is required but was not installed.
+      Run apt full-upgrade on the PVE host and reboot into the installed pve kernel, then retry.
+  when: host_nvidia_gpu_require_exact_headers
 
 - name: Ensure DKMS state is available for diagnostics
   ansible.builtin.command: dkms status
@@ -61,14 +64,51 @@
     state: present
     update_cache: true
 
+- name: Build DKMS modules for running kernel
+  ansible.builtin.command: "dkms autoinstall -k {{ ansible_kernel }}"
+  register: host_nvidia_dkms_autoinstall
+  changed_when: "'Installing' in host_nvidia_dkms_autoinstall.stdout"
+  failed_when: false
+
+- name: Run depmod for running kernel
+  ansible.builtin.command: "depmod -a {{ ansible_kernel }}"
+  changed_when: false
+
+- name: Discover compiled NVIDIA modules for running kernel
+  ansible.builtin.find:
+    paths: "/lib/modules/{{ ansible_kernel }}"
+    recurse: true
+    use_regex: true
+    patterns:
+      - '^nvidia.*\\.ko(\\.xz|\\.zst)?$'
+  register: host_nvidia_module_files
+
+- name: Assert NVIDIA kernel modules are present for running kernel
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_module_files.matched | int > 0
+    fail_msg: >-
+      No NVIDIA kernel module was found under /lib/modules/{{ ansible_kernel }}.
+      Ensure DKMS built successfully for this kernel and reboot if a new kernel was installed.
+
+- name: Detect module naming variant
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_use_current_modules: >-
+      {{ (host_nvidia_module_files.files | map(attribute='path') | select('search', 'nvidia-current') | list | length) > 0 }}
+
+- name: Select module list to load
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_modules_to_load: >-
+      {{ host_nvidia_gpu_modules_current if host_nvidia_gpu_use_current_modules else host_nvidia_gpu_modules_standard }}
+
 - name: Trigger device node creation
   ansible.builtin.command: nvidia-modprobe -u -c=0
   changed_when: false
   failed_when: false
 
 - name: Load NVIDIA kernel modules
-  ansible.builtin.command: "modprobe {{ item }}"
-  loop: "{{ host_nvidia_gpu_modules }}"
+  ansible.builtin.command: "modprobe --ignore-install {{ item }}"
+  loop: "{{ host_nvidia_gpu_modules_to_load }}"
   changed_when: false
 
 - name: Verify NVIDIA device files exist

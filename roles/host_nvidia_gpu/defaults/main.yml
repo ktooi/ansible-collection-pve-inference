@@ -6,7 +6,6 @@ host_nvidia_gpu_prereq_packages:
 
 host_nvidia_gpu_header_packages:
   - "pve-headers-{{ ansible_kernel }}"
-  - pve-headers
 
 host_nvidia_gpu_packages:
   - nvidia-driver
@@ -15,14 +14,20 @@ host_nvidia_gpu_packages:
   - nvidia-persistenced
   - nvidia-modprobe
 
-host_nvidia_gpu_modules:
+host_nvidia_gpu_modules_standard:
   - nvidia
   - nvidia_uvm
   - nvidia_modeset
   - nvidia_drm
 
+host_nvidia_gpu_modules_current:
+  - nvidia-current
+  - nvidia-current-uvm
+  - nvidia-current-modeset
+  - nvidia-current-drm
+
 host_nvidia_gpu_enable_persistenced: true
 host_nvidia_gpu_require_pve_kernel: true
 host_nvidia_gpu_require_nvidia_devices: true
-
 host_nvidia_gpu_block_proxmox_removal: true
+host_nvidia_gpu_require_exact_headers: true

@@ -200,8 +200,9 @@ These variables often vary by hardware size, model family, and throughput target
 ### Preflight checks now included in roles
 
 The collection now performs explicit precondition checks where assumptions were previously implicit, for example:
-- Proxmox host side: Debian-family + running `*-pve` kernel + NVIDIA device nodes (`/dev/nvidia*`) for `host_nvidia_gpu`
+- Proxmox host side: Debian-family + running `*-pve` kernel + exact `pve-headers-{{ ansible_kernel }}` + NVIDIA device nodes (`/dev/nvidia*`) for `host_nvidia_gpu`
 - Proxmox host side: apt install simulation guard to prevent plans that remove `proxmox-ve`
+- Proxmox host side: DKMS autoinstall + kernel module variant detection (`nvidia-*` or `nvidia-current-*`) before module load
 - CT side: distribution/version support assertions before runtime tasks via `tasks/variables.yml`
 
 ### 3) Execute playbooks

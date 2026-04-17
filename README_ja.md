@@ -200,8 +200,9 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 ### Role による前提条件チェック
 
 これまで暗黙だった前提条件について、Role 内で明示チェックするようにしました。例えば:
-- PVE ホスト側: `host_nvidia_gpu` で Debian 系 / `*-pve` カーネル / `/dev/nvidia*` を確認
+- PVE ホスト側: `host_nvidia_gpu` で Debian 系 / `*-pve` カーネル / `pve-headers-{{ ansible_kernel }}` / `/dev/nvidia*` を確認
 - PVE ホスト側: `proxmox-ve` が削除される apt プランを検知した場合は中断
+- PVE ホスト側: DKMS 自動ビルド後、`nvidia-*` / `nvidia-current-*` のどちらのモジュール名か判定してロード
 - CT 側: `tasks/variables.yml` でディストリビューションとバージョンのサポート可否を先に検証
 
 ### 3) Playbook 実行
