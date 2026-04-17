@@ -204,6 +204,7 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 - PVE ホスト側: `proxmox-ve` が削除される apt プランを検知した場合は中断
 - PVE ホスト側: DKMS 自動ビルド後、`nvidia-*` / `nvidia-current-*` のどちらのモジュール名か判定してロード
 - CT 側: `tasks/variables.yml` でディストリビューションとバージョンのサポート可否を先に検証
+- CT の vLLM 側: `/dev/nvidia*` と `libcuda.so.1` の事前チェックを実施
 
 ### 3) Playbook 実行
 

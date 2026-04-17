@@ -1,3 +1,5 @@
 ---
 ct_runtime_vllm_os_family: rocky
 ct_runtime_vllm_os_major_version: '10'
+ct_runtime_vllm_cuda_packages_os:
+  - nvidia-driver-cuda-libs

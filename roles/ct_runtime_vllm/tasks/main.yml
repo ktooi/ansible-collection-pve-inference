@@ -2,6 +2,43 @@
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
+- name: Ensure optional CUDA userspace packages are installed
+  ansible.builtin.package:
+    name: "{{ ct_runtime_vllm_cuda_packages }}"
+    state: present
+  when:
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_cuda_packages | length > 0
+
+- name: Check NVIDIA device node visibility in CT
+  ansible.builtin.find:
+    paths: /dev
+    patterns: "nvidia*"
+    file_type: any
+  register: ct_runtime_vllm_dev_nodes
+
+- name: Assert NVIDIA device nodes are visible in CT
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_dev_nodes.matched | int > 0
+    fail_msg: >-
+      NVIDIA device nodes are not visible in CT (/dev/nvidia* missing). Configure CT device passthrough first.
+  when: ct_runtime_vllm_require_nvidia_device_nodes
+
+- name: Check libcuda visibility from dynamic linker cache
+  ansible.builtin.command: ldconfig -p
+  register: ct_runtime_vllm_ldconfig
+  changed_when: false
+
+- name: Assert libcuda.so.1 is available in CT
+  ansible.builtin.assert:
+    that:
+      - "'libcuda.so.1' in ct_runtime_vllm_ldconfig.stdout"
+    fail_msg: >-
+      libcuda.so.1 is not available inside CT. Mount/install NVIDIA userspace libraries
+      (for example via libcuda1 package or host library bind-mount) before starting vLLM.
+  when: ct_runtime_vllm_require_libcuda
+
 - name: Install vLLM package
   ansible.builtin.pip:
     name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"

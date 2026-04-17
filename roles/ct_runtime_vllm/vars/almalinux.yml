@@ -1,2 +1,4 @@
 ---
 ct_runtime_vllm_os_family: almalinux
+ct_runtime_vllm_cuda_packages_os:
+  - nvidia-driver-cuda-libs
