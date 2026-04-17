@@ -78,39 +78,63 @@
   ansible.builtin.find:
     paths: "/lib/modules/{{ ansible_kernel }}"
     recurse: true
-    use_regex: true
-    patterns:
-      - '^nvidia.*\\.ko(\\.xz|\\.zst)?$'
+    patterns: "nvidia*"
+    file_type: file
   register: host_nvidia_module_files
 
-- name: Assert NVIDIA kernel modules are present for running kernel
-  ansible.builtin.assert:
-    that:
-      - host_nvidia_module_files.matched | int > 0
-    fail_msg: >-
-      No NVIDIA kernel module was found under /lib/modules/{{ ansible_kernel }}.
-      Ensure DKMS built successfully for this kernel and reboot if a new kernel was installed.
+- name: Collect DKMS status for diagnostics
+  ansible.builtin.command: dkms status
+  register: host_nvidia_dkms_status_after
+  changed_when: false
+  failed_when: false
 
 - name: Detect module naming variant
   ansible.builtin.set_fact:
     host_nvidia_gpu_use_current_modules: >-
       {{ (host_nvidia_module_files.files | map(attribute='path') | select('search', 'nvidia-current') | list | length) > 0 }}
 
-- name: Select module list to load
+- name: Select primary module list to load
   ansible.builtin.set_fact:
     host_nvidia_gpu_modules_to_load: >-
       {{ host_nvidia_gpu_modules_current if host_nvidia_gpu_use_current_modules else host_nvidia_gpu_modules_standard }}
+    host_nvidia_gpu_modules_fallback: >-
+      {{ host_nvidia_gpu_modules_standard if host_nvidia_gpu_use_current_modules else host_nvidia_gpu_modules_current }}
 
 - name: Trigger device node creation
   ansible.builtin.command: nvidia-modprobe -u -c=0
   changed_when: false
   failed_when: false
 
-- name: Load NVIDIA kernel modules
+- name: Try loading primary NVIDIA module set
   ansible.builtin.command: "modprobe --ignore-install {{ item }}"
   loop: "{{ host_nvidia_gpu_modules_to_load }}"
+  register: host_nvidia_modprobe_primary
   changed_when: false
+  failed_when: false
 
+- name: Determine if primary modprobe pass succeeded
+  ansible.builtin.set_fact:
+    host_nvidia_modprobe_primary_failed: >-
+      {{ (host_nvidia_modprobe_primary.results | selectattr('rc','ne',0) | list | length) > 0 }}
+
+- name: Try fallback NVIDIA module set
+  ansible.builtin.command: "modprobe --ignore-install {{ item }}"
+  loop: "{{ host_nvidia_gpu_modules_fallback }}"
+  register: host_nvidia_modprobe_fallback
+  changed_when: false
+  failed_when: false
+  when: host_nvidia_modprobe_primary_failed
+
+- name: Assert NVIDIA modules could be loaded
+  ansible.builtin.assert:
+    that:
+      - not host_nvidia_modprobe_primary_failed or ((host_nvidia_modprobe_fallback.results | default([]) | selectattr('rc','ne',0) | list | length) == 0)
+    fail_msg: >-
+      Failed to load NVIDIA modules for kernel {{ ansible_kernel }}.
+      Found module files in /lib/modules: {{ host_nvidia_module_files.matched }}.
+      DKMS status: {{ host_nvidia_dkms_status_after.stdout | default('n/a') }}.
+      Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('rc','ne',0) | map(attribute='stderr') | list }}
+      Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('rc','ne',0) | map(attribute='stderr') | list }}
 - name: Verify NVIDIA device files exist
   ansible.builtin.find:
     paths: /dev
