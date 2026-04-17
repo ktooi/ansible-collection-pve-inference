@@ -59,8 +59,9 @@ flowchart TD
 | `ct_runtime_vllm_service_name` | systemd service unit name | `vllm.service` | Valid unit name |
 | `ct_runtime_vllm_install_cuda_userspace` | Install CUDA userspace libs inside CT | `true` | `true` / `false` |
 | `ct_runtime_vllm_cuda_packages` | CUDA userspace package list | distro-dependent | Package list |
+| `ct_runtime_vllm_fail_on_cuda_package_install` | Fail when CUDA package install fails | `false` | `true` / `false` |
 | `ct_runtime_vllm_require_libcuda` | Require `libcuda.so.1` preflight check | `true` | `true` / `false` |
-| `ct_runtime_vllm_require_nvidia_device_nodes` | Require `/dev/nvidia*` in CT | `true` | `true` / `false` |
+| `ct_runtime_vllm_require_nvidia_device_nodes` | Require `/dev/nvidia*` in CT (when `ct_runtime_vllm_device=cuda`) | `false` | `true` / `false` |
 | `ct_runtime_vllm_device` | vLLM device selection | `cuda` | `cuda`, `cpu`, runtime-supported values |
 | `ct_runtime_vllm_logging_level` | vLLM logging verbosity | `INFO` | `DEBUG`, `INFO`, `WARNING`, ... |
 | `ct_runtime_vllm_bind_host` | API bind host | `0.0.0.0` | IP/host string |

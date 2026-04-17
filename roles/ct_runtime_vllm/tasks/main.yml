@@ -48,7 +48,9 @@
       - ct_runtime_vllm_dev_nodes.matched | int > 0
     fail_msg: >-
       NVIDIA device nodes are not visible in CT (/dev/nvidia* missing). Configure CT device passthrough first.
-  when: ct_runtime_vllm_require_nvidia_device_nodes
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_nvidia_device_nodes
 
 - name: Check libcuda visibility from dynamic linker cache
   ansible.builtin.command: ldconfig -p
