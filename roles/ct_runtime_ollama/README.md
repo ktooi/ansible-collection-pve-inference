@@ -3,6 +3,8 @@
 ## Purpose
 Install and run Ollama directly inside CT as a systemd-managed service.
 
+Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaLinux/Rocky/Oracle Linux 9/10.
+
 ## Usage
 ```yaml
 - hosts: ct_targets
@@ -13,7 +15,7 @@ Install and run Ollama directly inside CT as a systemd-managed service.
     - role: ktooi.pve_inference.ct_runtime_ollama
 ```
 
-## Flow (Mermaid)
+## Flow
 ```mermaid
 flowchart TD
     A[Download Ollama archive] --> B[Extract to /usr/local]

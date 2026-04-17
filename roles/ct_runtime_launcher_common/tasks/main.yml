@@ -1,4 +1,7 @@
 ---
+- name: Load OS/distribution specific variables
+  ansible.builtin.import_tasks: variables.yml
+
 - name: Build effective shared launcher configuration
   ansible.builtin.set_fact:
     ct_runtime_launcher_effective:

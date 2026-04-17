@@ -1,0 +1,3 @@
+---
+ct_runtime_vllm_os_family: redhat
+ct_runtime_vllm_os_major_version: '10'

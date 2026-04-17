@@ -1,4 +1,7 @@
 ---
+- name: Load OS/distribution specific variables
+  ansible.builtin.import_tasks: variables.yml
+
 - name: Install runtime common packages
   ansible.builtin.package:
     name: "{{ ct_runtime_common_packages }}"

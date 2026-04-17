@@ -1,0 +1,3 @@
+---
+ct_validate_os_family: ubuntu
+ct_validate_os_major_version: '24'

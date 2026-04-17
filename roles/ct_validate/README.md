@@ -3,6 +3,8 @@
 ## Purpose
 Run post-deployment checks for GPU visibility, service presence, and API health.
 
+Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaLinux/Rocky/Oracle Linux 9/10.
+
 ## Usage
 ```yaml
 - hosts: ct_targets

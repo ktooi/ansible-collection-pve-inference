@@ -3,6 +3,8 @@
 ## Purpose
 Install/configure vLLM inside CT and manage it with systemd.
 
+Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaLinux/Rocky/Oracle Linux 9/10.
+
 This role can consume shared values from `ct_runtime_launcher_common`, while runtime-specific variables (for example `ct_runtime_vllm_model`) continue to work as before.
 
 ## Usage
@@ -36,7 +38,7 @@ ct_runtime_vllm_nccl_ignore_disabled_p2p: 1
 ct_runtime_vllm_ld_library_path: "/usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu"
 ```
 
-## Flow (Mermaid)
+## Flow
 ```mermaid
 flowchart TD
     A[Install vLLM into virtualenv] --> B[Render env file]

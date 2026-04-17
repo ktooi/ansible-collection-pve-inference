@@ -1,0 +1,3 @@
+---
+ct_runtime_vllm_os_family: almalinux
+ct_runtime_vllm_os_major_version: '9'

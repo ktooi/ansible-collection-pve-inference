@@ -1,4 +1,7 @@
 ---
+- name: Load OS/distribution specific variables
+  ansible.builtin.import_tasks: variables.yml
+
 - name: Download Ollama binary archive
   ansible.builtin.get_url:
     url: "{{ ct_runtime_ollama_binary_url }}"

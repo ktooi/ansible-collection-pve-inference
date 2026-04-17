@@ -1,0 +1,3 @@
+---
+ct_runtime_tgi_os_family: ubuntu
+ct_runtime_tgi_os_major_version: '24'

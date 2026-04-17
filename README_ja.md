@@ -39,7 +39,7 @@
 
 ---
 
-## Collection と Role の関連図（Mermaid）
+## Collection と Role の関連図
 
 ```mermaid
 flowchart TD
@@ -87,6 +87,14 @@ ansible-galaxy collection install -r requirements.yml
 ---
 
 ## 使用方法
+
+### サポート対象 CT ディストリビューション
+- Debian: 12, 13
+- Ubuntu（LTS）: 22.04, 24.04
+- RHEL および主要な RHEL クローン: 9, 10（Red Hat Enterprise Linux / AlmaLinux / Rocky Linux / Oracle Linux）
+
+CT runtime 系 Role は `tasks/variables.yml` と `vars/*.yml` を使ってディストリビューション別変数を読み分ける方式で実装しています。
+
 
 ### 1) PVE で API Token を払い出す
 

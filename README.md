@@ -39,7 +39,7 @@ See:
 
 ---
 
-## Collection and Role relationship (Mermaid)
+## Collection and Role relationship
 
 ```mermaid
 flowchart TD
@@ -87,6 +87,14 @@ ansible-galaxy collection install -r requirements.yml
 ---
 
 ## Usage
+
+### Supported CT distributions
+- Debian: 12, 13
+- Ubuntu (LTS): 22.04, 24.04
+- RHEL and major RHEL clones: 9, 10 (Red Hat Enterprise Linux, AlmaLinux, Rocky Linux, Oracle Linux)
+
+CT runtime roles load distribution-specific vars files via `tasks/variables.yml` + `vars/*.yml` to handle multi-distribution differences consistently.
+
 
 ### 1) Prepare Proxmox API token (on PVE)
 

@@ -11,7 +11,7 @@ Declaratively manage Proxmox CT lifecycle (create/update/delete).
     - role: ktooi.pve_inference.ct_instance
 ```
 
-## Flow (Mermaid)
+## Flow
 ```mermaid
 flowchart TD
     A[Input vars] --> B[community.proxmox.proxmox]

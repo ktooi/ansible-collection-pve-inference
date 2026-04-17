@@ -1,4 +1,7 @@
 ---
+- name: Load OS/distribution specific variables
+  ansible.builtin.import_tasks: variables.yml
+
 - name: Install vLLM package
   ansible.builtin.pip:
     name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"

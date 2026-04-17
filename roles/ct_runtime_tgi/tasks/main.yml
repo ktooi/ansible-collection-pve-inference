@@ -1,4 +1,7 @@
 ---
+- name: Load OS/distribution specific variables
+  ansible.builtin.import_tasks: variables.yml
+
 - name: Install TGI launcher package(s)
   ansible.builtin.pip:
     name: "{{ ct_runtime_tgi_packages }}"

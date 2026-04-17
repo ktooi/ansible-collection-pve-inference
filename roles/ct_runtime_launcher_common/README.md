@@ -3,6 +3,8 @@
 ## Purpose
 Provide shared launcher-level variables (model/context/parallelism/etc.) that can be consumed across runtime roles.
 
+Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaLinux/Rocky/Oracle Linux 9/10.
+
 This role does **not** remove runtime-specific variables. Runtime variables such as `ct_runtime_vllm_model` remain valid and can still be used directly.
 
 ## Usage

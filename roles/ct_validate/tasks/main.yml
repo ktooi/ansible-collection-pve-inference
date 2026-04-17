@@ -1,4 +1,7 @@
 ---
+- name: Load OS/distribution specific variables
+  ansible.builtin.import_tasks: variables.yml
+
 - name: Check GPU visibility
   ansible.builtin.command: "{{ ct_validate_check_gpu_command }}"
   register: ct_validate_gpu
