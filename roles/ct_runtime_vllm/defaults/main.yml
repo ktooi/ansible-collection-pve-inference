@@ -48,5 +48,6 @@ ct_runtime_vllm_install_cuda_userspace: true
 ct_runtime_vllm_cuda_packages: "{{ ct_runtime_vllm_cuda_packages_os | default([]) }}"
 ct_runtime_vllm_require_libcuda: true
 ct_runtime_vllm_require_nvidia_device_nodes: true
+ct_runtime_vllm_fail_on_cuda_package_install: false
 ct_runtime_vllm_device: cuda
 ct_runtime_vllm_logging_level: INFO

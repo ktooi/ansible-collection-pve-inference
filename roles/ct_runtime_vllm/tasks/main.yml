@@ -6,9 +6,34 @@
   ansible.builtin.package:
     name: "{{ ct_runtime_vllm_cuda_packages }}"
     state: present
+  register: ct_runtime_vllm_cuda_pkg_install
+  failed_when: false
   when:
     - ct_runtime_vllm_install_cuda_userspace
     - ct_runtime_vllm_cuda_packages | length > 0
+
+- name: Fail if CUDA userspace package install failed and strict mode is enabled
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_cuda_pkg_install is not failed
+    fail_msg: >-
+      Failed to install CUDA userspace packages: {{ ct_runtime_vllm_cuda_packages }}.
+      Set ct_runtime_vllm_cuda_packages explicitly for your distro or disable strict mode.
+  when:
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_cuda_packages | length > 0
+    - ct_runtime_vllm_fail_on_cuda_package_install
+
+- name: Warn when CUDA userspace package install failed but strict mode is disabled
+  ansible.builtin.debug:
+    msg: >-
+      CUDA userspace package install failed for {{ ct_runtime_vllm_cuda_packages }}.
+      Continuing because ct_runtime_vllm_fail_on_cuda_package_install=false. libcuda preflight will still run.
+  when:
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_cuda_packages | length > 0
+    - ct_runtime_vllm_cuda_pkg_install is failed
+    - not ct_runtime_vllm_fail_on_cuda_package_install
 
 - name: Check NVIDIA device node visibility in CT
   ansible.builtin.find:
