@@ -64,7 +64,9 @@
     fail_msg: >-
       libcuda.so.1 is not available inside CT. Mount/install NVIDIA userspace libraries
       (for example via libcuda1 package or host library bind-mount) before starting vLLM.
-  when: ct_runtime_vllm_require_libcuda
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
 
 - name: Install vLLM package
   ansible.builtin.pip:
