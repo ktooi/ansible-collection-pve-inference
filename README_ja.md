@@ -197,6 +197,12 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 - `ct_runtime_launcher_max_num_seqs`, `ct_runtime_launcher_max_num_batched_tokens`
 - `ct_runtime_vllm_dtype`, `ct_runtime_vllm_kv_cache_dtype`
 
+### Role による前提条件チェック
+
+これまで暗黙だった前提条件について、Role 内で明示チェックするようにしました。例えば:
+- PVE ホスト側: `host_nvidia_gpu` で Debian 系 / `*-pve` カーネル / `/dev/nvidia*` を確認
+- CT 側: `tasks/variables.yml` でディストリビューションとバージョンのサポート可否を先に検証
+
 ### 3) Playbook 実行
 
 ```bash

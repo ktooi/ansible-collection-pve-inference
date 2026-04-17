@@ -1,5 +1,27 @@
 ---
+host_nvidia_gpu_prereq_packages:
+  - build-essential
+  - dkms
+  - mokutil
+
+host_nvidia_gpu_header_packages:
+  - "pve-headers-{{ ansible_kernel }}"
+  - pve-headers
+
 host_nvidia_gpu_packages:
   - nvidia-driver
+  - nvidia-kernel-dkms
   - nvidia-smi
+  - nvidia-persistenced
+  - nvidia-modprobe
+  - firmware-misc-nonfree
+
+host_nvidia_gpu_modules:
+  - nvidia
+  - nvidia_uvm
+  - nvidia_modeset
+  - nvidia_drm
+
 host_nvidia_gpu_enable_persistenced: true
+host_nvidia_gpu_require_pve_kernel: true
+host_nvidia_gpu_require_nvidia_devices: true

@@ -197,6 +197,12 @@ These variables often vary by hardware size, model family, and throughput target
 - `ct_runtime_launcher_max_num_seqs`, `ct_runtime_launcher_max_num_batched_tokens`
 - `ct_runtime_vllm_dtype`, `ct_runtime_vllm_kv_cache_dtype`
 
+### Preflight checks now included in roles
+
+The collection now performs explicit precondition checks where assumptions were previously implicit, for example:
+- Proxmox host side: Debian-family + running `*-pve` kernel + NVIDIA device nodes (`/dev/nvidia*`) for `host_nvidia_gpu`
+- CT side: distribution/version support assertions before runtime tasks via `tasks/variables.yml`
+
 ### 3) Execute playbooks
 
 ```bash

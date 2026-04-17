@@ -1,8 +1,75 @@
 ---
-- name: Install NVIDIA packages
-  ansible.builtin.package:
+- name: Assert host OS family is Debian
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'Debian'
+    fail_msg: "host_nvidia_gpu currently supports Debian-based Proxmox hosts only"
+
+- name: Assert Proxmox kernel is running
+  ansible.builtin.assert:
+    that:
+      - ansible_kernel is search('pve')
+    fail_msg: >-
+      Proxmox kernel is required for this role. Current kernel: {{ ansible_kernel }}.
+      Install and boot a pve kernel first.
+  when: host_nvidia_gpu_require_pve_kernel
+
+- name: Install NVIDIA prerequisites (DKMS/toolchain)
+  ansible.builtin.apt:
+    name: "{{ host_nvidia_gpu_prereq_packages }}"
+    state: present
+    update_cache: true
+
+- name: Install matching kernel headers (preferred exact match)
+  ansible.builtin.apt:
+    name: "{{ host_nvidia_gpu_header_packages[0] }}"
+    state: present
+  register: host_nvidia_headers_exact
+  failed_when: false
+
+- name: Install generic Proxmox headers (fallback)
+  ansible.builtin.apt:
+    name: "{{ host_nvidia_gpu_header_packages[1] }}"
+    state: present
+  when: host_nvidia_headers_exact is failed
+
+- name: Ensure DKMS state is available for diagnostics
+  ansible.builtin.command: dkms status
+  register: host_nvidia_dkms_status
+  changed_when: false
+  failed_when: false
+
+- name: Install NVIDIA driver stack packages
+  ansible.builtin.apt:
     name: "{{ host_nvidia_gpu_packages }}"
     state: present
+    update_cache: true
+
+- name: Trigger device node creation
+  ansible.builtin.command: nvidia-modprobe -u -c=0
+  changed_when: false
+  failed_when: false
+
+- name: Load NVIDIA kernel modules
+  ansible.builtin.command: "modprobe {{ item }}"
+  loop: "{{ host_nvidia_gpu_modules }}"
+  changed_when: false
+
+- name: Verify NVIDIA device files exist
+  ansible.builtin.find:
+    paths: /dev
+    patterns: "nvidia*"
+    file_type: any
+  register: host_nvidia_dev_nodes
+
+- name: Assert NVIDIA device files are present
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_dev_nodes.matched | int > 0
+    fail_msg: >-
+      NVIDIA device files were not found under /dev. This usually means the driver module
+      is not loaded correctly or package installation failed.
+  when: host_nvidia_gpu_require_nvidia_devices
 
 - name: Ensure nvidia-persistenced service state
   ansible.builtin.service:
