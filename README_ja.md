@@ -201,6 +201,7 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 
 これまで暗黙だった前提条件について、Role 内で明示チェックするようにしました。例えば:
 - PVE ホスト側: `host_nvidia_gpu` で Debian 系 / `*-pve` カーネル / `/dev/nvidia*` を確認
+- PVE ホスト側: `proxmox-ve` が削除される apt プランを検知した場合は中断
 - CT 側: `tasks/variables.yml` でディストリビューションとバージョンのサポート可否を先に検証
 
 ### 3) Playbook 実行

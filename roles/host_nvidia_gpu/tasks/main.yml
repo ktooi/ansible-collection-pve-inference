@@ -39,6 +39,22 @@
   changed_when: false
   failed_when: false
 
+- name: Simulate NVIDIA package install plan
+  ansible.builtin.command: "apt-get -s install {{ host_nvidia_gpu_packages | join(' ') }}"
+  register: host_nvidia_apt_plan
+  changed_when: false
+
+- name: Assert install plan does not remove proxmox-ve meta package
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_apt_plan.stdout is not regex('(?s)The following packages will be REMOVED:.*\\bproxmox-ve\\b')
+    fail_msg: >-
+      Refusing to continue because apt simulation indicates `proxmox-ve` removal.
+      Verify APT repository configuration and package pinning before installing NVIDIA packages.
+      Typical fixes: keep Proxmox repositories enabled and avoid mixing Debian firmware packages
+      that replace `pve-firmware`.
+  when: host_nvidia_gpu_block_proxmox_removal
+
 - name: Install NVIDIA driver stack packages
   ansible.builtin.apt:
     name: "{{ host_nvidia_gpu_packages }}"

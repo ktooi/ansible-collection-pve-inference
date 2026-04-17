@@ -14,7 +14,6 @@ host_nvidia_gpu_packages:
   - nvidia-smi
   - nvidia-persistenced
   - nvidia-modprobe
-  - firmware-misc-nonfree
 
 host_nvidia_gpu_modules:
   - nvidia
@@ -25,3 +24,5 @@ host_nvidia_gpu_modules:
 host_nvidia_gpu_enable_persistenced: true
 host_nvidia_gpu_require_pve_kernel: true
 host_nvidia_gpu_require_nvidia_devices: true
+
+host_nvidia_gpu_block_proxmox_removal: true
