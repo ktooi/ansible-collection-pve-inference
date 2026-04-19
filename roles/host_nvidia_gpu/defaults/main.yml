@@ -14,6 +14,8 @@ host_nvidia_gpu_packages:
   - nvidia-persistenced
   - nvidia-modprobe
 
+host_nvidia_gpu_apt_default_release: ""
+
 host_nvidia_gpu_modules_standard:
   - nvidia
   - nvidia_uvm

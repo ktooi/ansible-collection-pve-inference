@@ -19,11 +19,13 @@
     name: "{{ host_nvidia_gpu_prereq_packages }}"
     state: present
     update_cache: true
+    default_release: "{{ host_nvidia_gpu_apt_default_release if host_nvidia_gpu_apt_default_release | length > 0 else omit }}"
 
 - name: Install exact matching Proxmox kernel headers
   ansible.builtin.apt:
     name: "{{ host_nvidia_gpu_header_packages[0] }}"
     state: present
+    default_release: "{{ host_nvidia_gpu_apt_default_release if host_nvidia_gpu_apt_default_release | length > 0 else omit }}"
   register: host_nvidia_headers_exact
   failed_when: false
 
@@ -43,7 +45,10 @@
   failed_when: false
 
 - name: Simulate NVIDIA package install plan
-  ansible.builtin.command: "apt-get -s install {{ host_nvidia_gpu_packages | join(' ') }}"
+  ansible.builtin.command: >-
+    apt-get -s
+    {% if host_nvidia_gpu_apt_default_release | length > 0 %}-t {{ host_nvidia_gpu_apt_default_release }}{% endif %}
+    install {{ host_nvidia_gpu_packages | join(' ') }}
   register: host_nvidia_apt_plan
   changed_when: false
 
@@ -63,6 +68,7 @@
     name: "{{ host_nvidia_gpu_packages }}"
     state: present
     update_cache: true
+    default_release: "{{ host_nvidia_gpu_apt_default_release if host_nvidia_gpu_apt_default_release | length > 0 else omit }}"
 
 - name: Build DKMS modules for running kernel
   ansible.builtin.command: "dkms autoinstall -k {{ ansible_kernel }}"
