@@ -104,6 +104,9 @@
         | unique
       }}
     host_nvidia_running_kernel_has_module_files: "{{ (host_nvidia_module_files.matched | default(0) | int) > 0 }}"
+
+- name: Derive combined NVIDIA running-kernel readiness fact
+  ansible.builtin.set_fact:
     host_nvidia_running_kernel_driver_ready: >-
       {{
         host_nvidia_dkms_has_running_kernel
