@@ -89,18 +89,19 @@
   ansible.builtin.set_fact:
     host_nvidia_gpu_nvidia_driver_candidate: >-
       {{
-        host_nvidia_gpu_nvidia_driver_policy.stdout
-        | regex_search('Candidate:\\s*([^\\s]+)', '\\1')
-        | default(['0'])
-        | first
+        (
+          host_nvidia_gpu_nvidia_driver_policy.stdout
+          | regex_findall('Candidate:\\s*([^\\s]+)')
+          | first
+        ) | default('(none)')
       }}
     host_nvidia_gpu_nvidia_driver_candidate_major: >-
       {{
         (
           host_nvidia_gpu_nvidia_driver_policy.stdout
-          | regex_search('Candidate:\\s*([0-9]+)', '\\1')
-          | default(['0'])
+          | regex_findall('Candidate:\\s*([0-9]+)')
           | first
+          | default('0')
         ) | int
       }}
 
