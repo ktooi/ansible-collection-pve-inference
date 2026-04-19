@@ -131,6 +131,22 @@
         ) | int
       }}
 
+- name: Simulate installability of nvidia-open-kernel-dkms candidate
+  ansible.builtin.command: >-
+    apt-get -s
+    {% if host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false) %}-t {{ host_nvidia_gpu_apt_default_release }}{% endif %}
+    install nvidia-open-kernel-dkms
+  register: host_nvidia_gpu_open_dkms_install_plan
+  changed_when: false
+  failed_when: false
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
+- name: Derive installability fact for nvidia-open-kernel-dkms candidate
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_open_dkms_installable: >-
+      {{ (host_nvidia_gpu_open_dkms_install_plan.rc | default(1) | int) == 0 }}
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
 - name: Assert nvidia-driver candidate is new enough for modern PVE kernel line
   ansible.builtin.assert:
     that:
@@ -140,6 +156,8 @@
         (
           host_nvidia_gpu_auto_select_open_kernel_module
           and
+          (host_nvidia_gpu_open_dkms_installable | default(false))
+          and
           (host_nvidia_gpu_open_dkms_candidate_major | int) >= (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
         )
     fail_msg: >-
@@ -147,7 +165,7 @@
       Required major version: >= {{ host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus }}.
       Detected candidates:
       - nvidia-driver: {{ host_nvidia_gpu_nvidia_driver_candidate }} (major={{ host_nvidia_gpu_nvidia_driver_candidate_major }})
-      - nvidia-open-kernel-dkms: {{ host_nvidia_gpu_open_dkms_candidate }} (major={{ host_nvidia_gpu_open_dkms_candidate_major }})
+      - nvidia-open-kernel-dkms: {{ host_nvidia_gpu_open_dkms_candidate }} (major={{ host_nvidia_gpu_open_dkms_candidate_major }}, installable={{ host_nvidia_gpu_open_dkms_installable | default(false) }})
       Next steps:
       1) Ensure apt sources contain a repo that provides major >= {{ host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus }} for your base distro
          (for example newer Debian suite/backports or vendor repo).
@@ -155,6 +173,8 @@
       3) Verify with `apt-cache policy nvidia-driver nvidia-open-kernel-dkms`.
       4) If only nvidia-open-kernel-dkms is new enough, keep `host_nvidia_gpu_auto_select_open_kernel_module=true`
          (or set it explicitly in inventory/group_vars), then retry this role.
+      5) If nvidia-open-kernel-dkms shows installable=false, run
+         `apt-get -s install nvidia-open-kernel-dkms` and resolve missing dependencies first.
   when:
     - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
 
@@ -171,6 +191,19 @@
     - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
     - (host_nvidia_gpu_nvidia_driver_candidate_major | int) == 0
 
+- name: Show remediation when open kernel module candidate exists but dependencies are broken
+  ansible.builtin.debug:
+    msg: |-
+      nvidia-open-kernel-dkms candidate is visible but not installable.
+      Solver output summary:
+      {{ (host_nvidia_gpu_open_dkms_install_plan.stdout | default('') ~ '\n' ~ host_nvidia_gpu_open_dkms_install_plan.stderr | default('')) | regex_replace('\n+', '\n') }}
+      Typical fix on Debian/Proxmox: ensure the same suite includes required non-free/non-free-firmware components
+      (for example firmware-nvidia-gsp), then run `apt-get update` and retry.
+  when:
+    - host_nvidia_gpu_auto_select_open_kernel_module
+    - (host_nvidia_gpu_open_dkms_candidate_major | int) > 0
+    - not (host_nvidia_gpu_open_dkms_installable | default(false))
+
 - name: Derive effective NVIDIA package list for this host
   ansible.builtin.set_fact:
     host_nvidia_gpu_packages_effective: >-
@@ -182,8 +215,7 @@
         )
         if (
           host_nvidia_gpu_auto_select_open_kernel_module
-          and
-          (host_nvidia_gpu_open_dkms_policy.stdout | default('')) is search('Candidate:\\s*(?!\\(none\\))')
+          and (host_nvidia_gpu_open_dkms_installable | default(false))
         )
         else host_nvidia_gpu_packages
       }}
