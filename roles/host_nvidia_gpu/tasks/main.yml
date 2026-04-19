@@ -18,6 +18,9 @@
   ansible.builtin.command: apt-cache policy
   register: host_nvidia_gpu_apt_policy
   changed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
   when: host_nvidia_gpu_apt_default_release | length > 0
 
 - name: Detect whether requested apt default release exists in sources
@@ -84,6 +87,9 @@
   ansible.builtin.command: apt-cache policy nvidia-driver
   register: host_nvidia_gpu_nvidia_driver_policy
   changed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
 
 - name: Derive nvidia-driver candidate major version
   ansible.builtin.set_fact:
@@ -110,6 +116,9 @@
   register: host_nvidia_gpu_open_dkms_policy
   changed_when: false
   failed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
 
 - name: Derive nvidia-open-kernel-dkms candidate major version
   ansible.builtin.set_fact:
@@ -139,6 +148,9 @@
   register: host_nvidia_gpu_open_dkms_install_plan
   changed_when: false
   failed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
   when: host_nvidia_gpu_auto_select_open_kernel_module
 
 - name: Check candidate version for firmware-nvidia-gsp
@@ -146,6 +158,9 @@
   register: host_nvidia_gpu_firmware_gsp_policy
   changed_when: false
   failed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
   when: host_nvidia_gpu_auto_select_open_kernel_module
 
 - name: Derive firmware-nvidia-gsp candidate version facts
@@ -265,6 +280,9 @@
     install {{ host_nvidia_gpu_packages_effective | join(' ') }}
   register: host_nvidia_apt_plan
   changed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
 
 - name: Assert install plan does not remove proxmox-ve meta package
   ansible.builtin.assert:
