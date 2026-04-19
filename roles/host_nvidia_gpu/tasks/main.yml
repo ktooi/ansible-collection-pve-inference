@@ -94,23 +94,31 @@
       {{
         ansible_kernel in (
           host_nvidia_dkms_status_after.stdout
-          | regex_findall('nvidia(?:-current)?/[^,]+,\\s*([^,\\s]+),\\s*x86_64')
+          | regex_findall('nvidia(?:-current)?/[^,]+,\\s*([^,\\s]+),')
         )
       }}
     host_nvidia_dkms_known_kernels: >-
       {{
         host_nvidia_dkms_status_after.stdout
-        | regex_findall('nvidia(?:-current)?/[^,]+,\\s*([^,\\s]+),\\s*x86_64')
+        | regex_findall('nvidia(?:-current)?/[^,]+,\\s*([^,\\s]+),')
         | unique
+      }}
+    host_nvidia_running_kernel_has_module_files: "{{ (host_nvidia_module_files.matched | default(0) | int) > 0 }}"
+    host_nvidia_running_kernel_driver_ready: >-
+      {{
+        host_nvidia_dkms_has_running_kernel
+        or
+        host_nvidia_running_kernel_has_module_files
       }}
 
 - name: Assert NVIDIA DKMS module exists for running kernel
   ansible.builtin.assert:
     that:
-      - host_nvidia_dkms_has_running_kernel
+      - host_nvidia_running_kernel_driver_ready
     fail_msg: >-
-      NVIDIA DKMS module is not built for the running kernel {{ ansible_kernel }}.
+      NVIDIA driver module does not appear ready for the running kernel {{ ansible_kernel }}.
       DKMS has NVIDIA modules only for kernels: {{ host_nvidia_dkms_known_kernels | default([]) }}.
+      NVIDIA module files found under /lib/modules/{{ ansible_kernel }}: {{ host_nvidia_module_files.matched | default(0) }}.
       This is commonly caused by repository/kernel-driver mismatch (for example older 535 drivers on newer PVE kernels)
       or by booting into a newer kernel before a compatible NVIDIA DKMS package is available.
       Confirm PVE/Debian repositories provide a driver compatible with {{ ansible_kernel }},

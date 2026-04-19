@@ -29,7 +29,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 ## Notes
 - This role validates implicit prerequisites (Debian family host, Proxmox kernel, exact headers, NVIDIA device nodes) and fails early if they are not met.
 - The role simulates apt install and aborts when the plan would remove `proxmox-ve`.
-- The role runs `dkms autoinstall -k {{ ansible_kernel }}`, then asserts NVIDIA DKMS is actually built for the running kernel before modprobe attempts.
+- The role runs `dkms autoinstall -k {{ ansible_kernel }}`, then checks running-kernel readiness via DKMS status and/or discovered module files before modprobe attempts.
 - If DKMS only exists for older kernels (for example after a major PVE kernel jump), the role now fails early with guidance about repo/driver compatibility and reboot requirements.
 - The role attempts both `nvidia-*` and `nvidia-current-*` module sets when needed, and fails with DKMS/modprobe diagnostics only if both paths fail.
 - If Secure Boot is enabled, ensure DKMS MOK enrollment is completed so NVIDIA modules can be loaded.
