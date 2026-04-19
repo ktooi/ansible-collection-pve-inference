@@ -86,6 +86,75 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
 
+- name: Discover fallback NVIDIA compute package candidate (APT)
+  ansible.builtin.shell: |
+    set -o pipefail
+    apt-cache search '^libnvidia-compute-[0-9]+(-server)?$' \
+      | awk '{print $1}' \
+      | sort -Vu \
+      | tail -n 1
+  args:
+    executable: /bin/bash
+  register: ct_runtime_vllm_libcuda_fallback_pkg
+  changed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+    - ansible_pkg_mgr == "apt"
+    - ct_runtime_vllm_install_cuda_userspace
+
+- name: Try installing fallback NVIDIA compute package when libcuda is still missing
+  ansible.builtin.package:
+    name: "{{ ct_runtime_vllm_libcuda_fallback_pkg.stdout }}"
+    state: present
+  register: ct_runtime_vllm_libcuda_fallback_install
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+    - ansible_pkg_mgr == "apt"
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_libcuda_fallback_pkg.stdout | length > 0
+
+- name: Re-check libcuda visibility from dynamic linker cache after fallback install
+  ansible.builtin.command: ldconfig -p
+  register: ct_runtime_vllm_ldconfig
+  changed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+
+- name: Re-check common libcuda.so.1 file locations in CT after fallback install
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ ct_runtime_vllm_libcuda_candidate_paths }}"
+  register: ct_runtime_vllm_libcuda_candidate_stats
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+
+- name: Rebuild libcuda availability fact after fallback install
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_libcuda_available: >-
+      {{
+        ('libcuda.so.1' in ct_runtime_vllm_ldconfig.stdout)
+        or
+        (
+          ct_runtime_vllm_libcuda_candidate_stats.results
+          | selectattr('stat.exists')
+          | list
+          | length > 0
+        )
+      }}
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+
 - name: Assert libcuda.so.1 is available in CT
   ansible.builtin.assert:
     that:
@@ -95,6 +164,7 @@
       candidate paths: {{ ct_runtime_vllm_libcuda_candidate_paths }}).
       Ensure NVIDIA userspace libraries are available in CT (for example via apt package install,
       host bind-mount, and/or running ldconfig after mounting) before starting vLLM.
+      Fallback package candidate: {{ ct_runtime_vllm_libcuda_fallback_pkg.stdout | default('n/a') }}.
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
