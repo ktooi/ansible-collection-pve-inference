@@ -96,11 +96,11 @@
     host_nvidia_gpu_nvidia_driver_candidate: >-
       {{
         (
-          host_nvidia_gpu_nvidia_driver_policy.stdout_lines
-          | select('match', '^\\s*Candidate:\\s+')
-          | map('regex_replace', '^\\s*Candidate:\\s+', '')
-          | first
-        ) | default('(none)')
+          host_nvidia_gpu_nvidia_driver_policy.stdout
+          | regex_search('(?m)^\\s*Candidate:\\s*\\S+')
+          | default('Candidate: (none)', true)
+          | regex_replace('(?m)^\\s*Candidate:\\s*', '')
+        )
       }}
 
 - name: Derive nvidia-driver candidate major version
@@ -122,11 +122,11 @@
     host_nvidia_gpu_open_dkms_candidate: >-
       {{
         (
-          host_nvidia_gpu_open_dkms_policy.stdout_lines
-          | select('match', '^\\s*Candidate:\\s+')
-          | map('regex_replace', '^\\s*Candidate:\\s+', '')
-          | first
-        ) | default('(none)')
+          host_nvidia_gpu_open_dkms_policy.stdout
+          | regex_search('(?m)^\\s*Candidate:\\s*\\S+')
+          | default('Candidate: (none)', true)
+          | regex_replace('(?m)^\\s*Candidate:\\s*', '')
+        )
       }}
 
 - name: Derive nvidia-open-kernel-dkms candidate major version
@@ -162,11 +162,11 @@
     host_nvidia_gpu_firmware_gsp_candidate: >-
       {{
         (
-          host_nvidia_gpu_firmware_gsp_policy.stdout_lines
-          | select('match', '^\\s*Candidate:\\s+')
-          | map('regex_replace', '^\\s*Candidate:\\s+', '')
-          | first
-        ) | default('(none)')
+          host_nvidia_gpu_firmware_gsp_policy.stdout
+          | regex_search('(?m)^\\s*Candidate:\\s*\\S+')
+          | default('Candidate: (none)', true)
+          | regex_replace('(?m)^\\s*Candidate:\\s*', '')
+        )
       }}
 
 - name: Derive firmware-nvidia-gsp candidate major version
