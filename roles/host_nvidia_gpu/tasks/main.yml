@@ -97,9 +97,9 @@
       {{
         (
           host_nvidia_gpu_nvidia_driver_policy.stdout
-          | regex_search('(?m)^\\s*Candidate:\\s*\\S+')
+          | regex_search('(?m)^\s*Candidate:\s*\S+')
           | default('Candidate: (none)', true)
-          | regex_replace('(?m)^\\s*Candidate:\\s*', '')
+          | regex_replace('(?m)^\s*Candidate:\s*', '')
         )
       }}
 
@@ -123,9 +123,9 @@
       {{
         (
           host_nvidia_gpu_open_dkms_policy.stdout
-          | regex_search('(?m)^\\s*Candidate:\\s*\\S+')
+          | regex_search('(?m)^\s*Candidate:\s*\S+')
           | default('Candidate: (none)', true)
-          | regex_replace('(?m)^\\s*Candidate:\\s*', '')
+          | regex_replace('(?m)^\s*Candidate:\s*', '')
         )
       }}
 
@@ -163,9 +163,9 @@
       {{
         (
           host_nvidia_gpu_firmware_gsp_policy.stdout
-          | regex_search('(?m)^\\s*Candidate:\\s*\\S+')
+          | regex_search('(?m)^\s*Candidate:\s*\S+')
           | default('Candidate: (none)', true)
-          | regex_replace('(?m)^\\s*Candidate:\\s*', '')
+          | regex_replace('(?m)^\s*Candidate:\s*', '')
         )
       }}
 
@@ -323,13 +323,13 @@
       {{
         ansible_kernel in (
           host_nvidia_dkms_status_after.stdout
-          | regex_findall('nvidia(?:-current)?/[^,]+,\\s*([^,\\s]+),')
+          | regex_findall('nvidia(?:-current)?/[^,]+,\s*([^,\s]+),')
         )
       }}
     host_nvidia_dkms_known_kernels: >-
       {{
         host_nvidia_dkms_status_after.stdout
-        | regex_findall('nvidia(?:-current)?/[^,]+,\\s*([^,\\s]+),')
+        | regex_findall('nvidia(?:-current)?/[^,]+,\s*([^,\s]+),')
         | unique
       }}
     host_nvidia_running_kernel_has_module_files: "{{ (host_nvidia_module_files.matched | default(0) | int) > 0 }}"
