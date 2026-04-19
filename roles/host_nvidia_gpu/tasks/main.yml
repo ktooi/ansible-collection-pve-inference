@@ -168,6 +168,7 @@
           | regex_replace('(?m)^\s*Candidate:\s*', '')
         )
       }}
+  when: host_nvidia_gpu_auto_select_open_kernel_module
 
 - name: Derive firmware-nvidia-gsp candidate major version
   ansible.builtin.set_fact:
