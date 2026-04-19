@@ -108,7 +108,7 @@
 - name: Assert nvidia-driver candidate is new enough for modern PVE kernel line
   ansible.builtin.assert:
     that:
-      - host_nvidia_gpu_nvidia_driver_candidate_major >= host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus
+      - (host_nvidia_gpu_nvidia_driver_candidate_major | int) >= (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
     fail_msg: >-
       nvidia-driver candidate version is {{ host_nvidia_gpu_nvidia_driver_candidate }} (major={{ host_nvidia_gpu_nvidia_driver_candidate_major }}),
       which is too old for running kernel {{ ansible_kernel }}.
