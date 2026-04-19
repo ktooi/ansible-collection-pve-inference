@@ -105,16 +105,56 @@
         ) | int
       }}
 
+- name: Check whether nvidia-open-kernel-dkms has an installable candidate
+  ansible.builtin.command: apt-cache policy nvidia-open-kernel-dkms
+  register: host_nvidia_gpu_open_dkms_policy
+  changed_when: false
+  failed_when: false
+
+- name: Derive nvidia-open-kernel-dkms candidate major version
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_open_dkms_candidate: >-
+      {{
+        (
+          host_nvidia_gpu_open_dkms_policy.stdout
+          | regex_findall('Candidate:\\s*([^\\s]+)')
+          | first
+        ) | default('(none)')
+      }}
+    host_nvidia_gpu_open_dkms_candidate_major: >-
+      {{
+        (
+          host_nvidia_gpu_open_dkms_policy.stdout
+          | regex_findall('Candidate:\\s*([0-9]+)')
+          | first
+          | default('0')
+        ) | int
+      }}
+
 - name: Assert nvidia-driver candidate is new enough for modern PVE kernel line
   ansible.builtin.assert:
     that:
-      - (host_nvidia_gpu_nvidia_driver_candidate_major | int) >= (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
+      - >-
+        (host_nvidia_gpu_nvidia_driver_candidate_major | int) >= (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
+        or
+        (
+          host_nvidia_gpu_auto_select_open_kernel_module
+          and
+          (host_nvidia_gpu_open_dkms_candidate_major | int) >= (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
+        )
     fail_msg: >-
-      nvidia-driver candidate version is {{ host_nvidia_gpu_nvidia_driver_candidate }} (major={{ host_nvidia_gpu_nvidia_driver_candidate_major }}),
-      which is too old for running kernel {{ ansible_kernel }}.
-      Configure apt sources to provide a newer NVIDIA stack (for example a newer Debian suite/backports or vendor repo),
-      run `apt-get update`, verify with `apt-cache policy nvidia-driver nvidia-open-kernel-dkms`,
-      then retry this role.
+      NVIDIA candidates are not compatible with kernel {{ ansible_kernel }}.
+      Required major version: >= {{ host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus }}.
+      Detected candidates:
+      - nvidia-driver: {{ host_nvidia_gpu_nvidia_driver_candidate }} (major={{ host_nvidia_gpu_nvidia_driver_candidate_major }})
+      - nvidia-open-kernel-dkms: {{ host_nvidia_gpu_open_dkms_candidate }} (major={{ host_nvidia_gpu_open_dkms_candidate_major }})
+      Next steps:
+      1) Ensure apt sources contain a repo that provides major >= {{ host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus }} for your base distro
+         (for example newer Debian suite/backports or vendor repo).
+      2) Run `apt-get update`.
+      3) Verify with `apt-cache policy nvidia-driver nvidia-open-kernel-dkms`.
+      4) If only nvidia-open-kernel-dkms is new enough, keep `host_nvidia_gpu_auto_select_open_kernel_module=true`
+         (or set it explicitly in inventory/group_vars), then retry this role.
   when:
     - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
 
@@ -130,13 +170,6 @@
   when:
     - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
     - (host_nvidia_gpu_nvidia_driver_candidate_major | int) == 0
-
-- name: Check whether nvidia-open-kernel-dkms has an installable candidate
-  ansible.builtin.command: apt-cache policy nvidia-open-kernel-dkms
-  register: host_nvidia_gpu_open_dkms_policy
-  changed_when: false
-  failed_when: false
-  when: host_nvidia_gpu_auto_select_open_kernel_module
 
 - name: Derive effective NVIDIA package list for this host
   ansible.builtin.set_fact:
