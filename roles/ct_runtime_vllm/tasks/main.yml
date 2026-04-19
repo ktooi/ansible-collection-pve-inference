@@ -56,14 +56,45 @@
   ansible.builtin.command: ldconfig -p
   register: ct_runtime_vllm_ldconfig
   changed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+
+- name: Check common libcuda.so.1 file locations in CT
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ ct_runtime_vllm_libcuda_candidate_paths }}"
+  register: ct_runtime_vllm_libcuda_candidate_stats
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+
+- name: Build libcuda availability fact
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_libcuda_available: >-
+      {{
+        ('libcuda.so.1' in ct_runtime_vllm_ldconfig.stdout)
+        or
+        (
+          ct_runtime_vllm_libcuda_candidate_stats.results
+          | selectattr('stat.exists')
+          | list
+          | length > 0
+        )
+      }}
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
 
 - name: Assert libcuda.so.1 is available in CT
   ansible.builtin.assert:
     that:
-      - "'libcuda.so.1' in ct_runtime_vllm_ldconfig.stdout"
+      - ct_runtime_vllm_libcuda_available
     fail_msg: >-
-      libcuda.so.1 is not available inside CT. Mount/install NVIDIA userspace libraries
-      (for example via libcuda1 package or host library bind-mount) before starting vLLM.
+      libcuda.so.1 is not available inside CT (not found in ldconfig cache and not present in any
+      candidate paths: {{ ct_runtime_vllm_libcuda_candidate_paths }}).
+      Ensure NVIDIA userspace libraries are available in CT (for example via apt package install,
+      host bind-mount, and/or running ldconfig after mounting) before starting vLLM.
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
