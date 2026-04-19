@@ -88,6 +88,34 @@
   changed_when: false
   failed_when: false
 
+- name: Derive NVIDIA DKMS compatibility facts for running kernel
+  ansible.builtin.set_fact:
+    host_nvidia_dkms_has_running_kernel: >-
+      {{
+        ansible_kernel in (
+          host_nvidia_dkms_status_after.stdout
+          | regex_findall('nvidia(?:-current)?/[^,]+,\\s*([^,\\s]+),\\s*x86_64')
+        )
+      }}
+    host_nvidia_dkms_known_kernels: >-
+      {{
+        host_nvidia_dkms_status_after.stdout
+        | regex_findall('nvidia(?:-current)?/[^,]+,\\s*([^,\\s]+),\\s*x86_64')
+        | unique
+      }}
+
+- name: Assert NVIDIA DKMS module exists for running kernel
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_dkms_has_running_kernel
+    fail_msg: >-
+      NVIDIA DKMS module is not built for the running kernel {{ ansible_kernel }}.
+      DKMS has NVIDIA modules only for kernels: {{ host_nvidia_dkms_known_kernels | default([]) }}.
+      This is commonly caused by repository/kernel-driver mismatch (for example older 535 drivers on newer PVE kernels)
+      or by booting into a newer kernel before a compatible NVIDIA DKMS package is available.
+      Confirm PVE/Debian repositories provide a driver compatible with {{ ansible_kernel }},
+      run apt full-upgrade, and reboot if needed.
+
 - name: Detect module naming variant
   ansible.builtin.set_fact:
     host_nvidia_gpu_use_current_modules: >-
