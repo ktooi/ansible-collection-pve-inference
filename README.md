@@ -204,7 +204,7 @@ The collection now performs explicit precondition checks where assumptions were 
 - Proxmox host side: apt install simulation guard to prevent plans that remove `proxmox-ve`
 - Proxmox host side: DKMS autoinstall + kernel module variant detection (`nvidia-*` or `nvidia-current-*`) before module load
 - CT side: distribution/version support assertions before runtime tasks via `tasks/variables.yml`
-- CT vLLM side: default preflight check for `libcuda.so.1` plus optional `/dev/nvidia*` visibility check (`ct_runtime_vllm_require_nvidia_device_nodes`)
+- CT vLLM side: default preflight checks for `libcuda.so.1`, `/dev/nvidia*`, and `torch.cuda` availability inside the venv
 
 ### 3) Execute playbooks
 

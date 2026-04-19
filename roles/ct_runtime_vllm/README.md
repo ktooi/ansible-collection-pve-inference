@@ -61,8 +61,9 @@ flowchart TD
 | `ct_runtime_vllm_cuda_packages` | CUDA userspace package list | distro-dependent | Package list |
 | `ct_runtime_vllm_fail_on_cuda_package_install` | Fail when CUDA package install fails | `false` | `true` / `false` |
 | `ct_runtime_vllm_require_libcuda` | Require `libcuda.so.1` preflight check (when `ct_runtime_vllm_device=cuda`) | `true` | `true` / `false` |
+| `ct_runtime_vllm_require_torch_cuda_available` | Require `torch.cuda.is_available()` and GPU count preflight (when `ct_runtime_vllm_device=cuda`) | `true` | `true` / `false` |
 | `ct_runtime_vllm_libcuda_candidate_paths` | Extra file paths checked for `libcuda.so.1` in CT | see defaults | List of absolute paths |
-| `ct_runtime_vllm_require_nvidia_device_nodes` | Require `/dev/nvidia*` in CT (when `ct_runtime_vllm_device=cuda`) | `false` | `true` / `false` |
+| `ct_runtime_vllm_require_nvidia_device_nodes` | Require `/dev/nvidia*` in CT (when `ct_runtime_vllm_device=cuda`) | `true` | `true` / `false` |
 | `ct_runtime_vllm_device` | vLLM device selection | `cuda` | `cuda`, `cpu`, runtime-supported values |
 | `ct_runtime_vllm_logging_level` | vLLM logging verbosity | `INFO` | `DEBUG`, `INFO`, `WARNING`, ... |
 | `ct_runtime_vllm_bind_host` | API bind host | `0.0.0.0` | IP/host string |

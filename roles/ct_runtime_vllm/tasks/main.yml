@@ -174,6 +174,48 @@
     name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
     virtualenv: "{{ ct_runtime_vllm_venv }}"
 
+- name: Probe CUDA availability from torch in vLLM venv
+  ansible.builtin.command:
+    argv:
+      - "{{ ct_runtime_vllm_venv }}/bin/python"
+      - -c
+      - |
+        import json
+        import torch
+        print(json.dumps({"is_available": torch.cuda.is_available(), "device_count": torch.cuda.device_count()}))
+  register: ct_runtime_vllm_torch_cuda_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Build torch CUDA probe fact
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_torch_cuda_info: >-
+      {{
+        (ct_runtime_vllm_torch_cuda_probe.stdout | default('{}') | trim | from_json)
+        if ct_runtime_vllm_torch_cuda_probe.rc == 0
+        else {}
+      }}
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Assert torch can see CUDA devices in vLLM venv
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_torch_cuda_probe.rc == 0
+      - ct_runtime_vllm_torch_cuda_info.is_available | default(false)
+      - (ct_runtime_vllm_torch_cuda_info.device_count | default(0) | int) > 0
+    fail_msg: >-
+      torch in {{ ct_runtime_vllm_venv }} cannot use CUDA devices (probe={{ ct_runtime_vllm_torch_cuda_info | default({}) }}).
+      This usually means CT device passthrough/permissions are incomplete (for example /dev/nvidia* missing),
+      even if libcuda.so.1 exists. Verify host NVIDIA driver status and CT passthrough settings.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+
 - name: Render vLLM environment file
   ansible.builtin.template:
     src: vllm.env.j2
