@@ -80,11 +80,75 @@
   changed_when: false
   failed_when: false
 
+- name: Check candidate version for nvidia-driver
+  ansible.builtin.command: apt-cache policy nvidia-driver
+  register: host_nvidia_gpu_nvidia_driver_policy
+  changed_when: false
+
+- name: Derive nvidia-driver candidate major version
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_nvidia_driver_candidate: >-
+      {{
+        host_nvidia_gpu_nvidia_driver_policy.stdout
+        | regex_search('Candidate:\\s*([^\\s]+)', '\\1')
+        | default(['0'])
+        | first
+      }}
+    host_nvidia_gpu_nvidia_driver_candidate_major: >-
+      {{
+        (
+          host_nvidia_gpu_nvidia_driver_policy.stdout
+          | regex_search('Candidate:\\s*([0-9]+)', '\\1')
+          | default(['0'])
+          | first
+        ) | int
+      }}
+
+- name: Assert nvidia-driver candidate is new enough for modern PVE kernel line
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_nvidia_driver_candidate_major >= host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus
+    fail_msg: >-
+      nvidia-driver candidate version is {{ host_nvidia_gpu_nvidia_driver_candidate }} (major={{ host_nvidia_gpu_nvidia_driver_candidate_major }}),
+      which is too old for running kernel {{ ansible_kernel }}.
+      Configure apt sources to provide a newer NVIDIA stack (for example a newer Debian suite/backports or vendor repo),
+      then retry.
+  when:
+    - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
+
+- name: Check whether nvidia-open-kernel-dkms has an installable candidate
+  ansible.builtin.command: apt-cache policy nvidia-open-kernel-dkms
+  register: host_nvidia_gpu_open_dkms_policy
+  changed_when: false
+  failed_when: false
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
+- name: Derive effective NVIDIA package list for this host
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_packages_effective: >-
+      {{
+        (
+          host_nvidia_gpu_packages
+          | map('regex_replace', '^nvidia-kernel-dkms$', 'nvidia-open-kernel-dkms')
+          | list
+        )
+        if (
+          host_nvidia_gpu_auto_select_open_kernel_module
+          and
+          (host_nvidia_gpu_open_dkms_policy.stdout | default('')) is search('Candidate:\\s*(?!\\(none\\))')
+        )
+        else host_nvidia_gpu_packages
+      }}
+
+- name: Show selected NVIDIA package list
+  ansible.builtin.debug:
+    msg: "Using NVIDIA package list: {{ host_nvidia_gpu_packages_effective }}"
+
 - name: Simulate NVIDIA package install plan
   ansible.builtin.command: >-
     apt-get -s
     {% if host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false) %}-t {{ host_nvidia_gpu_apt_default_release }}{% endif %}
-    install {{ host_nvidia_gpu_packages | join(' ') }}
+    install {{ host_nvidia_gpu_packages_effective | join(' ') }}
   register: host_nvidia_apt_plan
   changed_when: false
 
@@ -101,7 +165,7 @@
 
 - name: Install NVIDIA driver stack packages
   ansible.builtin.apt:
-    name: "{{ host_nvidia_gpu_packages }}"
+    name: "{{ host_nvidia_gpu_packages_effective }}"
     state: present
     update_cache: true
     default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
