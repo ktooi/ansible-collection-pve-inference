@@ -256,6 +256,15 @@
         if (
           host_nvidia_gpu_auto_select_open_kernel_module
           and (host_nvidia_gpu_open_dkms_installable | default(false))
+          and
+          (
+            (host_nvidia_gpu_prefer_open_kernel_module | default(false))
+            or
+            (
+              (host_nvidia_gpu_nvidia_driver_candidate_major | int)
+              < (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
+            )
+          )
         )
         else host_nvidia_gpu_packages
       }}
