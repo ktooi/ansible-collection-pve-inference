@@ -91,25 +91,22 @@
     LANG: C
     LC_ALL: C
 
-- name: Derive nvidia-driver candidate major version
+- name: Derive nvidia-driver candidate version
   ansible.builtin.set_fact:
     host_nvidia_gpu_nvidia_driver_candidate: >-
       {{
         (
-          host_nvidia_gpu_nvidia_driver_policy.stdout
-          | regex_findall('Candidate:\\s*([^\\s]+)')
+          host_nvidia_gpu_nvidia_driver_policy.stdout_lines
+          | select('match', '^\\s*Candidate:\\s+')
+          | map('regex_replace', '^\\s*Candidate:\\s+', '')
           | first
         ) | default('(none)')
       }}
+
+- name: Derive nvidia-driver candidate major version
+  ansible.builtin.set_fact:
     host_nvidia_gpu_nvidia_driver_candidate_major: >-
-      {{
-        (
-          host_nvidia_gpu_nvidia_driver_policy.stdout
-          | regex_findall('Candidate:\\s*([0-9]+)')
-          | first
-          | default('0')
-        ) | int
-      }}
+      {{ (host_nvidia_gpu_nvidia_driver_candidate | regex_search('^([0-9]+)', '\\1') | default('0')) | int }}
 
 - name: Check whether nvidia-open-kernel-dkms has an installable candidate
   ansible.builtin.command: apt-cache policy nvidia-open-kernel-dkms
@@ -120,25 +117,22 @@
     LANG: C
     LC_ALL: C
 
-- name: Derive nvidia-open-kernel-dkms candidate major version
+- name: Derive nvidia-open-kernel-dkms candidate version
   ansible.builtin.set_fact:
     host_nvidia_gpu_open_dkms_candidate: >-
       {{
         (
-          host_nvidia_gpu_open_dkms_policy.stdout
-          | regex_findall('Candidate:\\s*([^\\s]+)')
+          host_nvidia_gpu_open_dkms_policy.stdout_lines
+          | select('match', '^\\s*Candidate:\\s+')
+          | map('regex_replace', '^\\s*Candidate:\\s+', '')
           | first
         ) | default('(none)')
       }}
+
+- name: Derive nvidia-open-kernel-dkms candidate major version
+  ansible.builtin.set_fact:
     host_nvidia_gpu_open_dkms_candidate_major: >-
-      {{
-        (
-          host_nvidia_gpu_open_dkms_policy.stdout
-          | regex_findall('Candidate:\\s*([0-9]+)')
-          | first
-          | default('0')
-        ) | int
-      }}
+      {{ (host_nvidia_gpu_open_dkms_candidate | regex_search('^([0-9]+)', '\\1') | default('0')) | int }}
 
 - name: Simulate installability of nvidia-open-kernel-dkms candidate
   ansible.builtin.command: >-
@@ -163,25 +157,22 @@
     LC_ALL: C
   when: host_nvidia_gpu_auto_select_open_kernel_module
 
-- name: Derive firmware-nvidia-gsp candidate version facts
+- name: Derive firmware-nvidia-gsp candidate version
   ansible.builtin.set_fact:
     host_nvidia_gpu_firmware_gsp_candidate: >-
       {{
         (
-          host_nvidia_gpu_firmware_gsp_policy.stdout
-          | regex_findall('Candidate:\\s*([^\\s]+)')
+          host_nvidia_gpu_firmware_gsp_policy.stdout_lines
+          | select('match', '^\\s*Candidate:\\s+')
+          | map('regex_replace', '^\\s*Candidate:\\s+', '')
           | first
         ) | default('(none)')
       }}
+
+- name: Derive firmware-nvidia-gsp candidate major version
+  ansible.builtin.set_fact:
     host_nvidia_gpu_firmware_gsp_candidate_major: >-
-      {{
-        (
-          host_nvidia_gpu_firmware_gsp_policy.stdout
-          | regex_findall('Candidate:\\s*([0-9]+)')
-          | first
-          | default('0')
-        ) | int
-      }}
+      {{ (host_nvidia_gpu_firmware_gsp_candidate | regex_search('^([0-9]+)', '\\1') | default('0')) | int }}
   when: host_nvidia_gpu_auto_select_open_kernel_module
 
 - name: Derive installability fact for nvidia-open-kernel-dkms candidate
