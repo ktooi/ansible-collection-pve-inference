@@ -78,7 +78,7 @@
   ansible.builtin.find:
     paths: "/lib/modules/{{ ansible_kernel }}"
     recurse: true
-    patterns: "nvidia*"
+    patterns: "nvidia*.ko*"
     file_type: file
   register: host_nvidia_module_files
 
@@ -111,7 +111,11 @@
       {{
         host_nvidia_dkms_has_running_kernel
         or
-        host_nvidia_running_kernel_has_module_files
+        (
+          (host_nvidia_dkms_known_kernels | length == 0)
+          and
+          host_nvidia_running_kernel_has_module_files
+        )
       }}
 
 - name: Assert NVIDIA DKMS module exists for running kernel
