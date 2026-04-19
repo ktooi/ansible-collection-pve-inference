@@ -141,6 +141,34 @@
   failed_when: false
   when: host_nvidia_gpu_auto_select_open_kernel_module
 
+- name: Check candidate version for firmware-nvidia-gsp
+  ansible.builtin.command: apt-cache policy firmware-nvidia-gsp
+  register: host_nvidia_gpu_firmware_gsp_policy
+  changed_when: false
+  failed_when: false
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
+- name: Derive firmware-nvidia-gsp candidate version facts
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_firmware_gsp_candidate: >-
+      {{
+        (
+          host_nvidia_gpu_firmware_gsp_policy.stdout
+          | regex_findall('Candidate:\\s*([^\\s]+)')
+          | first
+        ) | default('(none)')
+      }}
+    host_nvidia_gpu_firmware_gsp_candidate_major: >-
+      {{
+        (
+          host_nvidia_gpu_firmware_gsp_policy.stdout
+          | regex_findall('Candidate:\\s*([0-9]+)')
+          | first
+          | default('0')
+        ) | int
+      }}
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
 - name: Derive installability fact for nvidia-open-kernel-dkms candidate
   ansible.builtin.set_fact:
     host_nvidia_gpu_open_dkms_installable: >-
@@ -166,6 +194,7 @@
       Detected candidates:
       - nvidia-driver: {{ host_nvidia_gpu_nvidia_driver_candidate }} (major={{ host_nvidia_gpu_nvidia_driver_candidate_major }})
       - nvidia-open-kernel-dkms: {{ host_nvidia_gpu_open_dkms_candidate }} (major={{ host_nvidia_gpu_open_dkms_candidate_major }}, installable={{ host_nvidia_gpu_open_dkms_installable | default(false) }})
+      - firmware-nvidia-gsp: {{ host_nvidia_gpu_firmware_gsp_candidate | default('(n/a)') }} (major={{ host_nvidia_gpu_firmware_gsp_candidate_major | default(0) }})
       Next steps:
       1) Ensure apt sources contain a repo that provides major >= {{ host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus }} for your base distro
          (for example newer Debian suite/backports or vendor repo).
@@ -175,6 +204,8 @@
          (or set it explicitly in inventory/group_vars), then retry this role.
       5) If nvidia-open-kernel-dkms shows installable=false, run
          `apt-get -s install nvidia-open-kernel-dkms` and resolve missing dependencies first.
+      6) Ensure matching suite components are enabled for firmware packages (`non-free-firmware` and `non-free`)
+         on the same Debian release line used for NVIDIA packages.
   when:
     - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
 
@@ -198,7 +229,10 @@
       Solver output summary:
       {{ (host_nvidia_gpu_open_dkms_install_plan.stdout | default('') ~ '\n' ~ host_nvidia_gpu_open_dkms_install_plan.stderr | default('')) | regex_replace('\n+', '\n') }}
       Typical fix on Debian/Proxmox: ensure the same suite includes required non-free/non-free-firmware components
-      (for example firmware-nvidia-gsp), then run `apt-get update` and retry.
+      (for example firmware-nvidia-gsp).
+      Current firmware-nvidia-gsp candidate: {{ host_nvidia_gpu_firmware_gsp_candidate | default('(none)') }}.
+      If it is older than the open DKMS line, align apt sources so NVIDIA packages and firmware come from the same suite,
+      then run `apt-get update` and retry.
   when:
     - host_nvidia_gpu_auto_select_open_kernel_module
     - (host_nvidia_gpu_open_dkms_candidate_major | int) > 0
