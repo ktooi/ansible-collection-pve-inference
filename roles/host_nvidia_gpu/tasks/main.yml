@@ -113,9 +113,23 @@
       nvidia-driver candidate version is {{ host_nvidia_gpu_nvidia_driver_candidate }} (major={{ host_nvidia_gpu_nvidia_driver_candidate_major }}),
       which is too old for running kernel {{ ansible_kernel }}.
       Configure apt sources to provide a newer NVIDIA stack (for example a newer Debian suite/backports or vendor repo),
-      then retry.
+      run `apt-get update`, verify with `apt-cache policy nvidia-driver nvidia-open-kernel-dkms`,
+      then retry this role.
   when:
     - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
+
+- name: Show remediation commands when no nvidia-driver candidate is visible
+  ansible.builtin.debug:
+    msg: |-
+      nvidia-driver candidate is not visible in apt policy on this host.
+      Run the following checks on the PVE host:
+        grep -R --line-number -E '^(deb|deb-src) ' /etc/apt/sources.list /etc/apt/sources.list.d/*.list
+        apt-get update
+        apt-cache policy nvidia-driver nvidia-open-kernel-dkms
+      If `Candidate: (none)` persists, add an apt source that provides newer NVIDIA packages for your base distro.
+  when:
+    - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
+    - (host_nvidia_gpu_nvidia_driver_candidate_major | int) == 0
 
 - name: Check whether nvidia-open-kernel-dkms has an installable candidate
   ansible.builtin.command: apt-cache policy nvidia-open-kernel-dkms
