@@ -14,18 +14,54 @@
       Install and boot a pve kernel first.
   when: host_nvidia_gpu_require_pve_kernel
 
+- name: Collect apt policy output when target release override is set
+  ansible.builtin.command: apt-cache policy
+  register: host_nvidia_gpu_apt_policy
+  changed_when: false
+  when: host_nvidia_gpu_apt_default_release | length > 0
+
+- name: Detect whether requested apt default release exists in sources
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_apt_default_release_available: >-
+      {{
+        host_nvidia_gpu_apt_policy.stdout is search(host_nvidia_gpu_apt_default_release)
+      }}
+  when: host_nvidia_gpu_apt_default_release | length > 0
+
+- name: Assert requested apt default release exists when strict mode is enabled
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_apt_default_release_available
+    fail_msg: >-
+      Requested host_nvidia_gpu_apt_default_release={{ host_nvidia_gpu_apt_default_release }}
+      is not available in this host's apt sources.
+      Add the matching repository first, or unset host_nvidia_gpu_apt_default_release.
+  when:
+    - host_nvidia_gpu_apt_default_release | length > 0
+    - host_nvidia_gpu_require_apt_default_release
+
+- name: Warn when requested apt default release is unavailable and fallback to default apt behavior
+  ansible.builtin.debug:
+    msg: >-
+      host_nvidia_gpu_apt_default_release={{ host_nvidia_gpu_apt_default_release }} was requested
+      but is not present in apt sources. Proceeding without default_release override.
+  when:
+    - host_nvidia_gpu_apt_default_release | length > 0
+    - not host_nvidia_gpu_require_apt_default_release
+    - not host_nvidia_gpu_apt_default_release_available
+
 - name: Install NVIDIA prerequisites (DKMS/toolchain)
   ansible.builtin.apt:
     name: "{{ host_nvidia_gpu_prereq_packages }}"
     state: present
     update_cache: true
-    default_release: "{{ host_nvidia_gpu_apt_default_release if host_nvidia_gpu_apt_default_release | length > 0 else omit }}"
+    default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
 
 - name: Install exact matching Proxmox kernel headers
   ansible.builtin.apt:
     name: "{{ host_nvidia_gpu_header_packages[0] }}"
     state: present
-    default_release: "{{ host_nvidia_gpu_apt_default_release if host_nvidia_gpu_apt_default_release | length > 0 else omit }}"
+    default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
   register: host_nvidia_headers_exact
   failed_when: false
 
@@ -47,7 +83,7 @@
 - name: Simulate NVIDIA package install plan
   ansible.builtin.command: >-
     apt-get -s
-    {% if host_nvidia_gpu_apt_default_release | length > 0 %}-t {{ host_nvidia_gpu_apt_default_release }}{% endif %}
+    {% if host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false) %}-t {{ host_nvidia_gpu_apt_default_release }}{% endif %}
     install {{ host_nvidia_gpu_packages | join(' ') }}
   register: host_nvidia_apt_plan
   changed_when: false
@@ -68,7 +104,7 @@
     name: "{{ host_nvidia_gpu_packages }}"
     state: present
     update_cache: true
-    default_release: "{{ host_nvidia_gpu_apt_default_release if host_nvidia_gpu_apt_default_release | length > 0 else omit }}"
+    default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
 
 - name: Build DKMS modules for running kernel
   ansible.builtin.command: "dkms autoinstall -k {{ ansible_kernel }}"

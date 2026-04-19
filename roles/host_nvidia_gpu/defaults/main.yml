@@ -15,6 +15,7 @@ host_nvidia_gpu_packages:
   - nvidia-modprobe
 
 host_nvidia_gpu_apt_default_release: ""
+host_nvidia_gpu_require_apt_default_release: false
 
 host_nvidia_gpu_modules_standard:
   - nvidia

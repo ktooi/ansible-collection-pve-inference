@@ -19,6 +19,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_header_packages` | Exact header package for running kernel | `['pve-headers-{{ ansible_kernel }}']` | Package list |
 | `host_nvidia_gpu_packages` | NVIDIA driver stack packages | `['nvidia-driver','nvidia-kernel-dkms','nvidia-smi','nvidia-persistenced','nvidia-modprobe']` | Package list |
 | `host_nvidia_gpu_apt_default_release` | APT target release (`-t`) for NVIDIA-related installs | `""` | Empty or apt suite (e.g. `trixie-backports`) |
+| `host_nvidia_gpu_require_apt_default_release` | Fail if configured target release is unavailable in apt sources | `false` | `true` / `false` |
 | `host_nvidia_gpu_modules_standard` | Standard NVIDIA module names | `['nvidia','nvidia_uvm','nvidia_modeset','nvidia_drm']` | Module name list |
 | `host_nvidia_gpu_modules_current` | Debian alias-based NVIDIA module names | `['nvidia-current','nvidia-current-uvm','nvidia-current-modeset','nvidia-current-drm']` | Module name list |
 | `host_nvidia_gpu_enable_persistenced` | Enable/start `nvidia-persistenced` | `true` | `true` / `false` |
@@ -30,6 +31,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 ## Notes
 - This role validates implicit prerequisites (Debian family host, Proxmox kernel, exact headers, NVIDIA device nodes) and fails early if they are not met.
 - The role simulates apt install and aborts when the plan would remove `proxmox-ve`.
+- When `host_nvidia_gpu_apt_default_release` is set but unavailable in apt sources, the role warns and falls back to normal apt behavior unless strict mode is enabled.
 - The role runs `dkms autoinstall -k {{ ansible_kernel }}`, then checks running-kernel readiness via DKMS status first; module-file fallback is used only when DKMS reports no NVIDIA kernel entries.
 - If DKMS only exists for older kernels (for example after a major PVE kernel jump), the role now fails early with guidance about repo/driver compatibility and reboot requirements.
 - The role attempts both `nvidia-*` and `nvidia-current-*` module sets when needed, and fails with DKMS/modprobe diagnostics only if both paths fail.
