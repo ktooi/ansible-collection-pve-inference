@@ -56,3 +56,5 @@ ct_runtime_vllm_libcuda_candidate_paths:
   - /usr/lib/x86_64-linux-gnu/libcuda.so.1
 ct_runtime_vllm_device: cuda
 ct_runtime_vllm_logging_level: INFO
+
+ct_runtime_vllm_torch_cuda_probe_mode: strict
