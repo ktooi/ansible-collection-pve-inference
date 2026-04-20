@@ -33,6 +33,7 @@ ct_runtime_vllm_max_num_batched_tokens: "{{ ct_runtime_launcher_max_num_batched_
 # Tool/reasoning parsing
 ct_runtime_vllm_tool_call_parser: "{{ ct_runtime_launcher_tool_call_parser | default('') }}"
 ct_runtime_vllm_reasoning_parser: "{{ ct_runtime_launcher_reasoning_parser | default('') }}"
+ct_runtime_vllm_enable_auto_tool_choice: false
 
 # NCCL / comms
 ct_runtime_vllm_nccl_p2p_disable: 0

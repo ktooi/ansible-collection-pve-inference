@@ -29,6 +29,7 @@ ct_runtime_vllm_max_num_seqs: 128
 ct_runtime_vllm_max_num_batched_tokens: 8192
 ct_runtime_vllm_tool_call_parser: "qwen3_coder"
 ct_runtime_vllm_reasoning_parser: "qwen3"
+ct_runtime_vllm_enable_auto_tool_choice: true
 ct_runtime_vllm_served_model_name: "qwen3.5"
 ct_runtime_vllm_nccl_p2p_disable: 0
 ct_runtime_vllm_nccl_ib_disable: 0
@@ -90,6 +91,7 @@ flowchart TD
 | `ct_runtime_vllm_max_num_batched_tokens` | Max batched tokens | `4096` | Integer `>=1` |
 | `ct_runtime_vllm_tool_call_parser` | Tool call parser backend | `""` | Empty or parser name |
 | `ct_runtime_vllm_reasoning_parser` | Reasoning parser backend | `""` | Empty or parser name |
+| `ct_runtime_vllm_enable_auto_tool_choice` | Enable vLLM `--enable-auto-tool-choice` | `false` | `true` / `false` |
 | `ct_runtime_vllm_nccl_p2p_disable` | NCCL P2P disable flag | `0` | `0` / `1` |
 | `ct_runtime_vllm_nccl_ib_disable` | NCCL IB disable flag | `0` | `0` / `1` |
 | `ct_runtime_vllm_nccl_p2p_level` | NCCL P2P level | `5` | Integer |
