@@ -65,6 +65,36 @@
       register: ct_instance_manage_result
 
   rescue:
+    - name: Detect timeout error from CT create/update task
+      when:
+        - ct_instance_state == 'present'
+        - ct_instance_treat_timeout_as_existing_ct | bool
+        - ct_instance_manage_result is defined
+      ansible.builtin.set_fact:
+        ct_instance_timeout_detected: >-
+          {{
+            'reached timeout while waiting for creating vm'
+            in ((ct_instance_manage_result.msg | default('')) | lower)
+          }}
+
+    - name: Check whether CT already exists after timeout
+      become: true
+      ansible.builtin.command: "pct status {{ ct_instance_vmid }}"
+      register: ct_instance_pct_status_after_timeout
+      changed_when: false
+      failed_when: false
+      when:
+        - ct_instance_state == 'present'
+        - ct_instance_timeout_detected | default(false)
+
+    - name: Mark timeout as acceptable when CT exists
+      when:
+        - ct_instance_state == 'present'
+        - ct_instance_timeout_detected | default(false)
+        - ct_instance_pct_status_after_timeout.rc | default(1) == 0
+      ansible.builtin.set_fact:
+        ct_instance_existing_ct_detected: true
+
     - name: Mark existing CT as acceptable on rerun
       when:
         - ct_instance_state == 'present'
@@ -106,6 +136,7 @@
   failed_when:
     - ct_instance_pct_stop.rc != 0
     - "'already stopped' not in ((ct_instance_pct_stop.stderr | default('')) | lower)"
+    - "'not running' not in ((ct_instance_pct_stop.stderr | default('')) | lower)"
   when:
     - ct_instance_enable_nvidia_passthrough | bool
     - ct_instance_restart_on_nvidia_passthrough_change | bool

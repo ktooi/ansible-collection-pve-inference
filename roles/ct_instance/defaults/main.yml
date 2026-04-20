@@ -23,6 +23,7 @@ ct_instance_features:
   nesting: 0
 ct_instance_mounts: {}
 ct_instance_timeout: 600
+ct_instance_treat_timeout_as_existing_ct: true
 ct_instance_state: present
 
 ct_instance_enable_nvidia_passthrough: false
