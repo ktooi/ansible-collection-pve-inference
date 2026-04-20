@@ -66,3 +66,5 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 
 > When create waits hit timeout but CT is already present, the role can continue (`ct_instance_treat_timeout_as_existing_ct: true`).
 > Also, passthrough restart logic tolerates `pct stop` returning `CT <vmid> not running`.
+
+> NVIDIA UVM majors can vary by host/driver (for example `/dev/nvidia-uvm` major `503` on newer stacks). The built-in passthrough block includes common UVM/caps majors, and you can still override `ct_instance_nvidia_passthrough_block` if your host uses a different major.

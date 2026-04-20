@@ -32,7 +32,10 @@ ct_instance_nvidia_passthrough_block: |
   lxc.cgroup2.devices.allow: c 195:* rwm
   lxc.cgroup2.devices.allow: c 234:* rwm
   lxc.cgroup2.devices.allow: c 235:* rwm
+  lxc.cgroup2.devices.allow: c 503:* rwm
+  lxc.cgroup2.devices.allow: c 508:* rwm
   lxc.cgroup2.devices.allow: c 509:* rwm
+  lxc.cgroup2.devices.allow: c 510:* rwm
   lxc.cgroup2.devices.allow: c 511:* rwm
   lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file
   lxc.mount.entry: /dev/nvidia1 dev/nvidia1 none bind,optional,create=file
