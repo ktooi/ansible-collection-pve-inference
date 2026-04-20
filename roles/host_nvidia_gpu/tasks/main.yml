@@ -499,7 +499,7 @@
 - name: Assert installed NVIDIA driver major version is new enough
   ansible.builtin.assert:
     that:
-      - host_nvidia_gpu_installed_driver_major >= (host_nvidia_gpu_min_installed_driver_major | int)
+      - (host_nvidia_gpu_installed_driver_major | int) >= (host_nvidia_gpu_min_installed_driver_major | int)
     fail_msg: >-
       Installed NVIDIA driver major version is too old for the requested policy.
       Installed driver: {{ host_nvidia_gpu_driver_version_query.stdout_lines | default([]) | first | default('unknown') }}
