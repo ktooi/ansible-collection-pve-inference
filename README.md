@@ -107,7 +107,7 @@ Example (adapt for your policy):
 pveum user add ansible@pve --password 'REPLACE_ME'
 
 # create a role with required privileges (example)
-pveum role add AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
+pveum role add AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.Config.Options VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
 
 # assign role to user (scope: /)
 pveum aclmod / -user ansible@pve -role AnsiblePVE
@@ -156,7 +156,7 @@ Minimum fix:
 Example:
 
 ```bash
-pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
+pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.Config.Options VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
 pveum aclmod / -user ansible@pve -role AnsiblePVE
 ```
 
@@ -176,6 +176,27 @@ Operational guidance:
 - Prefer `ct_instance_unprivileged: true` when using API tokens/non-root automation users.
 - Use `ct_instance_unprivileged: false` only when you explicitly need privileged CT behavior and accept the security/permission trade-offs.
 
+### Troubleshooting: 403 Forbidden (`Permission check failed (/vms/<vmid>, VM.Config.Options)`)
+
+If you see:
+
+- `403 Forbidden: Permission check failed (/vms/<vmid>, VM.Config.Options)`
+
+then the API user/token can access the VM path but cannot modify CT options.
+This role sets options such as `onboot`/`unprivileged`, so `VM.Config.Options` is required.
+
+How to resolve:
+
+- Ensure the role used by Ansible includes `VM.Config.Options`.
+- Re-apply ACL for the automation user.
+
+Example:
+
+```bash
+pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.Config.Options VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
+pveum aclmod / -user ansible@pve -role AnsiblePVE
+```
+
 ### Troubleshooting: 403 Forbidden (`Permission check failed (/sdn/... , SDN.Use)`)
 
 If you see an error like:
@@ -192,7 +213,7 @@ How to resolve:
 Example:
 
 ```bash
-pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
+pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.Config.Options VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
 pveum aclmod / -user ansible@pve -role AnsiblePVE
 ```
 
