@@ -5,6 +5,9 @@ ct_runtime_vllm_venv: /opt/inference/venv
 ct_runtime_vllm_workdir: /opt/inference
 ct_runtime_vllm_env_file: /etc/default/vllm
 ct_runtime_vllm_service_name: vllm.service
+ct_runtime_vllm_stdout_log: /var/log/inference/vllm.stdout.log
+ct_runtime_vllm_stderr_log: /var/log/inference/vllm.stderr.log
+ct_runtime_vllm_systemd_log_to_files: true
 
 # API endpoint
 ct_runtime_vllm_bind_host: "{{ ct_runtime_launcher_bind_host | default('0.0.0.0') }}"

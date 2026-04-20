@@ -310,6 +310,18 @@
     mode: "0644"
   notify: Restart vllm
 
+- name: Ensure vLLM log files exist when file logging is enabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: touch
+    owner: "{{ ct_runtime_vllm_user }}"
+    group: "{{ ct_runtime_vllm_group }}"
+    mode: "0644"
+  loop:
+    - "{{ ct_runtime_vllm_stdout_log }}"
+    - "{{ ct_runtime_vllm_stderr_log }}"
+  when: ct_runtime_vllm_systemd_log_to_files
+
 - name: Render vLLM systemd service unit
   ansible.builtin.template:
     src: vllm.service.j2

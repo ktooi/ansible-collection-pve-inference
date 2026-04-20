@@ -57,6 +57,9 @@ flowchart TD
 | `ct_runtime_vllm_workdir` | systemd WorkingDirectory | `/opt/inference` | Absolute path |
 | `ct_runtime_vllm_env_file` | Environment file path | `/etc/default/vllm` | Absolute path |
 | `ct_runtime_vllm_service_name` | systemd service unit name | `vllm.service` | Valid unit name |
+| `ct_runtime_vllm_systemd_log_to_files` | Write service stdout/stderr to files via systemd `append:` | `true` | `true` / `false` |
+| `ct_runtime_vllm_stdout_log` | vLLM stdout log file path (when file logging enabled) | `/var/log/inference/vllm.stdout.log` | Absolute path |
+| `ct_runtime_vllm_stderr_log` | vLLM stderr log file path (when file logging enabled) | `/var/log/inference/vllm.stderr.log` | Absolute path |
 | `ct_runtime_vllm_install_cuda_userspace` | Install CUDA userspace libs inside CT | `true` | `true` / `false` |
 | `ct_runtime_vllm_cuda_packages` | CUDA userspace package list | distro-dependent | Package list |
 | `ct_runtime_vllm_fail_on_cuda_package_install` | Fail when CUDA package install fails | `false` | `true` / `false` |
@@ -100,3 +103,5 @@ flowchart TD
 > CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check.
 
 > Driver/torch alignment note: when host driver is older than the default torch CUDA build bundled via `vllm`, set `ct_runtime_vllm_torch_package` and `ct_runtime_vllm_torch_extra_index_url` to install a compatible torch wheel explicitly before preflight (for example CUDA 12.4 wheels for NVIDIA 550-series hosts).
+
+> Logging note: some minimal CT environments do not persist journald entries. By default this role configures systemd to append vLLM stdout/stderr into `/var/log/inference/vllm.stdout.log` and `/var/log/inference/vllm.stderr.log` for troubleshooting restart loops.
