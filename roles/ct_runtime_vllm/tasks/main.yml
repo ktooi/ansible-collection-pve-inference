@@ -200,6 +200,31 @@
     name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
     virtualenv: "{{ ct_runtime_vllm_venv }}"
 
+- name: Probe NVIDIA driver runtime with nvidia-smi
+  ansible.builtin.command:
+    argv:
+      - nvidia-smi
+      - -L
+  register: ct_runtime_vllm_nvidia_smi_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_nvidia_smi
+
+- name: Assert nvidia-smi probe succeeded in CT
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_nvidia_smi_probe.rc == 0
+      - (ct_runtime_vllm_nvidia_smi_probe.stdout | default('') | trim | length) > 0
+    fail_msg: >-
+      nvidia-smi preflight failed in CT (rc={{ ct_runtime_vllm_nvidia_smi_probe.rc }},
+      stderr={{ ct_runtime_vllm_nvidia_smi_probe.stderr | default('') | trim }}).
+      NVIDIA driver/runtime may be misconfigured for this container even if /dev/nvidia* and libcuda are present.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_nvidia_smi
+
 - name: Probe CUDA availability from torch in vLLM venv
   ansible.builtin.command:
     argv:
