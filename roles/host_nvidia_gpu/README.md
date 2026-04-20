@@ -22,6 +22,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_require_apt_default_release` | Fail if configured target release is unavailable in apt sources | `false` | `true` / `false` |
 | `host_nvidia_gpu_auto_select_open_kernel_module` | Prefer `nvidia-open-kernel-dkms` when available | `true` | `true` / `false` |
 | `host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus` | Minimum accepted `nvidia-driver` major for kernel `>=6.12` | `550` | Integer |
+| `host_nvidia_gpu_min_installed_driver_major` | Enforce minimum installed driver major after install (`0` disables) | `0` | Integer |
 | `host_nvidia_gpu_modules_standard` | Standard NVIDIA module names | `['nvidia','nvidia_uvm','nvidia_modeset','nvidia_drm']` | Module name list |
 | `host_nvidia_gpu_modules_current` | Debian alias-based NVIDIA module names | `['nvidia-current','nvidia-current-uvm','nvidia-current-modeset','nvidia-current-drm']` | Module name list |
 | `host_nvidia_gpu_enable_persistenced` | Enable/start `nvidia-persistenced` | `true` | `true` / `false` |
@@ -42,3 +43,4 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - If Secure Boot is enabled, ensure DKMS MOK enrollment is completed so NVIDIA modules can be loaded.
 
 - The role also validates critical host CUDA nodes (`/dev/nvidiactl`, `/dev/nvidia-uvm`) are character devices before CT passthrough use.
+- To enforce a CUDA 12.8-class host baseline in automation, set `host_nvidia_gpu_min_installed_driver_major: 570`.

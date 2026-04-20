@@ -478,3 +478,33 @@
   ansible.builtin.command: nvidia-smi -L
   register: nvidia_smi_devices
   changed_when: false
+
+- name: Query installed NVIDIA driver version from nvidia-smi
+  ansible.builtin.command: nvidia-smi --query-gpu=driver_version --format=csv,noheader
+  register: host_nvidia_gpu_driver_version_query
+  changed_when: false
+
+- name: Derive installed NVIDIA driver major version
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_installed_driver_major: >-
+      {{
+        (
+          host_nvidia_gpu_driver_version_query.stdout_lines | default([]) | first | default('0')
+        )
+        | regex_search('^[0-9]+')
+        | default('0', true)
+        | int
+      }}
+
+- name: Assert installed NVIDIA driver major version is new enough
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_installed_driver_major >= (host_nvidia_gpu_min_installed_driver_major | int)
+    fail_msg: >-
+      Installed NVIDIA driver major version is too old for the requested policy.
+      Installed driver: {{ host_nvidia_gpu_driver_version_query.stdout_lines | default([]) | first | default('unknown') }}
+      Parsed major: {{ host_nvidia_gpu_installed_driver_major }}.
+      Required major: >= {{ host_nvidia_gpu_min_installed_driver_major }}.
+      Upgrade host NVIDIA driver packages (for example by enabling newer apt sources and rerunning this role),
+      then reboot host and rerun runtime roles.
+  when: (host_nvidia_gpu_min_installed_driver_major | int) > 0
