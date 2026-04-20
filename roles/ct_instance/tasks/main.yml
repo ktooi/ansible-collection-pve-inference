@@ -1,4 +1,25 @@
 ---
+- name: Normalize Proxmox feature flags for module input
+  ansible.builtin.set_fact:
+    ct_instance_features_effective: >-
+      {{
+        (
+          ct_instance_features
+          | dict2items
+          | map(attribute='key')
+          | zip(
+              ct_instance_features
+              | dict2items
+              | map(attribute='value')
+              | map('string')
+            )
+          | map('join', '=')
+          | list
+        )
+        if (ct_instance_features is mapping)
+        else (ct_instance_features | default([]))
+      }}
+
 - name: Manage CT lifecycle
   community.general.proxmox:
     api_host: "{{ ct_instance_api_host }}"
@@ -15,7 +36,7 @@
     swap: "{{ ct_instance_swap }}"
     rootfs: "{{ ct_instance_storage }}:{{ ct_instance_rootfs_size }}"
     netif: "{{ ct_instance_netif }}"
-    features: "{{ ct_instance_features }}"
+    features: "{{ ct_instance_features_effective }}"
     mounts: "{{ ct_instance_mounts }}"
     unprivileged: "{{ ct_instance_unprivileged }}"
     onboot: "{{ ct_instance_onboot }}"
