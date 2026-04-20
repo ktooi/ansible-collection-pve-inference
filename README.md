@@ -166,6 +166,16 @@ Then verify with:
 pveum user permissions ansible@pve
 ```
 
+### Note: Is `ct_instance_unprivileged: false` required for vLLM?
+
+No. In this collection, vLLM itself does **not** require a privileged CT.
+What vLLM needs is GPU visibility inside CT (`/dev/nvidia*`, `libcuda.so.1`, and `torch.cuda` checks).
+
+Operational guidance:
+
+- Prefer `ct_instance_unprivileged: true` when using API tokens/non-root automation users.
+- Use `ct_instance_unprivileged: false` only when you explicitly need privileged CT behavior and accept the security/permission trade-offs.
+
 ### Troubleshooting: 403 Forbidden (`changing feature flags for privileged container`)
 
 If you see:

@@ -43,3 +43,8 @@ flowchart TD
 | `ct_instance_features` | Proxmox CT features (`map` or `list`) (applied only for unprivileged CT, or when `ct_instance_api_user` is `root@pam`) | `{'nesting': 0}` | Feature map (`{nesting: 1}`) or list (`['nesting=1']`) |
 | `ct_instance_mounts` | Mount points map | `{}` | Proxmox mounts map |
 | `ct_instance_state` | Desired CT state | `present` | `present` / `absent` / module-supported states |
+
+
+## Note on vLLM and privileged mode
+`ct_instance_unprivileged: false` is **not** a hard requirement for vLLM.
+In this collection, vLLM readiness is validated by GPU visibility checks inside CT (for example `/dev/nvidia*`, `libcuda.so.1`, and `torch.cuda`), not by privileged mode itself.
