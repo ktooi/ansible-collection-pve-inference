@@ -107,7 +107,7 @@ Example (adapt for your policy):
 pveum user add ansible@pve --password 'REPLACE_ME'
 
 # create a role with required privileges (example)
-pveum role add AnsiblePVE -privs "VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit"
+pveum role add AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit"
 
 # assign role to user (scope: /)
 pveum aclmod / -user ansible@pve -role AnsiblePVE
@@ -138,6 +138,32 @@ ansible-playbook -i inventory.ini playbooks/ct_create.yml --vault-password-file 
 
 ```yaml
 vault_pve_api_token_secret: "REPLACE_WITH_REAL_TOKEN_SECRET"
+```
+
+### Troubleshooting: 403 Forbidden (`Permission check failed (/, Sys.Modify)`)
+
+If token authentication succeeds but CT creation fails with:
+
+- `403 Forbidden: Permission check failed (/, Sys.Modify)`
+
+the API user/token is authenticated, but required ACL privileges are missing.
+
+Minimum fix:
+
+- Include `Sys.Modify` in the role privileges used by Ansible.
+- Re-apply ACL on `/` for the automation user (or a stricter path that still covers required operations).
+
+Example:
+
+```bash
+pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit"
+pveum aclmod / -user ansible@pve -role AnsiblePVE
+```
+
+Then verify with:
+
+```bash
+pveum user permissions ansible@pve
 ```
 
 ### Troubleshooting: 401 Unauthorized
