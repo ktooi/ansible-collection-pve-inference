@@ -428,6 +428,29 @@
       DKMS status: {{ host_nvidia_dkms_status_after.stdout | default('n/a') }}.
       Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
       Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
+- name: Trigger NVIDIA device node creation after modules are loaded
+  ansible.builtin.command: nvidia-modprobe -u -c=0
+  changed_when: false
+  failed_when: false
+
+- name: Check critical host NVIDIA nodes
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /dev/nvidiactl
+    - /dev/nvidia-uvm
+  register: host_nvidia_critical_nodes
+
+- name: Assert critical host NVIDIA nodes are character devices
+  ansible.builtin.assert:
+    that:
+      - (host_nvidia_critical_nodes.results | selectattr('stat.exists', 'equalto', true) | list | length) == 2
+      - (host_nvidia_critical_nodes.results | selectattr('stat.ischr', 'equalto', true) | list | length) == 2
+    fail_msg: >-
+      Critical host NVIDIA nodes are missing or not character devices (/dev/nvidiactl, /dev/nvidia-uvm).
+      Ensure NVIDIA modules are loaded and nvidia-modprobe can create UVM nodes.
+  when: host_nvidia_gpu_require_nvidia_devices
+
 - name: Verify NVIDIA device files exist
   ansible.builtin.find:
     paths: /dev

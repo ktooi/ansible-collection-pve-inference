@@ -40,3 +40,5 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - If DKMS only exists for older kernels (for example after a major PVE kernel jump), the role now fails early with guidance about repo/driver compatibility and reboot requirements.
 - The role attempts both `nvidia-*` and `nvidia-current-*` module sets when needed, and fails with DKMS/modprobe diagnostics only if both paths fail.
 - If Secure Boot is enabled, ensure DKMS MOK enrollment is completed so NVIDIA modules can be loaded.
+
+- The role also validates critical host CUDA nodes (`/dev/nvidiactl`, `/dev/nvidia-uvm`) are character devices before CT passthrough use.
