@@ -3,6 +3,7 @@ ct_instance_api_host: "{{ inventory_hostname }}"
 ct_instance_api_user: root@pam
 ct_instance_api_token_id: ""
 ct_instance_api_token_secret: ""
+ct_instance_validate_certs: false
 ct_instance_password: ""
 ct_instance_pubkey: ""
 ct_instance_node: pve

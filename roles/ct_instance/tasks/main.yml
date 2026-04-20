@@ -29,18 +29,34 @@
         else ct_instance_api_token_id
       }}
 
+- name: Check whether CT already exists
+  ansible.builtin.uri:
+    url: "https://{{ ct_instance_api_host }}:8006/api2/json/nodes/{{ ct_instance_node }}/lxc/{{ ct_instance_vmid }}/status/current"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ ct_instance_api_user }}!{{ ct_instance_api_token_id_effective }}={{ ct_instance_api_token_secret }}"
+    status_code: [200, 404]
+    validate_certs: "{{ ct_instance_validate_certs }}"
+  delegate_to: localhost
+  register: ct_instance_current_status
+
+- name: Set CT existence fact
+  ansible.builtin.set_fact:
+    ct_instance_exists: "{{ ct_instance_current_status.status == 200 }}"
+
 - name: Manage CT lifecycle
   community.general.proxmox:
     api_host: "{{ ct_instance_api_host }}"
     api_user: "{{ ct_instance_api_user }}"
     api_token_id: "{{ ct_instance_api_token_id_effective }}"
     api_token_secret: "{{ ct_instance_api_token_secret }}"
+    validate_certs: "{{ ct_instance_validate_certs }}"
     node: "{{ ct_instance_node }}"
     vmid: "{{ ct_instance_vmid }}"
     hostname: "{{ ct_instance_hostname }}"
-    ostemplate: "{{ ct_instance_ostemplate }}"
-    password: "{{ (ct_instance_password | default('')) if ((ct_instance_password | default('') | length) > 0) else omit }}"
-    pubkey: "{{ (ct_instance_pubkey | default('')) if ((ct_instance_pubkey | default('') | length) > 0) else omit }}"
+    ostemplate: "{{ ct_instance_ostemplate if not ct_instance_exists else omit }}"
+    password: "{{ (ct_instance_password | default('')) if (((ct_instance_password | default('') | length) > 0) and (not ct_instance_exists)) else omit }}"
+    pubkey: "{{ (ct_instance_pubkey | default('')) if (((ct_instance_pubkey | default('') | length) > 0) and (not ct_instance_exists)) else omit }}"
     storage: "{{ ct_instance_storage }}"
     cores: "{{ ct_instance_cores }}"
     memory: "{{ ct_instance_memory }}"
@@ -86,6 +102,7 @@
     api_user: "{{ ct_instance_api_user }}"
     api_token_id: "{{ ct_instance_api_token_id_effective }}"
     api_token_secret: "{{ ct_instance_api_token_secret }}"
+    validate_certs: "{{ ct_instance_validate_certs }}"
     node: "{{ ct_instance_node }}"
     vmid: "{{ ct_instance_vmid }}"
     timeout: "{{ ct_instance_timeout }}"
@@ -104,6 +121,7 @@
     api_user: "{{ ct_instance_api_user }}"
     api_token_id: "{{ ct_instance_api_token_id_effective }}"
     api_token_secret: "{{ ct_instance_api_token_secret }}"
+    validate_certs: "{{ ct_instance_validate_certs }}"
     node: "{{ ct_instance_node }}"
     vmid: "{{ ct_instance_vmid }}"
     timeout: "{{ ct_instance_timeout }}"

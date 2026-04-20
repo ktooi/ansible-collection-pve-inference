@@ -278,6 +278,7 @@ ct_instance_api_host: "192.0.2.10"
 ct_instance_api_user: "ansible@pve"
 ct_instance_api_token_id: "ci-token"
 ct_instance_api_token_secret: "{{ vault_pve_api_token_secret }}"
+ct_instance_validate_certs: false
 ct_instance_password: "{{ vault_ct_root_password }}"
 ct_instance_pubkey: "{{ vault_ct_root_pubkey }}"
 ct_instance_node: "pve01"
@@ -344,6 +345,16 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 
 `ct_instance_password` と `ct_instance_pubkey` を両方設定した場合、どちらの認証方式も利用できます。
 
+### トラブルシューティング: `CT <vmid> already exists on node`
+
+`ct_create.yml` で `CT <vmid> already exists` が出る場合、再実行時の冪等性が崩れています。
+本 Collection は CT 存在確認を行い、再実行時には作成専用項目（`ostemplate`、初期 `password`/`pubkey`）を省略するよう改善しました。
+
+継続して失敗する場合は次を確認してください。
+
+- `ct_instance_vmid` が意図した既存 CT と一致しているか
+- 実行環境の Role が最新版か
+
 ### トラブルシューティング: CT 内で /dev/nvidia* が見えない
 
 `runtime_vllm` で `/dev/nvidia* missing` が出る場合、CT 側のデバイスパススルー設定が不足しています。
@@ -392,6 +403,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_api_user` | Proxmox API ユーザー | `root@pam` | 有効な PVE API ユーザー |
 | `ct_instance_api_token_id` | API Token 名（推奨）または従来形式 `<user>!<token_name>` | `""` | `ci-token`（推奨）または `<user>!<token_name>` |
 | `ct_instance_api_token_secret` | API Token Secret | `""` | Token secret 文字列 |
+| `ct_instance_validate_certs` | Proxmox API HTTPS 証明書を検証するか | `false` | `true` / `false` |
 | `ct_instance_password` | CT root 初期パスワード（任意） | `""` | 空でない文字列（vault 推奨） |
 | `ct_instance_pubkey` | CT root 初期公開鍵（任意） | `""` | SSH 公開鍵 1 行 |
 | `ct_instance_node` | CT 作成対象ノード | `pve` | 既存ノード名 |

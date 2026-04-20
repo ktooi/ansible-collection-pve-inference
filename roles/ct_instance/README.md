@@ -28,6 +28,7 @@ flowchart TD
 | `ct_instance_api_user` | Proxmox API user | `root@pam` | Valid PVE API user |
 | `ct_instance_api_token_id` | API token name (preferred) or legacy `<user>!<token_name>` | `""` | `ci-token` (preferred), or `<user>!<token_name>` |
 | `ct_instance_api_token_secret` | API token secret | `""` | Token secret string |
+| `ct_instance_validate_certs` | Validate HTTPS cert for Proxmox API | `false` | `true` / `false` |
 | `ct_instance_password` | Initial CT root password (optional) | `""` | Non-empty string (prefer vault) |
 | `ct_instance_pubkey` | Initial CT root public key (optional) | `""` | SSH public key line |
 | `ct_instance_node` | Target node name | `pve` | Existing node name |
@@ -57,3 +58,6 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 
 
 > For vLLM on CUDA inside CT, enabling `ct_instance_enable_nvidia_passthrough` is typically required.
+
+
+> If CT already exists, the role omits create-only fields (for example `ostemplate`, initial `password`/`pubkey`) to avoid recreate errors and keep reruns idempotent.

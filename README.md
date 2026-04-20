@@ -295,6 +295,7 @@ ct_instance_api_host: "192.0.2.10"
 ct_instance_api_user: "ansible@pve"
 ct_instance_api_token_id: "ci-token"
 ct_instance_api_token_secret: "{{ vault_pve_api_token_secret }}"
+ct_instance_validate_certs: false
 ct_instance_password: "{{ vault_ct_root_password }}"
 ct_instance_pubkey: "{{ vault_ct_root_pubkey }}"
 ct_instance_node: "pve01"
@@ -361,6 +362,16 @@ Set at least one of the following in `group_vars/ct_targets.yml`:
 
 If both `ct_instance_password` and `ct_instance_pubkey` are set, you can use either method.
 
+### Troubleshooting: `CT <vmid> already exists on node`
+
+If `ct_create.yml` fails with `CT <vmid> already exists`, re-run behavior should be idempotent.
+This collection now checks CT existence first and omits create-only module fields on rerun.
+
+If you still see this error, verify that:
+
+- `ct_instance_vmid` points to the intended existing CT.
+- the role/task version in your execution environment is the latest one.
+
 ### Troubleshooting: /dev/nvidia* missing in CT
 
 If `runtime_vllm` fails with `/dev/nvidia* missing`, configure CT device passthrough.
@@ -409,6 +420,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_api_user` | Proxmox API user | `root@pam` | Valid PVE API user (e.g. `ansible@pve`) |
 | `ct_instance_api_token_id` | API token name (preferred) or legacy `<user>!<token_name>` | `""` | `ci-token` (preferred), or `<user>!<token_name>` |
 | `ct_instance_api_token_secret` | API token secret | `""` | Token secret string |
+| `ct_instance_validate_certs` | Validate HTTPS cert for Proxmox API | `false` | `true` / `false` |
 | `ct_instance_password` | Initial CT root password (optional) | `""` | Non-empty string (prefer vault) |
 | `ct_instance_pubkey` | Initial CT root public key (optional) | `""` | SSH public key line |
 | `ct_instance_node` | Target PVE node | `pve` | Existing node name |
