@@ -78,7 +78,8 @@ flowchart TD
 | `ct_runtime_vllm_bind_host` | API bind host | `0.0.0.0` | IP/host string |
 | `ct_runtime_vllm_port` | API port | `8000` | Integer `1..65535` |
 | `ct_runtime_vllm_model` | Model identifier | `mistralai/Mistral-7B-Instruct-v0.3` | Valid model identifier |
-| `ct_runtime_vllm_served_model_name` | Force served model name | `""` | Empty, string, or list (first non-empty string is used) |
+| `ct_runtime_vllm_served_model_name` | Candidate served model name value | `""` | Empty, string, or list (first non-empty string is used) |
+| `ct_runtime_vllm_pass_served_model_name` | Pass `--served-model-name` to vLLM CLI | `false` | `true` / `false` |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |
 | `ct_runtime_vllm_pipeline_parallel_size` | Pipeline parallel size | `1` | Integer `>=1` |
 | `ct_runtime_vllm_gpu_memory_utilization` | GPU memory utilization ratio | `0.9` | Float `0.1..1.0` |
@@ -115,4 +116,4 @@ flowchart TD
 
 > Restart-loop note: default policy is `on-failure` (not `always`) so normal exits do not loop forever. If you still see restarts, inspect `/var/log/inference/vllm.stderr.log` and kernel OOM logs (`dmesg -T | grep -i -E 'killed process|out of memory'`).
 
-> Served-model-name note: if shared launcher vars accidentally provide a list (for example `['qwen3.5', None]`), this role now normalizes it and passes only the first non-empty string to `--served-model-name`.
+> Served-model-name note: if shared launcher vars accidentally provide a list (for example `['qwen3.5', None]`), this role normalizes it to the first non-empty string. Passing `--served-model-name` is disabled by default (`ct_runtime_vllm_pass_served_model_name=false`) because some vLLM versions reject/validate this path strictly.
