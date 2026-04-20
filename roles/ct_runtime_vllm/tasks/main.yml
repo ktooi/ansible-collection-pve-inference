@@ -195,11 +195,6 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
 
-- name: Install vLLM package
-  ansible.builtin.pip:
-    name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
-    virtualenv: "{{ ct_runtime_vllm_venv }}"
-
 - name: Install/override torch package for selected CUDA stack
   ansible.builtin.pip:
     name: "{{ ct_runtime_vllm_torch_package }}"
@@ -211,6 +206,11 @@
         else omit
       }}
   when: ct_runtime_vllm_torch_package | length > 0
+
+- name: Install vLLM package
+  ansible.builtin.pip:
+    name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
+    virtualenv: "{{ ct_runtime_vllm_venv }}"
 
 - name: Probe NVIDIA driver runtime with nvidia-smi
   ansible.builtin.command:
