@@ -305,6 +305,7 @@ ct_instance_memory: 131072       # CT memory (MiB)
 ct_instance_rootfs_size: 512     # CT rootfs size (GiB)
 ct_instance_storage: "local-lvm"
 ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
+ct_instance_enable_nvidia_passthrough: true
 ```
 
 `group_vars/ct_targets.yml` (example):
@@ -360,6 +361,19 @@ Set at least one of the following in `group_vars/ct_targets.yml`:
 
 If both `ct_instance_password` and `ct_instance_pubkey` are set, you can use either method.
 
+### Troubleshooting: /dev/nvidia* missing in CT
+
+If `runtime_vllm` fails with `/dev/nvidia* missing`, configure CT device passthrough.
+
+Recommended with this collection:
+
+```yaml
+ct_instance_enable_nvidia_passthrough: true
+```
+
+Then re-run `playbooks/ct_create.yml` so the role writes passthrough entries to `/etc/pve/lxc/<vmid>.conf`.
+If the passthrough block changes, the role can restart CT automatically (`ct_instance_restart_on_nvidia_passthrough_change: true`).
+
 ### Troubleshooting: apt 404 in runtime playbooks
 
 If `runtime_*` playbooks fail in `ct_runtime_common` with Debian `404 Not Found` during package install, the CT apt cache is stale.
@@ -404,6 +418,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_rootfs_size` | CT rootfs size (GiB) | `128` | Integer `>=8` |
 | `ct_instance_storage` | Storage for rootfs | `local-lvm` | Existing PVE storage ID |
 | `ct_instance_timeout` | Proxmox task wait timeout (seconds) | `600` | Integer `>=30` |
+| `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA passthrough block in CT config | `false` | `true` / `false` |
 | `ct_instance_ostemplate` | CT OS template | Debian 12 template path | Existing `vztmpl` path |
 | `ct_runtime_vllm_model` | Model ID served by vLLM | `mistralai/Mistral-7B-Instruct-v0.3` | Valid Hugging Face/local model identifier |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |

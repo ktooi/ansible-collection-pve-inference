@@ -45,9 +45,15 @@ flowchart TD
 | `ct_instance_features` | Proxmox CT features (`map` or `list`) (applied only for unprivileged CT, or when `ct_instance_api_user` is `root@pam`) | `{'nesting': 0}` | Feature map (`{nesting: 1}`) or list (`['nesting=1']`) |
 | `ct_instance_mounts` | Mount points map | `{}` | Proxmox mounts map |
 | `ct_instance_timeout` | Proxmox task wait timeout (seconds) | `600` | Integer `>=30` |
+| `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA device passthrough entries in `/etc/pve/lxc/<vmid>.conf` | `false` | `true` / `false` |
+| `ct_instance_restart_on_nvidia_passthrough_change` | Restart CT when passthrough block changes | `true` | `true` / `false` |
+| `ct_instance_nvidia_passthrough_block` | Raw LXC config block for NVIDIA passthrough | built-in default block | Multiline LXC config text |
 | `ct_instance_state` | Desired CT state | `present` | `present` / `absent` / module-supported states |
 
 
 ## Note on vLLM and privileged mode
 `ct_instance_unprivileged: false` is **not** a hard requirement for vLLM.
 In this collection, vLLM readiness is validated by GPU visibility checks inside CT (for example `/dev/nvidia*`, `libcuda.so.1`, and `torch.cuda`), not by privileged mode itself.
+
+
+> For vLLM on CUDA inside CT, enabling `ct_instance_enable_nvidia_passthrough` is typically required.

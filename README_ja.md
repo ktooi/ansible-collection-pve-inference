@@ -288,6 +288,7 @@ ct_instance_memory: 131072       # CT のメモリサイズ (MiB)
 ct_instance_rootfs_size: 512     # CT のディスクサイズ (GiB)
 ct_instance_storage: "local-lvm"
 ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
+ct_instance_enable_nvidia_passthrough: true
 ```
 
 `group_vars/ct_targets.yml` 例:
@@ -343,6 +344,19 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 
 `ct_instance_password` と `ct_instance_pubkey` を両方設定した場合、どちらの認証方式も利用できます。
 
+### トラブルシューティング: CT 内で /dev/nvidia* が見えない
+
+`runtime_vllm` で `/dev/nvidia* missing` が出る場合、CT 側のデバイスパススルー設定が不足しています。
+
+本 Collection では次を推奨します。
+
+```yaml
+ct_instance_enable_nvidia_passthrough: true
+```
+
+その後 `playbooks/ct_create.yml` を再実行してください。
+パススルーブロックが変更された場合は、`ct_instance_restart_on_nvidia_passthrough_change: true` で CT を自動再起動できます。
+
 ### トラブルシューティング: runtime Playbook で apt 404
 
 `ct_runtime_common` のパッケージインストールで Debian の `404 Not Found` が出る場合、CT の apt キャッシュが古い可能性が高いです。
@@ -387,6 +401,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_rootfs_size` | CT のディスクサイズ (GiB) | `128` | `8` 以上の整数 |
 | `ct_instance_storage` | rootfs 配置ストレージ | `local-lvm` | 既存ストレージ ID |
 | `ct_instance_timeout` | Proxmox タスク待機タイムアウト（秒） | `600` | `30` 以上の整数 |
+| `ct_instance_enable_nvidia_passthrough` | CT 設定へ NVIDIA パススルーブロックを管理 | `false` | `true` / `false` |
 | `ct_instance_ostemplate` | CT OS テンプレート | Debian 12 template path | 既存 `vztmpl` パス |
 | `ct_runtime_vllm_model` | vLLM 配信モデル ID | `mistralai/Mistral-7B-Instruct-v0.3` | 有効な HF/ローカルモデル識別子 |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor Parallel 数 | `1` | `1` 以上の整数 |
