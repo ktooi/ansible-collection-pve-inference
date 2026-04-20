@@ -8,6 +8,8 @@ ct_runtime_vllm_service_name: vllm.service
 ct_runtime_vllm_stdout_log: /var/log/inference/vllm.stdout.log
 ct_runtime_vllm_stderr_log: /var/log/inference/vllm.stderr.log
 ct_runtime_vllm_systemd_log_to_files: true
+ct_runtime_vllm_systemd_restart: on-failure
+ct_runtime_vllm_systemd_restart_sec: 3
 
 # API endpoint
 ct_runtime_vllm_bind_host: "{{ ct_runtime_launcher_bind_host | default('0.0.0.0') }}"

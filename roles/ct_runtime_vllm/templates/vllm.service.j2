@@ -14,8 +14,8 @@ ExecStart={{ ct_runtime_vllm_venv }}/bin/vllm serve ${INFER_VLLM_MODEL} --host $
 StandardOutput=append:{{ ct_runtime_vllm_stdout_log }}
 StandardError=append:{{ ct_runtime_vllm_stderr_log }}
 {% endif %}
-Restart=always
-RestartSec=3
+Restart={{ ct_runtime_vllm_systemd_restart }}
+RestartSec={{ ct_runtime_vllm_systemd_restart_sec }}
 LimitNOFILE=65535
 
 [Install]
