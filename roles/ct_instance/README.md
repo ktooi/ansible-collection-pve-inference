@@ -40,6 +40,6 @@ flowchart TD
 | `ct_instance_netif` | CT network map | `{'net0':'name=eth0,bridge=vmbr0,ip=dhcp'}` | Proxmox netif map |
 | `ct_instance_onboot` | Start on host boot | `true` | `true` / `false` |
 | `ct_instance_unprivileged` | Unprivileged CT mode | `false` | `true` / `false` |
-| `ct_instance_features` | Proxmox CT features (`map` or `list`) | `{'nesting': 0}` | Feature map (`{nesting: 1}`) or list (`['nesting=1']`) |
+| `ct_instance_features` | Proxmox CT features (`map` or `list`) (applied only for unprivileged CT, or when `ct_instance_api_user` is `root@pam`) | `{'nesting': 0}` | Feature map (`{nesting: 1}`) or list (`['nesting=1']`) |
 | `ct_instance_mounts` | Mount points map | `{}` | Proxmox mounts map |
 | `ct_instance_state` | Desired CT state | `present` | `present` / `absent` / module-supported states |

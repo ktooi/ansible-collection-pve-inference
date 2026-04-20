@@ -166,6 +166,22 @@ Then verify with:
 pveum user permissions ansible@pve
 ```
 
+### Troubleshooting: 403 Forbidden (`changing feature flags for privileged container`)
+
+If you see:
+
+- `403 Forbidden: Permission check failed (changing feature flags for privileged container is only allowed for root@pam)`
+
+this is a Proxmox restriction. For **privileged containers** (`ct_instance_unprivileged: false`), changing feature flags requires `root@pam`.
+
+How to resolve:
+
+- Preferred: set `ct_instance_unprivileged: true` for automation users/tokens.
+- Or run with `ct_instance_api_user: root@pam` if your policy allows it.
+- Or avoid feature changes on privileged CTs.
+
+Note: this collection automatically omits the `features` parameter for privileged CTs unless `ct_instance_api_user` is `root@pam`.
+
 ### Troubleshooting: 401 Unauthorized
 
 If you see `401 Unauthorized: Authentication failed!`, check the following:

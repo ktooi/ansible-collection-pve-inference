@@ -45,7 +45,12 @@
     swap: "{{ ct_instance_swap }}"
     disk: "{{ ct_instance_storage }}:{{ ct_instance_rootfs_size }}"
     netif: "{{ ct_instance_netif }}"
-    features: "{{ ct_instance_features_effective }}"
+    features: >-
+      {{
+        ct_instance_features_effective
+        if ((ct_instance_unprivileged | bool) or (ct_instance_api_user == 'root@pam'))
+        else omit
+      }}
     mounts: "{{ ct_instance_mounts }}"
     unprivileged: "{{ ct_instance_unprivileged }}"
     onboot: "{{ ct_instance_onboot }}"
