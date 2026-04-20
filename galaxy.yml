@@ -15,6 +15,8 @@ tags:
   - inference
   - gpu
   - vllm
+dependencies:
+  community.general: ">=10.0.0"
 repository: https://github.com/ktooi/ansible-collection-pve-inference
 issues: https://github.com/ktooi/ansible-collection-pve-inference/issues
 build_ignore:

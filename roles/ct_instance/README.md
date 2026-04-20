@@ -14,7 +14,7 @@ Declaratively manage Proxmox CT lifecycle (create/update/delete).
 ## Flow
 ```mermaid
 flowchart TD
-    A[Input vars] --> B[community.proxmox.proxmox]
+    A[Input vars] --> B[community.general.proxmox]
     B --> C{state}
     C -->|present| D[Create/Update CT]
     C -->|absent| E[Remove CT]

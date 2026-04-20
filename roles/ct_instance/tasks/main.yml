@@ -1,6 +1,6 @@
 ---
 - name: Manage CT lifecycle
-  community.proxmox.proxmox:
+  community.general.proxmox:
     api_host: "{{ ct_instance_api_host }}"
     api_user: "{{ ct_instance_api_user }}"
     api_token_id: "{{ ct_instance_api_token_id }}"
