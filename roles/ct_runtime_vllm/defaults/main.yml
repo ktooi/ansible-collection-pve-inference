@@ -62,6 +62,7 @@ ct_runtime_vllm_libcuda_candidate_paths:
   - /usr/local/nvidia/lib/libcuda.so.1
   - /usr/lib/x86_64-linux-gnu/libcuda.so.1
 ct_runtime_vllm_device: cuda
+ct_runtime_vllm_force_device_arg: false
 ct_runtime_vllm_logging_level: INFO
 
 ct_runtime_vllm_torch_cuda_probe_mode: strict
