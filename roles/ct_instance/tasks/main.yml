@@ -20,25 +20,141 @@
         else (ct_instance_features | default([]))
       }}
 
-- name: Manage CT lifecycle
-  community.general.proxmox:
-    api_host: "{{ ct_instance_api_host }}"
-    api_user: "{{ ct_instance_api_user }}"
-    api_token_id: "{{ ct_instance_api_token_id }}"
-    api_token_secret: "{{ ct_instance_api_token_secret }}"
-    node: "{{ ct_instance_node }}"
-    vmid: "{{ ct_instance_vmid }}"
-    hostname: "{{ ct_instance_hostname }}"
-    ostemplate: "{{ ct_instance_ostemplate }}"
-    storage: "{{ ct_instance_storage }}"
-    cores: "{{ ct_instance_cores }}"
-    memory: "{{ ct_instance_memory }}"
-    swap: "{{ ct_instance_swap }}"
-    rootfs: "{{ ct_instance_storage }}:{{ ct_instance_rootfs_size }}"
-    netif: "{{ ct_instance_netif }}"
-    features: "{{ ct_instance_features_effective }}"
-    mounts: "{{ ct_instance_mounts }}"
-    unprivileged: "{{ ct_instance_unprivileged }}"
-    onboot: "{{ ct_instance_onboot }}"
-    state: "{{ ct_instance_state }}"
-  delegate_to: localhost
+- name: Normalize Proxmox API token ID for module input
+  ansible.builtin.set_fact:
+    ct_instance_api_token_id_effective: >-
+      {{
+        (ct_instance_api_token_id | regex_replace('^' ~ (ct_instance_api_user | regex_escape) ~ '!', ''))
+        if (ct_instance_api_token_id is string)
+        else ct_instance_api_token_id
+      }}
+
+- name: Manage CT lifecycle with fallback for existing VMID
+  block:
+    - name: Manage CT lifecycle (create or update)
+      community.general.proxmox:
+        api_host: "{{ ct_instance_api_host }}"
+        api_user: "{{ ct_instance_api_user }}"
+        api_token_id: "{{ ct_instance_api_token_id_effective }}"
+        api_token_secret: "{{ ct_instance_api_token_secret }}"
+        validate_certs: "{{ ct_instance_validate_certs }}"
+        node: "{{ ct_instance_node }}"
+        vmid: "{{ ct_instance_vmid }}"
+        hostname: "{{ ct_instance_hostname }}"
+        ostemplate: "{{ ct_instance_ostemplate }}"
+        password: "{{ (ct_instance_password | default('')) if ((ct_instance_password | default('') | length) > 0) else omit }}"
+        pubkey: "{{ (ct_instance_pubkey | default('')) if ((ct_instance_pubkey | default('') | length) > 0) else omit }}"
+        storage: "{{ ct_instance_storage }}"
+        cores: "{{ ct_instance_cores }}"
+        memory: "{{ ct_instance_memory }}"
+        swap: "{{ ct_instance_swap }}"
+        disk: "{{ ct_instance_storage }}:{{ ct_instance_rootfs_size }}"
+        netif: "{{ ct_instance_netif }}"
+        features: >-
+          {{
+            ct_instance_features_effective
+            if ((ct_instance_unprivileged | bool) or (ct_instance_api_user == 'root@pam'))
+            else omit
+          }}
+        mounts: "{{ ct_instance_mounts }}"
+        unprivileged: "{{ ct_instance_unprivileged }}"
+        onboot: "{{ ct_instance_onboot }}"
+        timeout: "{{ ct_instance_timeout }}"
+        state: "{{ ct_instance_state }}"
+      delegate_to: localhost
+      register: ct_instance_manage_result
+
+  rescue:
+    - name: Detect timeout error from CT create/update task
+      when:
+        - ct_instance_state == 'present'
+        - ct_instance_treat_timeout_as_existing_ct | bool
+        - ct_instance_manage_result is defined
+      ansible.builtin.set_fact:
+        ct_instance_timeout_detected: >-
+          {{
+            'reached timeout while waiting for creating vm'
+            in ((ct_instance_manage_result.msg | default('')) | lower)
+          }}
+
+    - name: Check whether CT already exists after timeout
+      become: true
+      ansible.builtin.command: "pct status {{ ct_instance_vmid }}"
+      register: ct_instance_pct_status_after_timeout
+      changed_when: false
+      failed_when: false
+      when:
+        - ct_instance_state == 'present'
+        - ct_instance_timeout_detected | default(false)
+
+    - name: Mark timeout as acceptable when CT exists
+      when:
+        - ct_instance_state == 'present'
+        - ct_instance_timeout_detected | default(false)
+        - ct_instance_pct_status_after_timeout.rc | default(1) == 0
+      ansible.builtin.set_fact:
+        ct_instance_existing_ct_detected: true
+
+    - name: Mark existing CT as acceptable on rerun
+      when:
+        - ct_instance_state == 'present'
+        - ct_instance_manage_result is defined
+        - "'already exists' in ((ct_instance_manage_result.msg | default('')) | lower)"
+      ansible.builtin.set_fact:
+        ct_instance_existing_ct_detected: true
+
+    - name: Continue when CT already exists (module create path limitation)
+      when: ct_instance_existing_ct_detected | default(false)
+      ansible.builtin.debug:
+        msg: >-
+          CT {{ ct_instance_vmid }} already exists. Skipping create-only lifecycle task and continuing
+          with post-create configuration steps.
+
+    - name: Fail when CT lifecycle error is not an existing-CT rerun
+      when: not (ct_instance_existing_ct_detected | default(false))
+      ansible.builtin.fail:
+        msg: "{{ ct_instance_manage_result.msg | default('CT lifecycle failed') }}"
+
+
+- name: Configure NVIDIA device passthrough in LXC config
+  become: true
+  ansible.builtin.blockinfile:
+    path: "/etc/pve/lxc/{{ ct_instance_vmid }}.conf"
+    marker: "# {mark} ANSIBLE MANAGED NVIDIA PASSTHROUGH"
+    block: "{{ ct_instance_nvidia_passthrough_block }}"
+    insertafter: EOF
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_state != 'absent'
+  register: ct_instance_nvidia_passthrough_result
+
+- name: Stop CT to apply NVIDIA passthrough config changes
+  become: true
+  ansible.builtin.command: "pct stop {{ ct_instance_vmid }}"
+  register: ct_instance_pct_stop
+  changed_when: ct_instance_pct_stop.rc == 0
+  failed_when:
+    - ct_instance_pct_stop.rc != 0
+    - "'already stopped' not in ((ct_instance_pct_stop.stderr | default('')) | lower)"
+    - "'not running' not in ((ct_instance_pct_stop.stderr | default('')) | lower)"
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_restart_on_nvidia_passthrough_change | bool
+    - ct_instance_nvidia_passthrough_result is defined
+    - ct_instance_nvidia_passthrough_result is changed
+    - ct_instance_state != 'absent'
+
+- name: Start CT after NVIDIA passthrough config change
+  become: true
+  ansible.builtin.command: "pct start {{ ct_instance_vmid }}"
+  register: ct_instance_pct_start
+  changed_when: ct_instance_pct_start.rc == 0
+  failed_when:
+    - ct_instance_pct_start.rc != 0
+    - "'already running' not in ((ct_instance_pct_start.stderr | default('')) | lower)"
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_restart_on_nvidia_passthrough_change | bool
+    - ct_instance_nvidia_passthrough_result is defined
+    - ct_instance_nvidia_passthrough_result is changed
+    - ct_instance_state != 'absent'

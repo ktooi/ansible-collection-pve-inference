@@ -19,6 +19,7 @@ host_nvidia_gpu_require_apt_default_release: false
 host_nvidia_gpu_auto_select_open_kernel_module: true
 host_nvidia_gpu_prefer_open_kernel_module: false
 host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus: 550
+host_nvidia_gpu_min_installed_driver_major: 0
 
 host_nvidia_gpu_modules_standard:
   - nvidia

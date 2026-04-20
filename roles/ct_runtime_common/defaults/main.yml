@@ -9,3 +9,5 @@ ct_runtime_common_directories:
   - /opt/inference/bin
   - /var/log/inference
   - /var/cache/inference
+
+ct_runtime_common_apt_cache_valid_time: 3600

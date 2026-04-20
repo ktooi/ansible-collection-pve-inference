@@ -3,6 +3,9 @@ ct_instance_api_host: "{{ inventory_hostname }}"
 ct_instance_api_user: root@pam
 ct_instance_api_token_id: ""
 ct_instance_api_token_secret: ""
+ct_instance_validate_certs: false
+ct_instance_password: ""
+ct_instance_pubkey: ""
 ct_instance_node: pve
 ct_instance_storage: local-lvm
 ct_instance_ostemplate: local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst
@@ -19,4 +22,27 @@ ct_instance_unprivileged: false
 ct_instance_features:
   nesting: 0
 ct_instance_mounts: {}
+ct_instance_timeout: 600
+ct_instance_treat_timeout_as_existing_ct: true
 ct_instance_state: present
+
+ct_instance_enable_nvidia_passthrough: false
+ct_instance_restart_on_nvidia_passthrough_change: true
+ct_instance_nvidia_passthrough_block: |
+  lxc.cgroup2.devices.allow: c 195:* rwm
+  lxc.cgroup2.devices.allow: c 234:* rwm
+  lxc.cgroup2.devices.allow: c 235:* rwm
+  lxc.cgroup2.devices.allow: c 503:* rwm
+  lxc.cgroup2.devices.allow: c 508:* rwm
+  lxc.cgroup2.devices.allow: c 509:* rwm
+  lxc.cgroup2.devices.allow: c 510:* rwm
+  lxc.cgroup2.devices.allow: c 511:* rwm
+  lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file
+  lxc.mount.entry: /dev/nvidia1 dev/nvidia1 none bind,optional,create=file
+  lxc.mount.entry: /dev/nvidiactl dev/nvidiactl none bind,optional,create=file
+  lxc.mount.entry: /dev/nvidia-modeset dev/nvidia-modeset none bind,optional,create=file
+  lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
+  lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
+  lxc.mount.entry: /dev/nvidia-caps dev/nvidia-caps none bind,optional,create=dir
+  lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libcuda.so.1 usr/lib/x86_64-linux-gnu/libcuda.so.1 none bind,optional,create=file
+  lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 none bind,optional,create=file

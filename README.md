@@ -107,7 +107,7 @@ Example (adapt for your policy):
 pveum user add ansible@pve --password 'REPLACE_ME'
 
 # create a role with required privileges (example)
-pveum role add AnsiblePVE -privs "VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit"
+pveum role add AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.Config.Options VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
 
 # assign role to user (scope: /)
 pveum aclmod / -user ansible@pve -role AnsiblePVE
@@ -138,7 +138,143 @@ ansible-playbook -i inventory.ini playbooks/ct_create.yml --vault-password-file 
 
 ```yaml
 vault_pve_api_token_secret: "REPLACE_WITH_REAL_TOKEN_SECRET"
+vault_ct_root_password: "REPLACE_WITH_STRONG_PASSWORD"
+vault_ct_root_pubkey: "ssh-ed25519 AAAA... your-key-comment"
 ```
+
+### Troubleshooting: 403 Forbidden (`Permission check failed (/, Sys.Modify)`)
+
+If token authentication succeeds but CT creation fails with:
+
+- `403 Forbidden: Permission check failed (/, Sys.Modify)`
+
+the API user/token is authenticated, but required ACL privileges are missing.
+
+Minimum fix:
+
+- Include `Sys.Modify` in the role privileges used by Ansible.
+- Re-apply ACL on `/` for the automation user (or a stricter path that still covers required operations).
+
+Example:
+
+```bash
+pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.Config.Options VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
+pveum aclmod / -user ansible@pve -role AnsiblePVE
+```
+
+Then verify with:
+
+```bash
+pveum user permissions ansible@pve
+```
+
+### Note: Is `ct_instance_unprivileged: false` required for vLLM?
+
+No. In this collection, vLLM itself does **not** require a privileged CT.
+What vLLM needs is GPU visibility inside CT (`/dev/nvidia*`, `libcuda.so.1`, and `torch.cuda` checks).
+
+Operational guidance:
+
+- Prefer `ct_instance_unprivileged: true` when using API tokens/non-root automation users.
+- Use `ct_instance_unprivileged: false` only when you explicitly need privileged CT behavior and accept the security/permission trade-offs.
+
+### Troubleshooting: 403 Forbidden (`Permission check failed (/vms/<vmid>, VM.Config.Options)`)
+
+If you see:
+
+- `403 Forbidden: Permission check failed (/vms/<vmid>, VM.Config.Options)`
+
+then the API user/token can access the VM path but cannot modify CT options.
+This role sets options such as `onboot`/`unprivileged`, so `VM.Config.Options` is required.
+
+How to resolve:
+
+- Ensure the role used by Ansible includes `VM.Config.Options`.
+- Re-apply ACL for the automation user.
+
+Example:
+
+```bash
+pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.Config.Options VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
+pveum aclmod / -user ansible@pve -role AnsiblePVE
+```
+
+### Troubleshooting: 403 Forbidden (`Permission check failed (/sdn/... , SDN.Use)`)
+
+If you see an error like:
+
+- `403 Forbidden: Permission check failed (/sdn/zones/<zone>/<bridge>, SDN.Use)`
+
+then your CT network bridge is managed by Proxmox SDN, and the API user/token lacks `SDN.Use`.
+
+How to resolve:
+
+- Ensure the role used by Ansible includes `SDN.Use`.
+- Re-apply ACL to the automation user (for example on `/`), or grant ACL on the relevant SDN subtree according to your policy.
+
+Example:
+
+```bash
+pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.Config.Options VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
+pveum aclmod / -user ansible@pve -role AnsiblePVE
+```
+
+If you do not use SDN bridges, set `ct_instance_netif` to a non-SDN bridge or verify bridge naming/scope.
+
+### Troubleshooting: 403 Forbidden (`changing feature flags for privileged container`)
+
+If you see:
+
+- `403 Forbidden: Permission check failed (changing feature flags for privileged container is only allowed for root@pam)`
+
+this is a Proxmox restriction. For **privileged containers** (`ct_instance_unprivileged: false`), changing feature flags requires `root@pam`.
+
+How to resolve:
+
+- Preferred: set `ct_instance_unprivileged: true` for automation users/tokens.
+- Or run with `ct_instance_api_user: root@pam` if your policy allows it.
+- Or avoid feature changes on privileged CTs.
+
+Note: this collection automatically omits the `features` parameter for privileged CTs unless `ct_instance_api_user` is `root@pam`.
+
+### Troubleshooting: timeout while creating VM
+
+If you see:
+
+- `Reached timeout while waiting for creating VM`
+- and logs include thin-pool warnings such as `You have not turned on protection against thin pools running out of space`
+
+then Proxmox storage task completion is delayed/failing and Ansible timed out waiting.
+
+How to resolve:
+
+- Increase `ct_instance_timeout` (for example `1200`) in `group_vars/pve_hosts.yml`.
+- Check thin-pool capacity/health on PVE (`lvs`, free space, metadata usage).
+- Configure thin-pool auto-extend/monitoring according to your storage policy.
+
+Example override:
+
+```yaml
+ct_instance_timeout: 1200
+```
+
+### Troubleshooting: 401 Unauthorized
+
+If you see `401 Unauthorized: Authentication failed!`, check the following:
+
+- `ct_instance_api_user` must be the token owner (example: `ansible@pve`).
+- `ct_instance_api_token_id` should be the token name (example: `ci-token`).
+  - This collection also accepts legacy `<user>!<token_name>` and normalizes it automatically.
+- Ensure ACL is granted to the token owner on the target path (for example `/`).
+
+Quick API test from bastion:
+
+```bash
+curl -sk -H "Authorization: PVEAPIToken=ansible@pve!ci-token=REPLACE_WITH_SECRET" \
+  https://<PVE_HOST>:8006/api2/json/version
+```
+
+A successful response returns version JSON. If this fails with 401, the issue is credentials/ACL on Proxmox side.
 
 ### 2) Prepare inventory and vars
 
@@ -157,8 +293,11 @@ ct-infer-01 ansible_host=198.51.100.20
 ```yaml
 ct_instance_api_host: "192.0.2.10"
 ct_instance_api_user: "ansible@pve"
-ct_instance_api_token_id: "ansible@pve!ci-token"
+ct_instance_api_token_id: "ci-token"
 ct_instance_api_token_secret: "{{ vault_pve_api_token_secret }}"
+ct_instance_validate_certs: false
+ct_instance_password: "{{ vault_ct_root_password }}"
+ct_instance_pubkey: "{{ vault_ct_root_pubkey }}"
 ct_instance_node: "pve01"
 ct_instance_vmid: 120
 ct_instance_hostname: "ct-infer-01"
@@ -167,11 +306,18 @@ ct_instance_memory: 131072       # CT memory (MiB)
 ct_instance_rootfs_size: 512     # CT rootfs size (GiB)
 ct_instance_storage: "local-lvm"
 ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
+ct_instance_enable_nvidia_passthrough: true
 ```
 
 `group_vars/ct_targets.yml` (example):
 
 ```yaml
+# connection for post-create playbooks
+ansible_user: "root"
+# choose one auth method below
+# ansible_password: "{{ vault_ct_root_password }}"
+ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
+
 # shared launcher variables (runtime-agnostic)
 ct_runtime_launcher_model: "meta-llama/Llama-3.1-8B-Instruct"
 ct_runtime_launcher_context_length: 32768   # LLM context size
@@ -206,6 +352,65 @@ The collection now performs explicit precondition checks where assumptions were 
 - CT side: distribution/version support assertions before runtime tasks via `tasks/variables.yml`
 - CT vLLM side: default preflight checks for `libcuda.so.1`, `/dev/nvidia*`, and `torch.cuda` availability inside the venv
 
+### 2.5) Ensure CT login works for subsequent playbooks
+
+After `ct_create.yml`, runtime/validation playbooks connect to `ct_targets` via SSH.
+Set at least one of the following in `group_vars/ct_targets.yml`:
+
+- key auth: `ansible_user` + `ansible_ssh_private_key_file`
+- password auth: `ansible_user` + `ansible_password`
+
+If both `ct_instance_password` and `ct_instance_pubkey` are set, you can use either method.
+
+### Troubleshooting: `CT <vmid> already exists on node`
+
+If `ct_create.yml` fails with `CT <vmid> already exists`, re-run behavior should be idempotent.
+This collection now treats existing-CT errors as acceptable reruns (the module path is create-only for `state: present`) and continues with post-create steps.
+
+If you still see this error, verify that:
+
+- `ct_instance_vmid` points to the intended existing CT.
+- the role/task version in your execution environment is the latest one.
+
+### Troubleshooting: /dev/nvidia* missing in CT
+
+If `runtime_vllm` fails with `/dev/nvidia* missing`, configure CT device passthrough.
+
+Recommended with this collection:
+
+```yaml
+ct_instance_enable_nvidia_passthrough: true
+```
+
+Then re-run `playbooks/ct_create.yml` so the role writes passthrough entries to `/etc/pve/lxc/<vmid>.conf`.
+The default passthrough block includes `/dev/nvidia*` plus `libcuda.so.1` / `libnvidia-ml.so.1` bind-mount entries.
+If the passthrough block changes, the role can restart CT automatically (`ct_instance_restart_on_nvidia_passthrough_change: true`).
+
+### Troubleshooting: torch reports `CUDA unknown error` in CT
+
+If torch probe shows `device_count > 0` but `is_available=False` with `CUDA unknown error`,
+check `/dev/nvidia-uvm` inside CT. If it is not a character device (for example `----------` regular file),
+host-side UVM device creation/passthrough is incomplete.
+
+Recommended recovery:
+
+1. Re-run host GPU preparation role (ensures NVIDIA modules/device nodes on host).
+2. Re-run `playbooks/ct_create.yml` to re-apply passthrough block and CT restart.
+3. Re-run runtime playbook.
+
+### Troubleshooting: apt 404 in runtime playbooks
+
+If `runtime_*` playbooks fail in `ct_runtime_common` with Debian `404 Not Found` during package install, the CT apt cache is stale.
+This collection refreshes apt cache before install and retries once.
+
+Optional tuning:
+
+```yaml
+ct_runtime_common_apt_cache_valid_time: 0
+```
+
+Set in `group_vars/ct_targets.yml` to force apt cache refresh every run.
+
 ### 3) Execute playbooks
 
 ```bash
@@ -226,14 +431,19 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 |---|---|---|---|
 | `ct_instance_api_host` | Proxmox API endpoint host/IP | `{{ inventory_hostname }}` | Valid hostname/IP |
 | `ct_instance_api_user` | Proxmox API user | `root@pam` | Valid PVE API user (e.g. `ansible@pve`) |
-| `ct_instance_api_token_id` | API token ID | `""` | `<user>!<token_name>` |
+| `ct_instance_api_token_id` | API token name (preferred) or legacy `<user>!<token_name>` | `""` | `ci-token` (preferred), or `<user>!<token_name>` |
 | `ct_instance_api_token_secret` | API token secret | `""` | Token secret string |
+| `ct_instance_validate_certs` | Validate HTTPS cert for Proxmox API | `false` | `true` / `false` |
+| `ct_instance_password` | Initial CT root password (optional) | `""` | Non-empty string (prefer vault) |
+| `ct_instance_pubkey` | Initial CT root public key (optional) | `""` | SSH public key line |
 | `ct_instance_node` | Target PVE node | `pve` | Existing node name |
 | `ct_instance_vmid` | CT VMID | `100` | Positive integer, unique on cluster |
 | `ct_instance_cores` | CT CPU core count | `8` | Integer `>=1` |
 | `ct_instance_memory` | CT memory size (MiB) | `32768` | Integer `>=512` |
 | `ct_instance_rootfs_size` | CT rootfs size (GiB) | `128` | Integer `>=8` |
 | `ct_instance_storage` | Storage for rootfs | `local-lvm` | Existing PVE storage ID |
+| `ct_instance_timeout` | Proxmox task wait timeout (seconds) | `600` | Integer `>=30` |
+| `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA passthrough block in CT config | `false` | `true` / `false` |
 | `ct_instance_ostemplate` | CT OS template | Debian 12 template path | Existing `vztmpl` path |
 | `ct_runtime_vllm_model` | Model ID served by vLLM | `mistralai/Mistral-7B-Instruct-v0.3` | Valid Hugging Face/local model identifier |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |
