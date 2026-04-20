@@ -60,4 +60,4 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 > For vLLM on CUDA inside CT, enabling `ct_instance_enable_nvidia_passthrough` is typically required.
 
 
-> If CT already exists, the role omits create-only fields (for example `ostemplate`, initial `password`/`pubkey`) to avoid recreate errors and keep reruns idempotent.
+> If CT already exists, the role retries without create-only fields (for example `ostemplate`, initial `password`/`pubkey`) to avoid recreate errors and keep reruns idempotent.
