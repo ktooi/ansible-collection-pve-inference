@@ -383,6 +383,7 @@ ct_instance_enable_nvidia_passthrough: true
 ```
 
 Then re-run `playbooks/ct_create.yml` so the role writes passthrough entries to `/etc/pve/lxc/<vmid>.conf`.
+The default passthrough block includes `/dev/nvidia*` plus `libcuda.so.1` / `libnvidia-ml.so.1` bind-mount entries.
 If the passthrough block changes, the role can restart CT automatically (`ct_instance_restart_on_nvidia_passthrough_change: true`).
 
 ### Troubleshooting: apt 404 in runtime playbooks

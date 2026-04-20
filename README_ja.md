@@ -366,6 +366,7 @@ ct_instance_enable_nvidia_passthrough: true
 ```
 
 その後 `playbooks/ct_create.yml` を再実行してください。
+デフォルトのパススルーブロックには `/dev/nvidia*` に加えて `libcuda.so.1` / `libnvidia-ml.so.1` の bind-mount も含まれます。
 パススルーブロックが変更された場合は、`ct_instance_restart_on_nvidia_passthrough_change: true` で CT を自動再起動できます。
 
 ### トラブルシューティング: runtime Playbook で apt 404
