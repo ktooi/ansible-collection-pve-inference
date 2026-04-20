@@ -39,6 +39,8 @@
     vmid: "{{ ct_instance_vmid }}"
     hostname: "{{ ct_instance_hostname }}"
     ostemplate: "{{ ct_instance_ostemplate }}"
+    password: "{{ (ct_instance_password | default('')) if ((ct_instance_password | default('') | length) > 0) else omit }}"
+    pubkey: "{{ (ct_instance_pubkey | default('')) if ((ct_instance_pubkey | default('') | length) > 0) else omit }}"
     storage: "{{ ct_instance_storage }}"
     cores: "{{ ct_instance_cores }}"
     memory: "{{ ct_instance_memory }}"

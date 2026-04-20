@@ -138,6 +138,8 @@ ansible-playbook -i inventory.ini playbooks/ct_create.yml --vault-password-file 
 
 ```yaml
 vault_pve_api_token_secret: "REPLACE_WITH_REAL_TOKEN_SECRET"
+vault_ct_root_password: "REPLACE_WITH_STRONG_PASSWORD"
+vault_ct_root_pubkey: "ssh-ed25519 AAAA... your-key-comment"
 ```
 
 ### Troubleshooting: 403 Forbidden (`Permission check failed (/, Sys.Modify)`)
@@ -293,6 +295,8 @@ ct_instance_api_host: "192.0.2.10"
 ct_instance_api_user: "ansible@pve"
 ct_instance_api_token_id: "ci-token"
 ct_instance_api_token_secret: "{{ vault_pve_api_token_secret }}"
+ct_instance_password: "{{ vault_ct_root_password }}"
+ct_instance_pubkey: "{{ vault_ct_root_pubkey }}"
 ct_instance_node: "pve01"
 ct_instance_vmid: 120
 ct_instance_hostname: "ct-infer-01"
@@ -306,6 +310,12 @@ ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 `group_vars/ct_targets.yml` (example):
 
 ```yaml
+# connection for post-create playbooks
+ansible_user: "root"
+# choose one auth method below
+# ansible_password: "{{ vault_ct_root_password }}"
+ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
+
 # shared launcher variables (runtime-agnostic)
 ct_runtime_launcher_model: "meta-llama/Llama-3.1-8B-Instruct"
 ct_runtime_launcher_context_length: 32768   # LLM context size
@@ -340,6 +350,16 @@ The collection now performs explicit precondition checks where assumptions were 
 - CT side: distribution/version support assertions before runtime tasks via `tasks/variables.yml`
 - CT vLLM side: default preflight checks for `libcuda.so.1`, `/dev/nvidia*`, and `torch.cuda` availability inside the venv
 
+### 2.5) Ensure CT login works for subsequent playbooks
+
+After `ct_create.yml`, runtime/validation playbooks connect to `ct_targets` via SSH.
+Set at least one of the following in `group_vars/ct_targets.yml`:
+
+- key auth: `ansible_user` + `ansible_ssh_private_key_file`
+- password auth: `ansible_user` + `ansible_password`
+
+If both `ct_instance_password` and `ct_instance_pubkey` are set, you can use either method.
+
 ### 3) Execute playbooks
 
 ```bash
@@ -362,6 +382,8 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_api_user` | Proxmox API user | `root@pam` | Valid PVE API user (e.g. `ansible@pve`) |
 | `ct_instance_api_token_id` | API token name (preferred) or legacy `<user>!<token_name>` | `""` | `ci-token` (preferred), or `<user>!<token_name>` |
 | `ct_instance_api_token_secret` | API token secret | `""` | Token secret string |
+| `ct_instance_password` | Initial CT root password (optional) | `""` | Non-empty string (prefer vault) |
+| `ct_instance_pubkey` | Initial CT root public key (optional) | `""` | SSH public key line |
 | `ct_instance_node` | Target PVE node | `pve` | Existing node name |
 | `ct_instance_vmid` | CT VMID | `100` | Positive integer, unique on cluster |
 | `ct_instance_cores` | CT CPU core count | `8` | Integer `>=1` |

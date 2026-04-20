@@ -28,6 +28,8 @@ flowchart TD
 | `ct_instance_api_user` | Proxmox API user | `root@pam` | Valid PVE API user |
 | `ct_instance_api_token_id` | API token name (preferred) or legacy `<user>!<token_name>` | `""` | `ci-token` (preferred), or `<user>!<token_name>` |
 | `ct_instance_api_token_secret` | API token secret | `""` | Token secret string |
+| `ct_instance_password` | Initial CT root password (optional) | `""` | Non-empty string (prefer vault) |
+| `ct_instance_pubkey` | Initial CT root public key (optional) | `""` | SSH public key line |
 | `ct_instance_node` | Target node name | `pve` | Existing node name |
 | `ct_instance_storage` | Storage ID for CT root disk (`disk` parameter) | `local-lvm` | Existing storage ID |
 | `ct_instance_ostemplate` | CT template path | `local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst` | Existing template path |

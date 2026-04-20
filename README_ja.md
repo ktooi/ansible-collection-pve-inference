@@ -138,6 +138,8 @@ ansible-playbook -i inventory.ini playbooks/ct_create.yml --vault-password-file 
 
 ```yaml
 vault_pve_api_token_secret: "REPLACE_WITH_REAL_TOKEN_SECRET"
+vault_ct_root_password: "REPLACE_WITH_STRONG_PASSWORD"
+vault_ct_root_pubkey: "ssh-ed25519 AAAA... your-key-comment"
 ```
 
 ### トラブルシューティング: 403 Forbidden (`Permission check failed (/, Sys.Modify)`)
@@ -276,6 +278,8 @@ ct_instance_api_host: "192.0.2.10"
 ct_instance_api_user: "ansible@pve"
 ct_instance_api_token_id: "ci-token"
 ct_instance_api_token_secret: "{{ vault_pve_api_token_secret }}"
+ct_instance_password: "{{ vault_ct_root_password }}"
+ct_instance_pubkey: "{{ vault_ct_root_pubkey }}"
 ct_instance_node: "pve01"
 ct_instance_vmid: 120
 ct_instance_hostname: "ct-infer-01"
@@ -289,6 +293,12 @@ ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 `group_vars/ct_targets.yml` 例:
 
 ```yaml
+# CT 作成後に接続するための設定
+ansible_user: "root"
+# 認証方式はどちらか一方を使用
+# ansible_password: "{{ vault_ct_root_password }}"
+ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
+
 # ランタイム共通のランチャー変数
 ct_runtime_launcher_model: "meta-llama/Llama-3.1-8B-Instruct"
 ct_runtime_launcher_context_length: 32768   # LLM のコンテキスト長
@@ -323,6 +333,16 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 - CT 側: `tasks/variables.yml` でディストリビューションとバージョンのサポート可否を先に検証
 - CT の vLLM 側: `libcuda.so.1` / `/dev/nvidia*` / venv 内 `torch.cuda` の事前チェックをデフォルトで実施
 
+### 2.5) 後続 Playbook のための CT ログイン設定
+
+`ct_create.yml` 後、runtime/validate Playbook は `ct_targets` へ SSH 接続します。
+`group_vars/ct_targets.yml` に少なくとも次のいずれかを設定してください。
+
+- 鍵認証: `ansible_user` + `ansible_ssh_private_key_file`
+- パスワード認証: `ansible_user` + `ansible_password`
+
+`ct_instance_password` と `ct_instance_pubkey` を両方設定した場合、どちらの認証方式も利用できます。
+
 ### 3) Playbook 実行
 
 ```bash
@@ -345,6 +365,8 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_api_user` | Proxmox API ユーザー | `root@pam` | 有効な PVE API ユーザー |
 | `ct_instance_api_token_id` | API Token 名（推奨）または従来形式 `<user>!<token_name>` | `""` | `ci-token`（推奨）または `<user>!<token_name>` |
 | `ct_instance_api_token_secret` | API Token Secret | `""` | Token secret 文字列 |
+| `ct_instance_password` | CT root 初期パスワード（任意） | `""` | 空でない文字列（vault 推奨） |
+| `ct_instance_pubkey` | CT root 初期公開鍵（任意） | `""` | SSH 公開鍵 1 行 |
 | `ct_instance_node` | CT 作成対象ノード | `pve` | 既存ノード名 |
 | `ct_instance_vmid` | CT VMID | `100` | 正の整数（クラスタ内一意） |
 | `ct_instance_cores` | CT の CPU コア数 | `8` | `1` 以上の整数 |

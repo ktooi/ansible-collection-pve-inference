@@ -3,6 +3,8 @@ ct_instance_api_host: "{{ inventory_hostname }}"
 ct_instance_api_user: root@pam
 ct_instance_api_token_id: ""
 ct_instance_api_token_secret: ""
+ct_instance_password: ""
+ct_instance_pubkey: ""
 ct_instance_node: pve
 ct_instance_storage: local-lvm
 ct_instance_ostemplate: local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst
