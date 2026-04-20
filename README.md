@@ -235,6 +235,27 @@ How to resolve:
 
 Note: this collection automatically omits the `features` parameter for privileged CTs unless `ct_instance_api_user` is `root@pam`.
 
+### Troubleshooting: timeout while creating VM
+
+If you see:
+
+- `Reached timeout while waiting for creating VM`
+- and logs include thin-pool warnings such as `You have not turned on protection against thin pools running out of space`
+
+then Proxmox storage task completion is delayed/failing and Ansible timed out waiting.
+
+How to resolve:
+
+- Increase `ct_instance_timeout` (for example `1200`) in `group_vars/pve_hosts.yml`.
+- Check thin-pool capacity/health on PVE (`lvs`, free space, metadata usage).
+- Configure thin-pool auto-extend/monitoring according to your storage policy.
+
+Example override:
+
+```yaml
+ct_instance_timeout: 1200
+```
+
 ### Troubleshooting: 401 Unauthorized
 
 If you see `401 Unauthorized: Authentication failed!`, check the following:
@@ -347,6 +368,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_memory` | CT memory size (MiB) | `32768` | Integer `>=512` |
 | `ct_instance_rootfs_size` | CT rootfs size (GiB) | `128` | Integer `>=8` |
 | `ct_instance_storage` | Storage for rootfs | `local-lvm` | Existing PVE storage ID |
+| `ct_instance_timeout` | Proxmox task wait timeout (seconds) | `600` | Integer `>=30` |
 | `ct_instance_ostemplate` | CT OS template | Debian 12 template path | Existing `vztmpl` path |
 | `ct_runtime_vllm_model` | Model ID served by vLLM | `mistralai/Mistral-7B-Instruct-v0.3` | Valid Hugging Face/local model identifier |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |

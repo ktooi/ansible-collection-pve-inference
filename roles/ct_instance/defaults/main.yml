@@ -19,4 +19,5 @@ ct_instance_unprivileged: false
 ct_instance_features:
   nesting: 0
 ct_instance_mounts: {}
+ct_instance_timeout: 600
 ct_instance_state: present

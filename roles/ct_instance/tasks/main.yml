@@ -54,5 +54,6 @@
     mounts: "{{ ct_instance_mounts }}"
     unprivileged: "{{ ct_instance_unprivileged }}"
     onboot: "{{ ct_instance_onboot }}"
+    timeout: "{{ ct_instance_timeout }}"
     state: "{{ ct_instance_state }}"
   delegate_to: localhost
