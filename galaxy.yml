@@ -1,0 +1,27 @@
+namespace: ktooi
+name: pve_inference
+version: 0.1.0
+readme: README.md
+authors:
+  - ktooi
+
+description: >-
+  Ansible Collection for CT-based inference platforms on Proxmox VE.
+license:
+  - MIT
+tags:
+  - proxmox
+  - lxc
+  - inference
+  - gpu
+  - vllm
+dependencies:
+  community.general: ">=10.0.0"
+repository: https://github.com/ktooi/ansible-collection-pve-inference
+issues: https://github.com/ktooi/ansible-collection-pve-inference/issues
+build_ignore:
+  - .git
+  - .github
+  - .venv
+  - .idea
+  - '*.pyc'

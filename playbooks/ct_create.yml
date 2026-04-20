@@ -1,0 +1,6 @@
+---
+- name: Create or update inference CT on Proxmox VE
+  hosts: pve_hosts
+  gather_facts: false
+  roles:
+    - role: ktooi.pve_inference.ct_instance

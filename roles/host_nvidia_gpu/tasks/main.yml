@@ -1,0 +1,457 @@
+---
+- name: Assert host OS family is Debian
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'Debian'
+    fail_msg: "host_nvidia_gpu currently supports Debian-based Proxmox hosts only"
+
+- name: Assert Proxmox kernel is running
+  ansible.builtin.assert:
+    that:
+      - ansible_kernel is search('pve')
+    fail_msg: >-
+      Proxmox kernel is required for this role. Current kernel: {{ ansible_kernel }}.
+      Install and boot a pve kernel first.
+  when: host_nvidia_gpu_require_pve_kernel
+
+- name: Collect apt policy output when target release override is set
+  ansible.builtin.command: apt-cache policy
+  register: host_nvidia_gpu_apt_policy
+  changed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
+  when: host_nvidia_gpu_apt_default_release | length > 0
+
+- name: Detect whether requested apt default release exists in sources
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_apt_default_release_available: >-
+      {{
+        host_nvidia_gpu_apt_policy.stdout is search(host_nvidia_gpu_apt_default_release)
+      }}
+  when: host_nvidia_gpu_apt_default_release | length > 0
+
+- name: Assert requested apt default release exists when strict mode is enabled
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_apt_default_release_available
+    fail_msg: >-
+      Requested host_nvidia_gpu_apt_default_release={{ host_nvidia_gpu_apt_default_release }}
+      is not available in this host's apt sources.
+      Add the matching repository first, or unset host_nvidia_gpu_apt_default_release.
+  when:
+    - host_nvidia_gpu_apt_default_release | length > 0
+    - host_nvidia_gpu_require_apt_default_release
+
+- name: Warn when requested apt default release is unavailable and fallback to default apt behavior
+  ansible.builtin.debug:
+    msg: >-
+      host_nvidia_gpu_apt_default_release={{ host_nvidia_gpu_apt_default_release }} was requested
+      but is not present in apt sources. Proceeding without default_release override.
+  when:
+    - host_nvidia_gpu_apt_default_release | length > 0
+    - not host_nvidia_gpu_require_apt_default_release
+    - not host_nvidia_gpu_apt_default_release_available
+
+- name: Install NVIDIA prerequisites (DKMS/toolchain)
+  ansible.builtin.apt:
+    name: "{{ host_nvidia_gpu_prereq_packages }}"
+    state: present
+    update_cache: true
+    default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
+
+- name: Install exact matching Proxmox kernel headers
+  ansible.builtin.apt:
+    name: "{{ host_nvidia_gpu_header_packages[0] }}"
+    state: present
+    default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
+  register: host_nvidia_headers_exact
+  failed_when: false
+
+- name: Assert exact kernel headers are installed
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_headers_exact is not failed
+    fail_msg: >-
+      Exact headers package {{ host_nvidia_gpu_header_packages[0] }} is required but was not installed.
+      Run apt full-upgrade on the PVE host and reboot into the installed pve kernel, then retry.
+  when: host_nvidia_gpu_require_exact_headers
+
+- name: Ensure DKMS state is available for diagnostics
+  ansible.builtin.command: dkms status
+  register: host_nvidia_dkms_status
+  changed_when: false
+  failed_when: false
+
+- name: Check candidate version for nvidia-driver
+  ansible.builtin.command: apt-cache policy nvidia-driver
+  register: host_nvidia_gpu_nvidia_driver_policy
+  changed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
+
+- name: Derive nvidia-driver candidate version
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_nvidia_driver_candidate: >-
+      {{
+        (
+          host_nvidia_gpu_nvidia_driver_policy.stdout
+          | regex_search('(?m)^\s*Candidate:\s*\S+')
+          | default('Candidate: (none)', true)
+          | regex_replace('(?m)^\s*Candidate:\s*', '')
+        )
+      }}
+
+- name: Derive nvidia-driver candidate major version
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_nvidia_driver_candidate_major: >-
+      {{ (host_nvidia_gpu_nvidia_driver_candidate | regex_search('^[0-9]+') | default('0', true)) | int }}
+
+- name: Check whether nvidia-open-kernel-dkms has an installable candidate
+  ansible.builtin.command: apt-cache policy nvidia-open-kernel-dkms
+  register: host_nvidia_gpu_open_dkms_policy
+  changed_when: false
+  failed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
+
+- name: Derive nvidia-open-kernel-dkms candidate version
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_open_dkms_candidate: >-
+      {{
+        (
+          host_nvidia_gpu_open_dkms_policy.stdout
+          | regex_search('(?m)^\s*Candidate:\s*\S+')
+          | default('Candidate: (none)', true)
+          | regex_replace('(?m)^\s*Candidate:\s*', '')
+        )
+      }}
+
+- name: Derive nvidia-open-kernel-dkms candidate major version
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_open_dkms_candidate_major: >-
+      {{ (host_nvidia_gpu_open_dkms_candidate | regex_search('^[0-9]+') | default('0', true)) | int }}
+
+- name: Simulate installability of nvidia-open-kernel-dkms candidate
+  ansible.builtin.command: >-
+    apt-get -s
+    {% if host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false) %}-t {{ host_nvidia_gpu_apt_default_release }}{% endif %}
+    install nvidia-open-kernel-dkms
+  register: host_nvidia_gpu_open_dkms_install_plan
+  changed_when: false
+  failed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
+- name: Check candidate version for firmware-nvidia-gsp
+  ansible.builtin.command: apt-cache policy firmware-nvidia-gsp
+  register: host_nvidia_gpu_firmware_gsp_policy
+  changed_when: false
+  failed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
+- name: Derive firmware-nvidia-gsp candidate version
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_firmware_gsp_candidate: >-
+      {{
+        (
+          host_nvidia_gpu_firmware_gsp_policy.stdout
+          | regex_search('(?m)^\s*Candidate:\s*\S+')
+          | default('Candidate: (none)', true)
+          | regex_replace('(?m)^\s*Candidate:\s*', '')
+        )
+      }}
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
+- name: Derive firmware-nvidia-gsp candidate major version
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_firmware_gsp_candidate_major: >-
+      {{ (host_nvidia_gpu_firmware_gsp_candidate | regex_search('^[0-9]+') | default('0', true)) | int }}
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
+- name: Derive installability fact for nvidia-open-kernel-dkms candidate
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_open_dkms_installable: >-
+      {{ (host_nvidia_gpu_open_dkms_install_plan.rc | default(1) | int) == 0 }}
+  when: host_nvidia_gpu_auto_select_open_kernel_module
+
+- name: Assert nvidia-driver candidate is new enough for modern PVE kernel line
+  ansible.builtin.assert:
+    that:
+      - >-
+        (host_nvidia_gpu_nvidia_driver_candidate_major | int) >= (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
+        or
+        (
+          host_nvidia_gpu_auto_select_open_kernel_module
+          and
+          (host_nvidia_gpu_open_dkms_installable | default(false))
+          and
+          (host_nvidia_gpu_open_dkms_candidate_major | int) >= (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
+        )
+    fail_msg: >-
+      NVIDIA candidates are not compatible with kernel {{ ansible_kernel }}.
+      Required major version: >= {{ host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus }}.
+      Detected candidates:
+      - nvidia-driver: {{ host_nvidia_gpu_nvidia_driver_candidate }} (major={{ host_nvidia_gpu_nvidia_driver_candidate_major }})
+      - nvidia-open-kernel-dkms: {{ host_nvidia_gpu_open_dkms_candidate }} (major={{ host_nvidia_gpu_open_dkms_candidate_major }}, installable={{ host_nvidia_gpu_open_dkms_installable | default(false) }})
+      - firmware-nvidia-gsp: {{ host_nvidia_gpu_firmware_gsp_candidate | default('(n/a)') }} (major={{ host_nvidia_gpu_firmware_gsp_candidate_major | default(0) }})
+      Next steps:
+      1) Ensure apt sources contain a repo that provides major >= {{ host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus }} for your base distro
+         (for example newer Debian suite/backports or vendor repo).
+      2) Run `apt-get update`.
+      3) Verify with `apt-cache policy nvidia-driver nvidia-open-kernel-dkms`.
+      4) If only nvidia-open-kernel-dkms is new enough, keep `host_nvidia_gpu_auto_select_open_kernel_module=true`
+         (or set it explicitly in inventory/group_vars), then retry this role.
+      5) If nvidia-open-kernel-dkms shows installable=false, run
+         `apt-get -s install nvidia-open-kernel-dkms` and resolve missing dependencies first.
+      6) Ensure matching suite components are enabled for firmware packages (`non-free-firmware` and `non-free`)
+         on the same Debian release line used for NVIDIA packages.
+  when:
+    - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
+
+- name: Show remediation commands when no nvidia-driver candidate is visible
+  ansible.builtin.debug:
+    msg: |-
+      nvidia-driver candidate is not visible in apt policy on this host.
+      Run the following checks on the PVE host:
+        grep -R --line-number -E '^(deb|deb-src) ' /etc/apt/sources.list /etc/apt/sources.list.d/*.list
+        apt-get update
+        apt-cache policy nvidia-driver nvidia-open-kernel-dkms
+      If `Candidate: (none)` persists, add an apt source that provides newer NVIDIA packages for your base distro.
+  when:
+    - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
+    - (host_nvidia_gpu_nvidia_driver_candidate_major | int) == 0
+
+- name: Show remediation when open kernel module candidate exists but dependencies are broken
+  ansible.builtin.debug:
+    msg: |-
+      nvidia-open-kernel-dkms candidate is visible but not installable.
+      Solver output summary:
+      {{ (host_nvidia_gpu_open_dkms_install_plan.stdout | default('') ~ '\n' ~ host_nvidia_gpu_open_dkms_install_plan.stderr | default('')) | regex_replace('\n+', '\n') }}
+      Typical fix on Debian/Proxmox: ensure the same suite includes required non-free/non-free-firmware components
+      (for example firmware-nvidia-gsp).
+      Current firmware-nvidia-gsp candidate: {{ host_nvidia_gpu_firmware_gsp_candidate | default('(none)') }}.
+      If it is older than the open DKMS line, align apt sources so NVIDIA packages and firmware come from the same suite,
+      then run `apt-get update` and retry.
+  when:
+    - host_nvidia_gpu_auto_select_open_kernel_module
+    - (host_nvidia_gpu_open_dkms_candidate_major | int) > 0
+    - not (host_nvidia_gpu_open_dkms_installable | default(false))
+
+- name: Derive effective NVIDIA package list for this host
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_packages_effective: >-
+      {{
+        (
+          host_nvidia_gpu_packages
+          | map('regex_replace', '^nvidia-kernel-dkms$', 'nvidia-open-kernel-dkms')
+          | list
+        )
+        if (
+          host_nvidia_gpu_auto_select_open_kernel_module
+          and (host_nvidia_gpu_open_dkms_installable | default(false))
+          and
+          (
+            (host_nvidia_gpu_prefer_open_kernel_module | default(false))
+            or
+            (
+              (host_nvidia_gpu_nvidia_driver_candidate_major | int)
+              < (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
+            )
+          )
+        )
+        else host_nvidia_gpu_packages
+      }}
+
+- name: Show selected NVIDIA package list
+  ansible.builtin.debug:
+    msg: "Using NVIDIA package list: {{ host_nvidia_gpu_packages_effective }}"
+
+- name: Simulate NVIDIA package install plan
+  ansible.builtin.command: >-
+    apt-get -s
+    {% if host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false) %}-t {{ host_nvidia_gpu_apt_default_release }}{% endif %}
+    install {{ host_nvidia_gpu_packages_effective | join(' ') }}
+  register: host_nvidia_apt_plan
+  changed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
+
+- name: Assert install plan does not remove proxmox-ve meta package
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_apt_plan.stdout is not regex('(?s)The following packages will be REMOVED:.*\\bproxmox-ve\\b')
+    fail_msg: >-
+      Refusing to continue because apt simulation indicates `proxmox-ve` removal.
+      Verify APT repository configuration and package pinning before installing NVIDIA packages.
+      Typical fixes: keep Proxmox repositories enabled and avoid mixing Debian firmware packages
+      that replace `pve-firmware`.
+  when: host_nvidia_gpu_block_proxmox_removal
+
+- name: Install NVIDIA driver stack packages
+  ansible.builtin.apt:
+    name: "{{ host_nvidia_gpu_packages_effective }}"
+    state: present
+    update_cache: true
+    default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
+
+- name: Build DKMS modules for running kernel
+  ansible.builtin.command: "dkms autoinstall -k {{ ansible_kernel }}"
+  register: host_nvidia_dkms_autoinstall
+  changed_when: "'Installing' in host_nvidia_dkms_autoinstall.stdout"
+  failed_when: false
+
+- name: Run depmod for running kernel
+  ansible.builtin.command: "depmod -a {{ ansible_kernel }}"
+  changed_when: false
+
+- name: Discover compiled NVIDIA modules for running kernel
+  ansible.builtin.find:
+    paths: "/lib/modules/{{ ansible_kernel }}"
+    recurse: true
+    patterns: "nvidia*.ko*"
+    file_type: file
+  register: host_nvidia_module_files
+
+- name: Collect DKMS status for diagnostics
+  ansible.builtin.command: dkms status
+  register: host_nvidia_dkms_status_after
+  changed_when: false
+  failed_when: false
+
+- name: Derive NVIDIA DKMS compatibility facts for running kernel
+  ansible.builtin.set_fact:
+    host_nvidia_dkms_has_running_kernel: >-
+      {{
+        ansible_kernel in (
+          host_nvidia_dkms_status_after.stdout
+          | regex_findall('nvidia(?:-current)?/[^,]+,\s*([^,\s]+),')
+        )
+      }}
+    host_nvidia_dkms_known_kernels: >-
+      {{
+        host_nvidia_dkms_status_after.stdout
+        | regex_findall('nvidia(?:-current)?/[^,]+,\s*([^,\s]+),')
+        | unique
+      }}
+    host_nvidia_running_kernel_has_module_files: "{{ (host_nvidia_module_files.matched | default(0) | int) > 0 }}"
+
+- name: Derive combined NVIDIA running-kernel readiness fact
+  ansible.builtin.set_fact:
+    host_nvidia_running_kernel_driver_ready: >-
+      {{
+        host_nvidia_dkms_has_running_kernel
+        or
+        (
+          (host_nvidia_dkms_known_kernels | length == 0)
+          and
+          host_nvidia_running_kernel_has_module_files
+        )
+      }}
+
+- name: Assert NVIDIA DKMS module exists for running kernel
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_running_kernel_driver_ready
+    fail_msg: >-
+      NVIDIA driver module does not appear ready for the running kernel {{ ansible_kernel }}.
+      DKMS has NVIDIA modules only for kernels: {{ host_nvidia_dkms_known_kernels | default([]) }}.
+      NVIDIA module files found under /lib/modules/{{ ansible_kernel }}: {{ host_nvidia_module_files.matched | default(0) }}.
+      This is commonly caused by repository/kernel-driver mismatch (for example older 535 drivers on newer PVE kernels)
+      or by booting into a newer kernel before a compatible NVIDIA DKMS package is available.
+      Confirm PVE/Debian repositories provide a driver compatible with {{ ansible_kernel }},
+      run apt full-upgrade, and reboot if needed.
+
+- name: Detect module naming variant
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_use_current_modules: >-
+      {{ (host_nvidia_module_files.files | map(attribute='path') | select('search', 'nvidia-current') | list | length) > 0 }}
+
+- name: Select primary module list to load
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_modules_to_load: >-
+      {{ host_nvidia_gpu_modules_current if host_nvidia_gpu_use_current_modules else host_nvidia_gpu_modules_standard }}
+    host_nvidia_gpu_modules_fallback: >-
+      {{ host_nvidia_gpu_modules_standard if host_nvidia_gpu_use_current_modules else host_nvidia_gpu_modules_current }}
+
+- name: Trigger device node creation
+  ansible.builtin.command: nvidia-modprobe -u -c=0
+  changed_when: false
+  failed_when: false
+
+- name: Try loading primary NVIDIA module set
+  ansible.builtin.command: "modprobe --ignore-install {{ item }}"
+  loop: "{{ host_nvidia_gpu_modules_to_load }}"
+  register: host_nvidia_modprobe_primary
+  changed_when: false
+  failed_when: false
+
+- name: Determine if primary modprobe pass succeeded
+  ansible.builtin.set_fact:
+    host_nvidia_modprobe_primary_failed: >-
+      {{ (host_nvidia_modprobe_primary.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) > 0 }}
+
+- name: Try fallback NVIDIA module set
+  ansible.builtin.command: "modprobe --ignore-install {{ item }}"
+  loop: "{{ host_nvidia_gpu_modules_fallback }}"
+  register: host_nvidia_modprobe_fallback
+  changed_when: false
+  failed_when: false
+  when: host_nvidia_modprobe_primary_failed
+
+- name: Determine if fallback modprobe pass succeeded
+  ansible.builtin.set_fact:
+    host_nvidia_modprobe_fallback_failed: >-
+      {{ (host_nvidia_modprobe_fallback.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length) > 0 }}
+  when: host_nvidia_modprobe_primary_failed
+
+- name: Set fallback result to success when fallback is not required
+  ansible.builtin.set_fact:
+    host_nvidia_modprobe_fallback_failed: false
+  when: not host_nvidia_modprobe_primary_failed
+
+- name: Assert NVIDIA modules could be loaded
+  ansible.builtin.assert:
+    that:
+      - not host_nvidia_modprobe_primary_failed or not host_nvidia_modprobe_fallback_failed
+    fail_msg: >-
+      Failed to load NVIDIA modules for kernel {{ ansible_kernel }}.
+      Found module files in /lib/modules: {{ host_nvidia_module_files.matched }}.
+      DKMS status: {{ host_nvidia_dkms_status_after.stdout | default('n/a') }}.
+      Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
+      Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
+- name: Verify NVIDIA device files exist
+  ansible.builtin.find:
+    paths: /dev
+    patterns: "nvidia*"
+    file_type: any
+  register: host_nvidia_dev_nodes
+
+- name: Assert NVIDIA device files are present
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_dev_nodes.matched | int > 0
+    fail_msg: >-
+      NVIDIA device files were not found under /dev. This usually means the driver module
+      is not loaded correctly or package installation failed.
+  when: host_nvidia_gpu_require_nvidia_devices
+
+- name: Ensure nvidia-persistenced service state
+  ansible.builtin.service:
+    name: nvidia-persistenced
+    enabled: true
+    state: started
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Validate nvidia-smi availability
+  ansible.builtin.command: nvidia-smi -L
+  register: nvidia_smi_devices
+  changed_when: false

@@ -1,0 +1,6 @@
+---
+ct_runtime_vllm_os_family: debian
+ct_runtime_vllm_os_major_version: '13'
+ct_runtime_vllm_cuda_packages_os:
+  - libcuda1
+  - libnvidia-ml1

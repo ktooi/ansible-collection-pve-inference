@@ -1,0 +1,18 @@
+[Unit]
+Description=Ollama server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ ct_runtime_ollama_user }}
+Group={{ ct_runtime_ollama_group }}
+WorkingDirectory={{ ct_runtime_ollama_workdir }}
+EnvironmentFile={{ ct_runtime_ollama_env_file }}
+ExecStart=/usr/local/bin/ollama serve ${OLLAMA_EXTRA_ARGS}
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

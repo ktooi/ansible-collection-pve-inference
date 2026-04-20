@@ -1,0 +1,22 @@
+---
+ct_instance_api_host: "{{ inventory_hostname }}"
+ct_instance_api_user: root@pam
+ct_instance_api_token_id: ""
+ct_instance_api_token_secret: ""
+ct_instance_node: pve
+ct_instance_storage: local-lvm
+ct_instance_ostemplate: local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst
+ct_instance_vmid: 100
+ct_instance_hostname: ct-infer
+ct_instance_cores: 8
+ct_instance_memory: 32768
+ct_instance_swap: 8192
+ct_instance_rootfs_size: 128
+ct_instance_netif:
+  net0: "name=eth0,bridge=vmbr0,ip=dhcp"
+ct_instance_onboot: true
+ct_instance_unprivileged: false
+ct_instance_features:
+  nesting: 0
+ct_instance_mounts: {}
+ct_instance_state: present

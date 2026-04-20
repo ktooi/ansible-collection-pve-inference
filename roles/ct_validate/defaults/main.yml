@@ -1,0 +1,5 @@
+---
+ct_validate_check_gpu_command: nvidia-smi -L
+ct_validate_check_api_url: http://127.0.0.1:8000/health
+ct_validate_check_service_name: vllm.service
+ct_validate_check_service_enabled: true

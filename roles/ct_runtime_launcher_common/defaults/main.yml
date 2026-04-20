@@ -1,0 +1,17 @@
+---
+# Shared launcher-level tuning knobs.
+ct_runtime_launcher_bind_host: 0.0.0.0
+ct_runtime_launcher_port: 8000
+ct_runtime_launcher_model: ""
+ct_runtime_launcher_served_model_name: ""
+ct_runtime_launcher_context_length: 8192
+ct_runtime_launcher_tensor_parallel_size: 1
+ct_runtime_launcher_pipeline_parallel_size: 1
+ct_runtime_launcher_gpu_memory_utilization: 0.9
+ct_runtime_launcher_dtype: auto
+ct_runtime_launcher_kv_cache_dtype: auto
+ct_runtime_launcher_max_num_seqs: 32
+ct_runtime_launcher_max_num_batched_tokens: 4096
+ct_runtime_launcher_tool_call_parser: ""
+ct_runtime_launcher_reasoning_parser: ""
+ct_runtime_launcher_extra_args: ""

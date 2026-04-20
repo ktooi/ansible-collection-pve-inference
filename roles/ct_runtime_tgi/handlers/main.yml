@@ -1,0 +1,9 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart tgi
+  ansible.builtin.service:
+    name: "{{ ct_runtime_tgi_service_name }}"
+    state: restarted

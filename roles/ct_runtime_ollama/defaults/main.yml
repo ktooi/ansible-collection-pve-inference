@@ -1,0 +1,15 @@
+---
+ct_runtime_ollama_user: infer
+ct_runtime_ollama_group: infer
+ct_runtime_ollama_workdir: /opt/inference
+ct_runtime_ollama_env_file: /etc/default/ollama
+ct_runtime_ollama_service_name: ollama.service
+ct_runtime_ollama_bind_host: "{{ ct_runtime_launcher_bind_host | default('0.0.0.0') }}"
+ct_runtime_ollama_port: "{{ ct_runtime_launcher_port | default(11434) }}"
+ct_runtime_ollama_model: "{{ ct_runtime_launcher_model | default('', true) }}"
+ct_runtime_ollama_serve_models_path: /var/lib/ollama
+ct_runtime_ollama_binary_url: https://github.com/ollama/ollama/releases/download/v0.6.8/ollama-linux-amd64.tgz
+ct_runtime_ollama_binary_archive: /tmp/ollama-linux-amd64.tgz
+ct_runtime_ollama_binary_dest_dir: /usr/local
+ct_runtime_ollama_extra_args: "{{ ct_runtime_launcher_extra_args | default('') }}"
+ct_runtime_ollama_pull_model: false

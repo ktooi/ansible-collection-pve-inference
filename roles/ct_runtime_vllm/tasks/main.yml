@@ -1,0 +1,243 @@
+---
+- name: Load OS/distribution specific variables
+  ansible.builtin.import_tasks: variables.yml
+
+- name: Ensure optional CUDA userspace packages are installed
+  ansible.builtin.package:
+    name: "{{ ct_runtime_vllm_cuda_packages }}"
+    state: present
+  register: ct_runtime_vllm_cuda_pkg_install
+  failed_when: false
+  when:
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_cuda_packages | length > 0
+
+- name: Fail if CUDA userspace package install failed and strict mode is enabled
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_cuda_pkg_install is not failed
+    fail_msg: >-
+      Failed to install CUDA userspace packages: {{ ct_runtime_vllm_cuda_packages }}.
+      Set ct_runtime_vllm_cuda_packages explicitly for your distro or disable strict mode.
+  when:
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_cuda_packages | length > 0
+    - ct_runtime_vllm_fail_on_cuda_package_install
+
+- name: Warn when CUDA userspace package install failed but strict mode is disabled
+  ansible.builtin.debug:
+    msg: >-
+      CUDA userspace package install failed for {{ ct_runtime_vllm_cuda_packages }}.
+      Continuing because ct_runtime_vllm_fail_on_cuda_package_install=false. libcuda preflight will still run.
+  when:
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_cuda_packages | length > 0
+    - ct_runtime_vllm_cuda_pkg_install is failed
+    - not ct_runtime_vllm_fail_on_cuda_package_install
+
+- name: Check NVIDIA device node visibility in CT
+  ansible.builtin.find:
+    paths: /dev
+    patterns: "nvidia*"
+    file_type: any
+  register: ct_runtime_vllm_dev_nodes
+
+- name: Assert NVIDIA device nodes are visible in CT
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_dev_nodes.matched | int > 0
+    fail_msg: >-
+      NVIDIA device nodes are not visible in CT (/dev/nvidia* missing). Configure CT device passthrough first.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_nvidia_device_nodes
+
+- name: Check libcuda visibility from dynamic linker cache
+  ansible.builtin.command: ldconfig -p
+  register: ct_runtime_vllm_ldconfig
+  changed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+
+- name: Check common libcuda.so.1 file locations in CT
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ ct_runtime_vllm_libcuda_candidate_paths }}"
+  register: ct_runtime_vllm_libcuda_candidate_stats
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+
+- name: Build libcuda availability fact
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_libcuda_available: >-
+      {{
+        ('libcuda.so.1' in ct_runtime_vllm_ldconfig.stdout)
+        or
+        (
+          ct_runtime_vllm_libcuda_candidate_stats.results
+          | selectattr('stat.exists')
+          | list
+          | length > 0
+        )
+      }}
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+
+- name: Discover fallback NVIDIA compute package candidate (APT)
+  ansible.builtin.shell: |
+    set -o pipefail
+    apt-cache search '^libnvidia-compute-[0-9]+(-server)?$' \
+      | awk '{print $1}' \
+      | sort -Vu \
+      | tail -n 1
+  args:
+    executable: /bin/bash
+  register: ct_runtime_vllm_libcuda_fallback_pkg
+  changed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+    - ansible_pkg_mgr == "apt"
+    - ct_runtime_vllm_install_cuda_userspace
+
+- name: Try installing fallback NVIDIA compute package when libcuda is still missing
+  ansible.builtin.package:
+    name: "{{ ct_runtime_vllm_libcuda_fallback_pkg.stdout }}"
+    state: present
+  register: ct_runtime_vllm_libcuda_fallback_install
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+    - ansible_pkg_mgr == "apt"
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_libcuda_fallback_pkg.stdout | length > 0
+
+- name: Re-check libcuda visibility from dynamic linker cache after fallback install
+  ansible.builtin.command: ldconfig -p
+  register: ct_runtime_vllm_ldconfig
+  changed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+
+- name: Re-check common libcuda.so.1 file locations in CT after fallback install
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ ct_runtime_vllm_libcuda_candidate_paths }}"
+  register: ct_runtime_vllm_libcuda_candidate_stats
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+
+- name: Rebuild libcuda availability fact after fallback install
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_libcuda_available: >-
+      {{
+        ('libcuda.so.1' in ct_runtime_vllm_ldconfig.stdout)
+        or
+        (
+          ct_runtime_vllm_libcuda_candidate_stats.results
+          | selectattr('stat.exists')
+          | list
+          | length > 0
+        )
+      }}
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+    - not ct_runtime_vllm_libcuda_available
+
+- name: Assert libcuda.so.1 is available in CT
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_libcuda_available
+    fail_msg: >-
+      libcuda.so.1 is not available inside CT (not found in ldconfig cache and not present in any
+      candidate paths: {{ ct_runtime_vllm_libcuda_candidate_paths }}).
+      Ensure NVIDIA userspace libraries are available in CT (for example via apt package install,
+      host bind-mount, and/or running ldconfig after mounting) before starting vLLM.
+      Fallback package candidate: {{ ct_runtime_vllm_libcuda_fallback_pkg.stdout | default('n/a') }}.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_libcuda
+
+- name: Install vLLM package
+  ansible.builtin.pip:
+    name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
+    virtualenv: "{{ ct_runtime_vllm_venv }}"
+
+- name: Probe CUDA availability from torch in vLLM venv
+  ansible.builtin.command:
+    argv:
+      - "{{ ct_runtime_vllm_venv }}/bin/python"
+      - -c
+      - |
+        import json
+        import torch
+        print(json.dumps({"is_available": torch.cuda.is_available(), "device_count": torch.cuda.device_count()}))
+  register: ct_runtime_vllm_torch_cuda_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Build torch CUDA probe fact
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_torch_cuda_info: >-
+      {{
+        (ct_runtime_vllm_torch_cuda_probe.stdout | default('{}') | trim | from_json)
+        if ct_runtime_vllm_torch_cuda_probe.rc == 0
+        else {}
+      }}
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Assert torch can see CUDA devices in vLLM venv
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_torch_cuda_probe.rc == 0
+      - ct_runtime_vllm_torch_cuda_info.is_available | default(false)
+      - (ct_runtime_vllm_torch_cuda_info.device_count | default(0) | int) > 0
+    fail_msg: >-
+      torch in {{ ct_runtime_vllm_venv }} cannot use CUDA devices (probe={{ ct_runtime_vllm_torch_cuda_info | default({}) }}).
+      This usually means CT device passthrough/permissions are incomplete (for example /dev/nvidia* missing),
+      even if libcuda.so.1 exists. Verify host NVIDIA driver status and CT passthrough settings.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Render vLLM environment file
+  ansible.builtin.template:
+    src: vllm.env.j2
+    dest: "{{ ct_runtime_vllm_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart vllm
+
+- name: Render vLLM systemd service unit
+  ansible.builtin.template:
+    src: vllm.service.j2
+    dest: "/etc/systemd/system/{{ ct_runtime_vllm_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart vllm
+
+- name: Enable and start vLLM service
+  ansible.builtin.service:
+    name: "{{ ct_runtime_vllm_service_name }}"
+    enabled: true
+    state: started

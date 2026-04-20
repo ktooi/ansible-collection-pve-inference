@@ -1,0 +1,56 @@
+---
+- name: Load OS/distribution specific variables
+  ansible.builtin.import_tasks: variables.yml
+
+- name: Download Ollama binary archive
+  ansible.builtin.get_url:
+    url: "{{ ct_runtime_ollama_binary_url }}"
+    dest: "{{ ct_runtime_ollama_binary_archive }}"
+    mode: "0644"
+
+- name: Extract Ollama binary archive
+  ansible.builtin.unarchive:
+    src: "{{ ct_runtime_ollama_binary_archive }}"
+    dest: "{{ ct_runtime_ollama_binary_dest_dir }}"
+    remote_src: true
+
+- name: Ensure Ollama models directory exists
+  ansible.builtin.file:
+    path: "{{ ct_runtime_ollama_serve_models_path }}"
+    state: directory
+    owner: "{{ ct_runtime_ollama_user }}"
+    group: "{{ ct_runtime_ollama_group }}"
+    mode: "0755"
+
+- name: Render Ollama environment file
+  ansible.builtin.template:
+    src: ollama.env.j2
+    dest: "{{ ct_runtime_ollama_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart ollama
+
+- name: Render Ollama systemd service unit
+  ansible.builtin.template:
+    src: ollama.service.j2
+    dest: "/etc/systemd/system/{{ ct_runtime_ollama_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart ollama
+
+- name: Enable and start Ollama service
+  ansible.builtin.service:
+    name: "{{ ct_runtime_ollama_service_name }}"
+    enabled: true
+    state: started
+
+- name: Pull configured Ollama model
+  ansible.builtin.command: "/usr/local/bin/ollama pull {{ ct_runtime_ollama_model }}"
+  when:
+    - ct_runtime_ollama_pull_model
+    - ct_runtime_ollama_model | length > 0
+  changed_when: true

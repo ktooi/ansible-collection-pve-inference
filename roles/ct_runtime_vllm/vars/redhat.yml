@@ -1,0 +1,4 @@
+---
+ct_runtime_vllm_os_family: redhat
+ct_runtime_vllm_cuda_packages_os:
+  - nvidia-driver-cuda-libs

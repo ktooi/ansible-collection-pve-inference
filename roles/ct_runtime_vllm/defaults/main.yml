@@ -1,0 +1,58 @@
+---
+ct_runtime_vllm_user: infer
+ct_runtime_vllm_group: infer
+ct_runtime_vllm_venv: /opt/inference/venv
+ct_runtime_vllm_workdir: /opt/inference
+ct_runtime_vllm_env_file: /etc/default/vllm
+ct_runtime_vllm_service_name: vllm.service
+
+# API endpoint
+ct_runtime_vllm_bind_host: "{{ ct_runtime_launcher_bind_host | default('0.0.0.0') }}"
+ct_runtime_vllm_port: "{{ ct_runtime_launcher_port | default(8000) }}"
+
+# Model and parallelism
+ct_runtime_vllm_model: "{{ ct_runtime_launcher_model | default('mistralai/Mistral-7B-Instruct-v0.3', true) }}"
+ct_runtime_vllm_served_model_name: "{{ ct_runtime_launcher_served_model_name | default('') }}"
+ct_runtime_vllm_tensor_parallel_size: "{{ ct_runtime_launcher_tensor_parallel_size | default(1) }}"
+ct_runtime_vllm_pipeline_parallel_size: "{{ ct_runtime_launcher_pipeline_parallel_size | default(1) }}"
+
+# Throughput / memory tuning
+ct_runtime_vllm_gpu_memory_utilization: "{{ ct_runtime_launcher_gpu_memory_utilization | default(0.9) }}"
+ct_runtime_vllm_dtype: "{{ ct_runtime_launcher_dtype | default('auto') }}"
+ct_runtime_vllm_kv_cache_dtype: "{{ ct_runtime_launcher_kv_cache_dtype | default('auto') }}"
+ct_runtime_vllm_max_model_len: "{{ ct_runtime_launcher_context_length | default(8192) }}"
+ct_runtime_vllm_max_num_seqs: "{{ ct_runtime_launcher_max_num_seqs | default(32) }}"
+ct_runtime_vllm_max_num_batched_tokens: "{{ ct_runtime_launcher_max_num_batched_tokens | default(4096) }}"
+
+# Tool/reasoning parsing
+ct_runtime_vllm_tool_call_parser: "{{ ct_runtime_launcher_tool_call_parser | default('') }}"
+ct_runtime_vllm_reasoning_parser: "{{ ct_runtime_launcher_reasoning_parser | default('') }}"
+
+# NCCL / comms
+ct_runtime_vllm_nccl_p2p_disable: 0
+ct_runtime_vllm_nccl_ib_disable: 0
+ct_runtime_vllm_nccl_p2p_level: 5
+ct_runtime_vllm_nccl_debug: INFO
+ct_runtime_vllm_nccl_ignore_disabled_p2p: 1
+
+# Runtime environment
+ct_runtime_vllm_omp_num_threads: ""
+ct_runtime_vllm_ld_library_path: /usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu
+ct_runtime_vllm_hf_cache_dir: ""
+
+# Package and extensibility
+ct_runtime_vllm_extra_args: "{{ ct_runtime_launcher_extra_args | default('') }}"
+ct_runtime_vllm_version: ""
+
+ct_runtime_vllm_install_cuda_userspace: true
+ct_runtime_vllm_cuda_packages: "{{ ct_runtime_vllm_cuda_packages_os | default([]) }}"
+ct_runtime_vllm_require_libcuda: true
+ct_runtime_vllm_require_nvidia_device_nodes: true
+ct_runtime_vllm_require_torch_cuda_available: true
+ct_runtime_vllm_fail_on_cuda_package_install: false
+ct_runtime_vllm_libcuda_candidate_paths:
+  - /usr/local/nvidia/lib64/libcuda.so.1
+  - /usr/local/nvidia/lib/libcuda.so.1
+  - /usr/lib/x86_64-linux-gnu/libcuda.so.1
+ct_runtime_vllm_device: cuda
+ct_runtime_vllm_logging_level: INFO

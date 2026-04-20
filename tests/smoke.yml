@@ -1,0 +1,8 @@
+---
+- name: Local syntax smoke entrypoint
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Smoke message
+      ansible.builtin.debug:
+        msg: "ktooi.pve_inference smoke playbook"

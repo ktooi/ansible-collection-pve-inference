@@ -1,0 +1,3 @@
+---
+ct_validate_os_family: debian
+ct_validate_os_major_version: '12'

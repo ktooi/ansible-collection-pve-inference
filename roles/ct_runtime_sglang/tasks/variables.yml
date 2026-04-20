@@ -1,0 +1,32 @@
+---
+- name: Normalize distribution key
+  ansible.builtin.set_fact:
+    ct_runtime_sglang_distribution_key: "{{ ansible_distribution | lower | regex_replace('[^a-z0-9]', '') }}"
+
+- name: Define supported distribution matrix
+  ansible.builtin.set_fact:
+    ct_runtime_sglang_supported_matrix:
+      debian: ['12', '13']
+      ubuntu: ['22', '24']
+      redhat: ['9', '10']
+      rocky: ['9', '10']
+      almalinux: ['9', '10']
+      oraclelinux: ['9', '10']
+
+- name: Assert CT distribution is supported
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_sglang_distribution_key in ct_runtime_sglang_supported_matrix
+      - (ansible_distribution_major_version | string) in ct_runtime_sglang_supported_matrix[ct_runtime_sglang_distribution_key]
+    fail_msg: >-
+      Unsupported CT distribution/version: {{ ansible_distribution }} {{ ansible_distribution_major_version }}.
+      Supported: Debian 12/13, Ubuntu 22/24, RHEL/AlmaLinux/Rocky/OracleLinux 9/10.
+
+- name: Load OS-specific variables
+  ansible.builtin.include_vars: "{{ item }}"
+  with_first_found:
+    - files:
+        - "{{ ct_runtime_sglang_distribution_key }}-{{ ansible_distribution_major_version }}.yml"
+        - "{{ ct_runtime_sglang_distribution_key }}.yml"
+      paths:
+        - "{{ role_path }}/vars"

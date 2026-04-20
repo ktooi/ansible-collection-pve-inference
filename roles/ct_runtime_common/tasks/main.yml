@@ -1,0 +1,36 @@
+---
+- name: Load OS/distribution specific variables
+  ansible.builtin.import_tasks: variables.yml
+
+- name: Install runtime common packages
+  ansible.builtin.package:
+    name: "{{ ct_runtime_common_packages }}"
+    state: present
+
+- name: Ensure runtime group exists
+  ansible.builtin.group:
+    name: "{{ ct_runtime_common_group }}"
+    state: present
+
+- name: Ensure runtime user exists
+  ansible.builtin.user:
+    name: "{{ ct_runtime_common_user }}"
+    group: "{{ ct_runtime_common_group }}"
+    home: "{{ ct_runtime_common_home }}"
+    create_home: true
+    shell: /bin/bash
+    state: present
+
+- name: Create runtime directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ct_runtime_common_user }}"
+    group: "{{ ct_runtime_common_group }}"
+    mode: "0755"
+  loop: "{{ ct_runtime_common_directories }}"
+
+- name: Create runtime python virtual environment
+  ansible.builtin.command: "python3 -m venv {{ ct_runtime_common_venv }}"
+  args:
+    creates: "{{ ct_runtime_common_venv }}/bin/activate"

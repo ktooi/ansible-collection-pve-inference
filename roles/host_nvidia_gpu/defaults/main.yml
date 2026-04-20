@@ -1,0 +1,39 @@
+---
+host_nvidia_gpu_prereq_packages:
+  - build-essential
+  - dkms
+  - mokutil
+
+host_nvidia_gpu_header_packages:
+  - "pve-headers-{{ ansible_kernel }}"
+
+host_nvidia_gpu_packages:
+  - nvidia-driver
+  - nvidia-kernel-dkms
+  - nvidia-smi
+  - nvidia-persistenced
+  - nvidia-modprobe
+
+host_nvidia_gpu_apt_default_release: ""
+host_nvidia_gpu_require_apt_default_release: false
+host_nvidia_gpu_auto_select_open_kernel_module: true
+host_nvidia_gpu_prefer_open_kernel_module: false
+host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus: 550
+
+host_nvidia_gpu_modules_standard:
+  - nvidia
+  - nvidia_uvm
+  - nvidia_modeset
+  - nvidia_drm
+
+host_nvidia_gpu_modules_current:
+  - nvidia-current
+  - nvidia-current-uvm
+  - nvidia-current-modeset
+  - nvidia-current-drm
+
+host_nvidia_gpu_enable_persistenced: true
+host_nvidia_gpu_require_pve_kernel: true
+host_nvidia_gpu_require_nvidia_devices: true
+host_nvidia_gpu_block_proxmox_removal: true
+host_nvidia_gpu_require_exact_headers: true
