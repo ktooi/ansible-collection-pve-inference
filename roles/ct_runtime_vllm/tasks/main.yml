@@ -200,6 +200,18 @@
     name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
     virtualenv: "{{ ct_runtime_vllm_venv }}"
 
+- name: Install/override torch package for selected CUDA stack
+  ansible.builtin.pip:
+    name: "{{ ct_runtime_vllm_torch_package }}"
+    virtualenv: "{{ ct_runtime_vllm_venv }}"
+    extra_args: >-
+      {{
+        ('--extra-index-url ' ~ ct_runtime_vllm_torch_extra_index_url)
+        if (ct_runtime_vllm_torch_extra_index_url | length > 0)
+        else omit
+      }}
+  when: ct_runtime_vllm_torch_package | length > 0
+
 - name: Probe NVIDIA driver runtime with nvidia-smi
   ansible.builtin.command:
     argv:
