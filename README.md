@@ -140,6 +140,24 @@ ansible-playbook -i inventory.ini playbooks/ct_create.yml --vault-password-file 
 vault_pve_api_token_secret: "REPLACE_WITH_REAL_TOKEN_SECRET"
 ```
 
+### Troubleshooting: 401 Unauthorized
+
+If you see `401 Unauthorized: Authentication failed!`, check the following:
+
+- `ct_instance_api_user` must be the token owner (example: `ansible@pve`).
+- `ct_instance_api_token_id` should be the token name (example: `ci-token`).
+  - This collection also accepts legacy `<user>!<token_name>` and normalizes it automatically.
+- Ensure ACL is granted to the token owner on the target path (for example `/`).
+
+Quick API test from bastion:
+
+```bash
+curl -sk -H "Authorization: PVEAPIToken=ansible@pve!ci-token=REPLACE_WITH_SECRET" \
+  https://<PVE_HOST>:8006/api2/json/version
+```
+
+A successful response returns version JSON. If this fails with 401, the issue is credentials/ACL on Proxmox side.
+
 ### 2) Prepare inventory and vars
 
 `inventory.ini`:
@@ -157,7 +175,7 @@ ct-infer-01 ansible_host=198.51.100.20
 ```yaml
 ct_instance_api_host: "192.0.2.10"
 ct_instance_api_user: "ansible@pve"
-ct_instance_api_token_id: "ansible@pve!ci-token"
+ct_instance_api_token_id: "ci-token"
 ct_instance_api_token_secret: "{{ vault_pve_api_token_secret }}"
 ct_instance_node: "pve01"
 ct_instance_vmid: 120
@@ -226,7 +244,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 |---|---|---|---|
 | `ct_instance_api_host` | Proxmox API endpoint host/IP | `{{ inventory_hostname }}` | Valid hostname/IP |
 | `ct_instance_api_user` | Proxmox API user | `root@pam` | Valid PVE API user (e.g. `ansible@pve`) |
-| `ct_instance_api_token_id` | API token ID | `""` | `<user>!<token_name>` |
+| `ct_instance_api_token_id` | API token name (preferred) or legacy `<user>!<token_name>` | `""` | `ci-token` (preferred), or `<user>!<token_name>` |
 | `ct_instance_api_token_secret` | API token secret | `""` | Token secret string |
 | `ct_instance_node` | Target PVE node | `pve` | Existing node name |
 | `ct_instance_vmid` | CT VMID | `100` | Positive integer, unique on cluster |

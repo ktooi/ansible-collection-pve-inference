@@ -20,11 +20,20 @@
         else (ct_instance_features | default([]))
       }}
 
+- name: Normalize Proxmox API token ID for module input
+  ansible.builtin.set_fact:
+    ct_instance_api_token_id_effective: >-
+      {{
+        (ct_instance_api_token_id | regex_replace('^' ~ (ct_instance_api_user | regex_escape) ~ '!', ''))
+        if (ct_instance_api_token_id is string)
+        else ct_instance_api_token_id
+      }}
+
 - name: Manage CT lifecycle
   community.general.proxmox:
     api_host: "{{ ct_instance_api_host }}"
     api_user: "{{ ct_instance_api_user }}"
-    api_token_id: "{{ ct_instance_api_token_id }}"
+    api_token_id: "{{ ct_instance_api_token_id_effective }}"
     api_token_secret: "{{ ct_instance_api_token_secret }}"
     node: "{{ ct_instance_node }}"
     vmid: "{{ ct_instance_vmid }}"

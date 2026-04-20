@@ -26,7 +26,7 @@ flowchart TD
 |---|---|---|---|
 | `ct_instance_api_host` | Proxmox API host/IP | `{{ inventory_hostname }}` | Valid hostname/IP |
 | `ct_instance_api_user` | Proxmox API user | `root@pam` | Valid PVE API user |
-| `ct_instance_api_token_id` | API token ID | `""` | `<user>!<token_name>` |
+| `ct_instance_api_token_id` | API token name (preferred) or legacy `<user>!<token_name>` | `""` | `ci-token` (preferred), or `<user>!<token_name>` |
 | `ct_instance_api_token_secret` | API token secret | `""` | Token secret string |
 | `ct_instance_node` | Target node name | `pve` | Existing node name |
 | `ct_instance_storage` | Storage ID for CT root disk (`disk` parameter) | `local-lvm` | Existing storage ID |
