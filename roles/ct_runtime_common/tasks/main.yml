@@ -2,10 +2,34 @@
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
-- name: Install runtime common packages
+- name: Install runtime common packages (Debian family)
+  when: ansible_os_family == 'Debian'
+  block:
+    - name: Refresh apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: "{{ ct_runtime_common_apt_cache_valid_time }}"
+
+    - name: Install runtime common packages with apt
+      ansible.builtin.apt:
+        name: "{{ ct_runtime_common_packages }}"
+        state: present
+  rescue:
+    - name: Force refresh apt cache after package install failure
+      ansible.builtin.apt:
+        update_cache: true
+        force_apt_get: true
+
+    - name: Retry runtime common package installation with apt
+      ansible.builtin.apt:
+        name: "{{ ct_runtime_common_packages }}"
+        state: present
+
+- name: Install runtime common packages (non-Debian)
   ansible.builtin.package:
     name: "{{ ct_runtime_common_packages }}"
     state: present
+  when: ansible_os_family != 'Debian'
 
 - name: Ensure runtime group exists
   ansible.builtin.group:

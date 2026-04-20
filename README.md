@@ -360,6 +360,19 @@ Set at least one of the following in `group_vars/ct_targets.yml`:
 
 If both `ct_instance_password` and `ct_instance_pubkey` are set, you can use either method.
 
+### Troubleshooting: apt 404 in runtime playbooks
+
+If `runtime_*` playbooks fail in `ct_runtime_common` with Debian `404 Not Found` during package install, the CT apt cache is stale.
+This collection refreshes apt cache before install and retries once.
+
+Optional tuning:
+
+```yaml
+ct_runtime_common_apt_cache_valid_time: 0
+```
+
+Set in `group_vars/ct_targets.yml` to force apt cache refresh every run.
+
 ### 3) Execute playbooks
 
 ```bash

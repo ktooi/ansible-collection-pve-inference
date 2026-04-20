@@ -343,6 +343,19 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 
 `ct_instance_password` と `ct_instance_pubkey` を両方設定した場合、どちらの認証方式も利用できます。
 
+### トラブルシューティング: runtime Playbook で apt 404
+
+`ct_runtime_common` のパッケージインストールで Debian の `404 Not Found` が出る場合、CT の apt キャッシュが古い可能性が高いです。
+本 Collection はインストール前に apt キャッシュを更新し、失敗時は強制更新して 1 回リトライします。
+
+必要に応じて以下を `group_vars/ct_targets.yml` に設定してください。
+
+```yaml
+ct_runtime_common_apt_cache_valid_time: 0
+```
+
+毎回 apt キャッシュを更新する動作になります。
+
 ### 3) Playbook 実行
 
 ```bash
