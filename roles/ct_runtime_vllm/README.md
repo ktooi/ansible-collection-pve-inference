@@ -108,3 +108,5 @@ flowchart TD
 > Logging note: some minimal CT environments do not persist journald entries. By default this role configures systemd to append vLLM stdout/stderr into `/var/log/inference/vllm.stdout.log` and `/var/log/inference/vllm.stderr.log` for troubleshooting restart loops.
 
 > CLI compatibility note: older vLLM versions may reject `--device cuda`. This role omits `--device` for CUDA by default and only passes it for non-CUDA devices (or when `ct_runtime_vllm_force_device_arg=true`).
+
+> Environment naming note: runtime command variables are exported with `INFER_VLLM_*` names (not `VLLM_*`) to avoid `Unknown vLLM environment variable` warnings emitted by newer vLLM versions.
