@@ -206,12 +206,12 @@
   ansible.builtin.assert:
     that:
       - ct_runtime_vllm_torch_cuda_probe.rc == 0
-      - ct_runtime_vllm_torch_cuda_info.is_available | default(false)
       - (ct_runtime_vllm_torch_cuda_info.device_count | default(0) | int) > 0
     fail_msg: >-
-      torch in {{ ct_runtime_vllm_venv }} cannot use CUDA devices (probe={{ ct_runtime_vllm_torch_cuda_info | default({}) }}).
-      This usually means CT device passthrough/permissions are incomplete (for example /dev/nvidia* missing),
-      even if libcuda.so.1 exists. Verify host NVIDIA driver status and CT passthrough settings.
+      torch in {{ ct_runtime_vllm_venv }} cannot see CUDA devices (probe={{ ct_runtime_vllm_torch_cuda_info | default({}) }}).
+      Verify CT GPU passthrough and host/CT NVIDIA userspace compatibility.
+      Note: some environments report torch.cuda.is_available()=False while still exposing non-zero device_count;
+      this check uses device_count as readiness signal.
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available

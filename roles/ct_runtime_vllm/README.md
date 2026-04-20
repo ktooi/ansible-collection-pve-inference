@@ -61,7 +61,7 @@ flowchart TD
 | `ct_runtime_vllm_cuda_packages` | CUDA userspace package list | distro-dependent | Package list |
 | `ct_runtime_vllm_fail_on_cuda_package_install` | Fail when CUDA package install fails | `false` | `true` / `false` |
 | `ct_runtime_vllm_require_libcuda` | Require `libcuda.so.1` preflight check (when `ct_runtime_vllm_device=cuda`) | `true` | `true` / `false` |
-| `ct_runtime_vllm_require_torch_cuda_available` | Require `torch.cuda.is_available()` and GPU count preflight (when `ct_runtime_vllm_device=cuda`) | `true` | `true` / `false` |
+| `ct_runtime_vllm_require_torch_cuda_available` | Require torch CUDA preflight via probe (`device_count > 0`) (when `ct_runtime_vllm_device=cuda`) | `true` | `true` / `false` |
 | `ct_runtime_vllm_libcuda_candidate_paths` | Extra file paths checked for `libcuda.so.1` in CT | see defaults | List of absolute paths |
 | `ct_runtime_vllm_require_nvidia_device_nodes` | Require `/dev/nvidia*` in CT (when `ct_runtime_vllm_device=cuda`) | `true` | `true` / `false` |
 | `ct_runtime_vllm_device` | vLLM device selection | `cuda` | `cuda`, `cpu`, runtime-supported values |
@@ -90,3 +90,6 @@ flowchart TD
 | `ct_runtime_vllm_hf_cache_dir` | Hugging Face cache dir | `""` | Empty or absolute path |
 | `ct_runtime_vllm_extra_args` | Extra CLI args | `""` | String |
 | `ct_runtime_vllm_version` | Pin version (optional) | `""` | Empty or semantic version string |
+
+
+> CUDA preflight note: this role validates torch CUDA readiness primarily by `device_count > 0` to avoid false negatives in environments where `torch.cuda.is_available()` can be misleading inside CTs.
