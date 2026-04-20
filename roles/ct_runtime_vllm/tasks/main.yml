@@ -224,6 +224,20 @@
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvidia_smi
+    - ct_runtime_vllm_fail_on_nvidia_smi_probe
+
+- name: Warn when nvidia-smi probe failed but strict nvidia-smi mode is disabled
+  ansible.builtin.debug:
+    msg: >-
+      nvidia-smi preflight failed in CT (rc={{ ct_runtime_vllm_nvidia_smi_probe.rc }},
+      stderr={{ ct_runtime_vllm_nvidia_smi_probe.stderr | default('') | trim }}).
+      Continuing because ct_runtime_vllm_fail_on_nvidia_smi_probe=false.
+      torch CUDA preflight will still run and enforce CUDA readiness.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_nvidia_smi
+    - not ct_runtime_vllm_fail_on_nvidia_smi_probe
+    - ct_runtime_vllm_nvidia_smi_probe.rc != 0
 
 - name: Probe CUDA availability from torch in vLLM venv
   ansible.builtin.command:
