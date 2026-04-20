@@ -2,6 +2,29 @@
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
+- name: Normalize served model name for vLLM CLI
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_served_model_name_effective: >-
+      {{
+        (
+          ct_runtime_vllm_served_model_name
+          if (ct_runtime_vllm_served_model_name is string)
+          else
+          (
+            (
+              ct_runtime_vllm_served_model_name
+              | select('string')
+              | map('trim')
+              | reject('equalto', '')
+              | list
+              | first
+            )
+            if (ct_runtime_vllm_served_model_name is sequence and ct_runtime_vllm_served_model_name is not string)
+            else ''
+          )
+        )
+      }}
+
 - name: Ensure optional CUDA userspace packages are installed
   ansible.builtin.package:
     name: "{{ ct_runtime_vllm_cuda_packages }}"
