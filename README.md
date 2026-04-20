@@ -386,6 +386,18 @@ Then re-run `playbooks/ct_create.yml` so the role writes passthrough entries to 
 The default passthrough block includes `/dev/nvidia*` plus `libcuda.so.1` / `libnvidia-ml.so.1` bind-mount entries.
 If the passthrough block changes, the role can restart CT automatically (`ct_instance_restart_on_nvidia_passthrough_change: true`).
 
+### Troubleshooting: torch reports `CUDA unknown error` in CT
+
+If torch probe shows `device_count > 0` but `is_available=False` with `CUDA unknown error`,
+check `/dev/nvidia-uvm` inside CT. If it is not a character device (for example `----------` regular file),
+host-side UVM device creation/passthrough is incomplete.
+
+Recommended recovery:
+
+1. Re-run host GPU preparation role (ensures NVIDIA modules/device nodes on host).
+2. Re-run `playbooks/ct_create.yml` to re-apply passthrough block and CT restart.
+3. Re-run runtime playbook.
+
 ### Troubleshooting: apt 404 in runtime playbooks
 
 If `runtime_*` playbooks fail in `ct_runtime_common` with Debian `404 Not Found` during package install, the CT apt cache is stale.

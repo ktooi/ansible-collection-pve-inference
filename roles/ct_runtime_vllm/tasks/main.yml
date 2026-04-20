@@ -52,6 +52,32 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvidia_device_nodes
 
+
+- name: Check critical NVIDIA device node types in CT
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /dev/nvidiactl
+    - /dev/nvidia-uvm
+  register: ct_runtime_vllm_critical_dev_stats
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_nvidia_device_nodes
+
+- name: Assert critical NVIDIA nodes are character devices
+  ansible.builtin.assert:
+    that:
+      - (ct_runtime_vllm_critical_dev_stats.results | selectattr('stat.exists', 'equalto', true) | list | length) == 2
+      - (ct_runtime_vllm_critical_dev_stats.results | selectattr('stat.ischr', 'equalto', true) | list | length) == 2
+    fail_msg: >-
+      Critical NVIDIA nodes are missing or not character devices in CT.
+      Expected char devices: /dev/nvidiactl and /dev/nvidia-uvm.
+      If /dev/nvidia-uvm is a regular file (for example mode ----------), ensure host-side NVIDIA UVM device
+      is created and passthrough is re-applied (run host GPU preparation role, then ct_create again).
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_nvidia_device_nodes
+
 - name: Check libcuda visibility from dynamic linker cache
   ansible.builtin.command: ldconfig -p
   register: ct_runtime_vllm_ldconfig

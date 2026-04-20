@@ -369,6 +369,18 @@ ct_instance_enable_nvidia_passthrough: true
 デフォルトのパススルーブロックには `/dev/nvidia*` に加えて `libcuda.so.1` / `libnvidia-ml.so.1` の bind-mount も含まれます。
 パススルーブロックが変更された場合は、`ct_instance_restart_on_nvidia_passthrough_change: true` で CT を自動再起動できます。
 
+### トラブルシューティング: CT 内 torch の `CUDA unknown error`
+
+torch probe で `device_count > 0` なのに `is_available=False` かつ `CUDA unknown error` が出る場合、
+`/dev/nvidia-uvm` の種別を確認してください。`----------` の通常ファイルになっている場合は、
+ホスト側 UVM デバイス生成またはパススルー適用が不完全です。
+
+推奨復旧手順:
+
+1. ホスト GPU 準備 Role を再実行（ホスト側 NVIDIA モジュール/デバイスノードを再整備）。
+2. `playbooks/ct_create.yml` を再実行してパススルーと CT 再起動を反映。
+3. runtime Playbook を再実行。
+
 ### トラブルシューティング: runtime Playbook で apt 404
 
 `ct_runtime_common` のパッケージインストールで Debian の `404 Not Found` が出る場合、CT の apt キャッシュが古い可能性が高いです。
