@@ -99,39 +99,31 @@
   register: ct_instance_nvidia_passthrough_result
 
 - name: Stop CT to apply NVIDIA passthrough config changes
+  become: true
+  ansible.builtin.command: "pct stop {{ ct_instance_vmid }}"
+  register: ct_instance_pct_stop
+  changed_when: ct_instance_pct_stop.rc == 0
+  failed_when:
+    - ct_instance_pct_stop.rc != 0
+    - "'already stopped' not in ((ct_instance_pct_stop.stderr | default('')) | lower)"
   when:
     - ct_instance_enable_nvidia_passthrough | bool
     - ct_instance_restart_on_nvidia_passthrough_change | bool
     - ct_instance_nvidia_passthrough_result is defined
     - ct_instance_nvidia_passthrough_result is changed
     - ct_instance_state != 'absent'
-  delegate_to: localhost
-  community.general.proxmox:
-    api_host: "{{ ct_instance_api_host }}"
-    api_user: "{{ ct_instance_api_user }}"
-    api_token_id: "{{ ct_instance_api_token_id_effective }}"
-    api_token_secret: "{{ ct_instance_api_token_secret }}"
-    validate_certs: "{{ ct_instance_validate_certs }}"
-    node: "{{ ct_instance_node }}"
-    vmid: "{{ ct_instance_vmid }}"
-    timeout: "{{ ct_instance_timeout }}"
-    state: stopped
 
 - name: Start CT after NVIDIA passthrough config change
+  become: true
+  ansible.builtin.command: "pct start {{ ct_instance_vmid }}"
+  register: ct_instance_pct_start
+  changed_when: ct_instance_pct_start.rc == 0
+  failed_when:
+    - ct_instance_pct_start.rc != 0
+    - "'already running' not in ((ct_instance_pct_start.stderr | default('')) | lower)"
   when:
     - ct_instance_enable_nvidia_passthrough | bool
     - ct_instance_restart_on_nvidia_passthrough_change | bool
     - ct_instance_nvidia_passthrough_result is defined
     - ct_instance_nvidia_passthrough_result is changed
     - ct_instance_state != 'absent'
-  delegate_to: localhost
-  community.general.proxmox:
-    api_host: "{{ ct_instance_api_host }}"
-    api_user: "{{ ct_instance_api_user }}"
-    api_token_id: "{{ ct_instance_api_token_id_effective }}"
-    api_token_secret: "{{ ct_instance_api_token_secret }}"
-    validate_certs: "{{ ct_instance_validate_certs }}"
-    node: "{{ ct_instance_node }}"
-    vmid: "{{ ct_instance_vmid }}"
-    timeout: "{{ ct_instance_timeout }}"
-    state: started
