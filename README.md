@@ -107,7 +107,7 @@ Example (adapt for your policy):
 pveum user add ansible@pve --password 'REPLACE_ME'
 
 # create a role with required privileges (example)
-pveum role add AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit"
+pveum role add AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
 
 # assign role to user (scope: /)
 pveum aclmod / -user ansible@pve -role AnsiblePVE
@@ -156,7 +156,7 @@ Minimum fix:
 Example:
 
 ```bash
-pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit"
+pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
 pveum aclmod / -user ansible@pve -role AnsiblePVE
 ```
 
@@ -175,6 +175,28 @@ Operational guidance:
 
 - Prefer `ct_instance_unprivileged: true` when using API tokens/non-root automation users.
 - Use `ct_instance_unprivileged: false` only when you explicitly need privileged CT behavior and accept the security/permission trade-offs.
+
+### Troubleshooting: 403 Forbidden (`Permission check failed (/sdn/... , SDN.Use)`)
+
+If you see an error like:
+
+- `403 Forbidden: Permission check failed (/sdn/zones/<zone>/<bridge>, SDN.Use)`
+
+then your CT network bridge is managed by Proxmox SDN, and the API user/token lacks `SDN.Use`.
+
+How to resolve:
+
+- Ensure the role used by Ansible includes `SDN.Use`.
+- Re-apply ACL to the automation user (for example on `/`), or grant ACL on the relevant SDN subtree according to your policy.
+
+Example:
+
+```bash
+pveum role modify AnsiblePVE -privs "Sys.Modify VM.Allocate VM.Config.CPU VM.Config.Memory VM.Config.Disk VM.Config.Network VM.PowerMgmt Datastore.AllocateSpace Datastore.Audit SDN.Use"
+pveum aclmod / -user ansible@pve -role AnsiblePVE
+```
+
+If you do not use SDN bridges, set `ct_instance_netif` to a non-SDN bridge or verify bridge naming/scope.
 
 ### Troubleshooting: 403 Forbidden (`changing feature flags for privileged container`)
 
