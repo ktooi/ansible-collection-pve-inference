@@ -365,7 +365,7 @@ If both `ct_instance_password` and `ct_instance_pubkey` are set, you can use eit
 ### Troubleshooting: `CT <vmid> already exists on node`
 
 If `ct_create.yml` fails with `CT <vmid> already exists`, re-run behavior should be idempotent.
-This collection now retries in update mode (without create-only module fields) when Proxmox returns an existing-CT error on rerun.
+This collection now treats existing-CT errors as acceptable reruns (the module path is create-only for `state: present`) and continues with post-create steps.
 
 If you still see this error, verify that:
 

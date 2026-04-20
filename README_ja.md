@@ -348,7 +348,7 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 ### トラブルシューティング: `CT <vmid> already exists on node`
 
 `ct_create.yml` で `CT <vmid> already exists` が出る場合、再実行時の冪等性が崩れています。
-本 Collection は再実行時に Proxmox から既存 CT エラーを受けた場合、作成専用項目（`ostemplate`、初期 `password`/`pubkey`）なしで更新モード再試行するよう改善しました。
+本 Collection は再実行時に Proxmox から既存 CT エラーを受けた場合、`state: present` の作成専用制約を考慮して許容し、後続設定へ進むよう改善しました。
 
 継続して失敗する場合は次を確認してください。
 

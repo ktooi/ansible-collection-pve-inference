@@ -65,44 +65,23 @@
       register: ct_instance_manage_result
 
   rescue:
-    - name: Retry CT lifecycle without create-only fields when CT already exists
+    - name: Mark existing CT as acceptable on rerun
       when:
-        - ct_instance_state != 'absent'
+        - ct_instance_state == 'present'
         - ct_instance_manage_result is defined
         - "'already exists' in ((ct_instance_manage_result.msg | default('')) | lower)"
-      community.general.proxmox:
-        api_host: "{{ ct_instance_api_host }}"
-        api_user: "{{ ct_instance_api_user }}"
-        api_token_id: "{{ ct_instance_api_token_id_effective }}"
-        api_token_secret: "{{ ct_instance_api_token_secret }}"
-        validate_certs: "{{ ct_instance_validate_certs }}"
-        node: "{{ ct_instance_node }}"
-        vmid: "{{ ct_instance_vmid }}"
-        hostname: "{{ ct_instance_hostname }}"
-        storage: "{{ ct_instance_storage }}"
-        cores: "{{ ct_instance_cores }}"
-        memory: "{{ ct_instance_memory }}"
-        swap: "{{ ct_instance_swap }}"
-        disk: "{{ ct_instance_storage }}:{{ ct_instance_rootfs_size }}"
-        netif: "{{ ct_instance_netif }}"
-        features: >-
-          {{
-            ct_instance_features_effective
-            if ((ct_instance_unprivileged | bool) or (ct_instance_api_user == 'root@pam'))
-            else omit
-          }}
-        mounts: "{{ ct_instance_mounts }}"
-        unprivileged: "{{ ct_instance_unprivileged }}"
-        onboot: "{{ ct_instance_onboot }}"
-        timeout: "{{ ct_instance_timeout }}"
-        state: "{{ ct_instance_state }}"
-      delegate_to: localhost
+      ansible.builtin.set_fact:
+        ct_instance_existing_ct_detected: true
 
-    - name: Fail when CT lifecycle fallback is not applicable
-      when:
-        - ct_instance_manage_result is not defined
-          or 'already exists' not in ((ct_instance_manage_result.msg | default('')) | lower)
-          or ct_instance_state == 'absent'
+    - name: Continue when CT already exists (module create path limitation)
+      when: ct_instance_existing_ct_detected | default(false)
+      ansible.builtin.debug:
+        msg: >-
+          CT {{ ct_instance_vmid }} already exists. Skipping create-only lifecycle task and continuing
+          with post-create configuration steps.
+
+    - name: Fail when CT lifecycle error is not an existing-CT rerun
+      when: not (ct_instance_existing_ct_detected | default(false))
       ansible.builtin.fail:
         msg: "{{ ct_instance_manage_result.msg | default('CT lifecycle failed') }}"
 
