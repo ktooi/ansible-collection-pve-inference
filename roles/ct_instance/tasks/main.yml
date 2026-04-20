@@ -34,7 +34,7 @@
     cores: "{{ ct_instance_cores }}"
     memory: "{{ ct_instance_memory }}"
     swap: "{{ ct_instance_swap }}"
-    rootfs: "{{ ct_instance_storage }}:{{ ct_instance_rootfs_size }}"
+    disk: "{{ ct_instance_storage }}:{{ ct_instance_rootfs_size }}"
     netif: "{{ ct_instance_netif }}"
     features: "{{ ct_instance_features_effective }}"
     mounts: "{{ ct_instance_mounts }}"
