@@ -14,6 +14,7 @@ ct_runtime_common_directories:
 ct_runtime_common_apt_cache_valid_time: 3600
 ct_runtime_common_install_nvidia_smi: true
 ct_runtime_common_fail_on_nvidia_smi_install: false
+ct_runtime_common_nvidia_smi_auto_discover_package: true
 ct_runtime_common_nvidia_power_limit_watts: ""
 ct_runtime_common_nvidia_power_limit_service_name: ct-nvidia-power-limit.service
 ct_runtime_common_nvidia_power_limit_script_path: /usr/local/sbin/ct-apply-nvidia-power-limit.sh

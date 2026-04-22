@@ -23,7 +23,8 @@ Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaL
 | `ct_runtime_common_venv` | Python virtualenv path | `/opt/inference/venv` | Absolute path |
 | `ct_runtime_common_packages` | Base packages in CT | `['python3','python3-venv','python3-pip','curl','git']` | Package name list |
 | `ct_runtime_common_install_nvidia_smi` | Try to install `nvidia-smi` package in CT | `true` | `true` / `false` |
-| `ct_runtime_common_nvidia_smi_packages` | `nvidia-smi` package candidates in CT | distro-dependent (`['nvidia-smi']` on Debian/Ubuntu) | Package name list |
+| `ct_runtime_common_nvidia_smi_packages` | `nvidia-smi` package candidates in CT (fallback list) | distro-dependent (`['nvidia-smi']` on Debian/Ubuntu) | Package name list |
+| `ct_runtime_common_nvidia_smi_auto_discover_package` | Auto-discover installable package on apt (`nvidia-smi` / `nvidia-utils-*`) before fallback list | `true` | `true` / `false` |
 | `ct_runtime_common_fail_on_nvidia_smi_install` | Fail when `nvidia-smi` package installation fails (effective `true` when `ct_runtime_common_nvidia_power_limit_watts` is set) | `false` | `true` / `false` |
 | `ct_runtime_common_nvidia_power_limit_watts` | GPU power limit (watts) applied at CT boot via `nvidia-smi -pl` | `""` (disabled) | Empty or integer string |
 | `ct_runtime_common_nvidia_power_limit_service_name` | systemd unit name for CT power-limit apply job | `ct-nvidia-power-limit.service` | Valid unit name |
@@ -38,4 +39,4 @@ If Debian package install fails with `404 Not Found`, cached apt metadata is usu
 This role now refreshes apt cache before install and retries once with a forced refresh.
 You can lower `ct_runtime_common_apt_cache_valid_time` if your mirror changes frequently.
 
-When `ct_runtime_common_nvidia_power_limit_watts` is set, this role treats `nvidia-smi` install as required, validates that the `nvidia-smi` command is resolvable in `PATH`, and installs/enables a oneshot systemd service in CT that applies `nvidia-smi -pm 1` and `nvidia-smi -pl <watts>` at boot.
+When `ct_runtime_common_nvidia_power_limit_watts` is set, this role treats `nvidia-smi` install as required, auto-discovers installable apt package candidates by default, validates that the `nvidia-smi` command is resolvable in `PATH`, and installs/enables a oneshot systemd service in CT that applies `nvidia-smi -pm 1` and `nvidia-smi -pl <watts>` at boot.
