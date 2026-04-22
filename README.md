@@ -140,6 +140,8 @@ ansible-playbook -i inventory.ini playbooks/ct_create.yml --vault-password-file 
 vault_pve_api_token_secret: "REPLACE_WITH_REAL_TOKEN_SECRET"
 vault_ct_root_password: "REPLACE_WITH_STRONG_PASSWORD"
 vault_ct_root_pubkey: "ssh-ed25519 AAAA... your-key-comment"
+# If you need to set HF_TOKEN, manage it securely via ansible-vault
+vault_hf_token: "hf_xxx"
 ```
 
 ### Troubleshooting: 403 Forbidden (`Permission check failed (/, Sys.Modify)`)
@@ -331,6 +333,8 @@ ct_runtime_launcher_port: 8000
 # runtime-specific variables are still valid
 ct_runtime_vllm_dtype: "auto"
 ct_runtime_vllm_kv_cache_dtype: "auto"
+# optional: authenticate Hugging Face Hub downloads for vLLM
+ct_runtime_vllm_hf_token: "{{ vault_hf_token }}"
 ```
 
 ### Frequently tuned variables
@@ -446,6 +450,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA passthrough block in CT config | `false` | `true` / `false` |
 | `ct_instance_ostemplate` | CT OS template | Debian 12 template path | Existing `vztmpl` path |
 | `ct_runtime_vllm_model` | Model ID served by vLLM | `mistralai/Mistral-7B-Instruct-v0.3` | Valid Hugging Face/local model identifier |
+| `ct_runtime_vllm_hf_token` | Optional Hugging Face token used by vLLM downloads (`HF_TOKEN`) | `""` | Empty or token string (prefer vault) |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |
 | `ct_runtime_vllm_max_model_len` | LLM context size | `8192` | Integer `>=1` |
 
