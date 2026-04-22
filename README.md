@@ -309,8 +309,6 @@ ct_instance_rootfs_size: 512     # CT rootfs size (GiB)
 ct_instance_storage: "local-lvm"
 ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 ct_instance_enable_nvidia_passthrough: true
-# optional: if you keep runtime vars in pve_hosts.yml as a shared vars file
-ct_runtime_vllm_hf_token: "{{ vault_hf_token }}"
 ```
 
 `group_vars/ct_targets.yml` (example):

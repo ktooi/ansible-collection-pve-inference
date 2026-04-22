@@ -292,8 +292,6 @@ ct_instance_rootfs_size: 512     # CT のディスクサイズ (GiB)
 ct_instance_storage: "local-lvm"
 ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 ct_instance_enable_nvidia_passthrough: true
-# 任意: runtime 変数も pve_hosts.yml で共通管理する場合
-ct_runtime_vllm_hf_token: "{{ vault_hf_token }}"
 ```
 
 `group_vars/ct_targets.yml` 例:
