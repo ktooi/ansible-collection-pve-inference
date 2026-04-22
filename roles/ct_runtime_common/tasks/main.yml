@@ -89,19 +89,25 @@
     - ct_runtime_common_nvidia_smi_install is failed
     - not ct_runtime_common_fail_on_nvidia_smi_install_effective
 
-- name: Assert nvidia-smi binary exists when power limit is configured
-  ansible.builtin.stat:
-    path: /usr/bin/nvidia-smi
-  register: ct_runtime_common_nvidia_smi_binary
+- name: Resolve nvidia-smi command path when power limit is configured
+  ansible.builtin.shell: |
+    set -o pipefail
+    command -v nvidia-smi
+  args:
+    executable: /bin/bash
+  register: ct_runtime_common_nvidia_smi_command
+  changed_when: false
+  failed_when: false
   when: (ct_runtime_common_nvidia_power_limit_watts | string | length) > 0
 
-- name: Fail when nvidia-smi binary is missing but power limit is configured
+- name: Fail when nvidia-smi command is missing but power limit is configured
   ansible.builtin.assert:
     that:
-      - ct_runtime_common_nvidia_smi_binary.stat.exists
+      - ct_runtime_common_nvidia_smi_command.rc == 0
     fail_msg: >-
-      ct_runtime_common_nvidia_power_limit_watts is set but /usr/bin/nvidia-smi is missing in CT.
-      Ensure nvidia-smi package installation succeeds before enabling CT power-limit service.
+      ct_runtime_common_nvidia_power_limit_watts is set but nvidia-smi command is missing in CT.
+      Ensure ct_runtime_common_nvidia_smi_packages resolves to installable package names for this distro,
+      and that required repositories are enabled.
   when: (ct_runtime_common_nvidia_power_limit_watts | string | length) > 0
 
 - name: Deploy NVIDIA power-limit helper script in CT
