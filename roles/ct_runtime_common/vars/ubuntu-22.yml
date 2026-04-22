@@ -5,4 +5,6 @@ ct_runtime_common_packages_os:
   - python3-pip
   - curl
   - git
+ct_runtime_common_nvidia_smi_packages_os:
+  - nvidia-smi
 ct_runtime_common_os_major_version: '22'

@@ -33,12 +33,27 @@
 
 - name: Build effective strict-mode flag for nvidia-smi installation
   ansible.builtin.set_fact:
+    ct_runtime_common_install_nvidia_smi_effective: >-
+      {{
+        ct_runtime_common_install_nvidia_smi
+        or
+        ((ct_runtime_common_nvidia_power_limit_watts | string | length) > 0)
+      }}
     ct_runtime_common_fail_on_nvidia_smi_install_effective: >-
       {{
         ct_runtime_common_fail_on_nvidia_smi_install
         or
         ((ct_runtime_common_nvidia_power_limit_watts | string | length) > 0)
       }}
+
+- name: Assert nvidia-smi package candidates are defined when required
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_common_nvidia_smi_packages | length > 0
+    fail_msg: >-
+      ct_runtime_common_nvidia_smi_packages is empty but nvidia-smi is required.
+      Set package candidates for your distribution.
+  when: ct_runtime_common_install_nvidia_smi_effective
 
 - name: Ensure optional nvidia-smi package is installed in CT
   ansible.builtin.package:
@@ -47,7 +62,7 @@
   register: ct_runtime_common_nvidia_smi_install
   failed_when: false
   when:
-    - ct_runtime_common_install_nvidia_smi
+    - ct_runtime_common_install_nvidia_smi_effective
     - ct_runtime_common_nvidia_smi_packages | length > 0
 
 - name: Fail if nvidia-smi package install failed and strict mode is enabled
@@ -59,7 +74,7 @@
       Override ct_runtime_common_nvidia_smi_packages for your distro.
       Note: strict mode is always enabled when ct_runtime_common_nvidia_power_limit_watts is set.
   when:
-    - ct_runtime_common_install_nvidia_smi
+    - ct_runtime_common_install_nvidia_smi_effective
     - ct_runtime_common_nvidia_smi_packages | length > 0
     - ct_runtime_common_fail_on_nvidia_smi_install_effective
 
@@ -69,10 +84,25 @@
       nvidia-smi package install failed for {{ ct_runtime_common_nvidia_smi_packages }}.
       Continuing because ct_runtime_common_fail_on_nvidia_smi_install_effective=false.
   when:
-    - ct_runtime_common_install_nvidia_smi
+    - ct_runtime_common_install_nvidia_smi_effective
     - ct_runtime_common_nvidia_smi_packages | length > 0
     - ct_runtime_common_nvidia_smi_install is failed
     - not ct_runtime_common_fail_on_nvidia_smi_install_effective
+
+- name: Assert nvidia-smi binary exists when power limit is configured
+  ansible.builtin.stat:
+    path: /usr/bin/nvidia-smi
+  register: ct_runtime_common_nvidia_smi_binary
+  when: (ct_runtime_common_nvidia_power_limit_watts | string | length) > 0
+
+- name: Fail when nvidia-smi binary is missing but power limit is configured
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_common_nvidia_smi_binary.stat.exists
+    fail_msg: >-
+      ct_runtime_common_nvidia_power_limit_watts is set but /usr/bin/nvidia-smi is missing in CT.
+      Ensure nvidia-smi package installation succeeds before enabling CT power-limit service.
+  when: (ct_runtime_common_nvidia_power_limit_watts | string | length) > 0
 
 - name: Deploy NVIDIA power-limit helper script in CT
   ansible.builtin.template:
@@ -105,7 +135,6 @@
   ansible.builtin.systemd_service:
     name: "{{ ct_runtime_common_nvidia_power_limit_service_name }}"
     enabled: true
-    state: started
   when: (ct_runtime_common_nvidia_power_limit_watts | string | length) > 0
 
 - name: Ensure runtime group exists

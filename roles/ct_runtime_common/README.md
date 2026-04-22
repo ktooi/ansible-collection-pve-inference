@@ -38,4 +38,4 @@ If Debian package install fails with `404 Not Found`, cached apt metadata is usu
 This role now refreshes apt cache before install and retries once with a forced refresh.
 You can lower `ct_runtime_common_apt_cache_valid_time` if your mirror changes frequently.
 
-When `ct_runtime_common_nvidia_power_limit_watts` is set, this role installs a oneshot systemd service in CT that runs on boot and applies `nvidia-smi -pm 1` and `nvidia-smi -pl <watts>`.
+When `ct_runtime_common_nvidia_power_limit_watts` is set, this role treats `nvidia-smi` install as required, validates `/usr/bin/nvidia-smi`, and installs/enables a oneshot systemd service in CT that applies `nvidia-smi -pm 1` and `nvidia-smi -pl <watts>` at boot.
