@@ -26,6 +26,11 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_modules_standard` | Standard NVIDIA module names | `['nvidia','nvidia_uvm','nvidia_modeset','nvidia_drm']` | Module name list |
 | `host_nvidia_gpu_modules_current` | Debian alias-based NVIDIA module names | `['nvidia-current','nvidia-current-uvm','nvidia-current-modeset','nvidia-current-drm']` | Module name list |
 | `host_nvidia_gpu_enable_persistenced` | Enable/start `nvidia-persistenced` | `true` | `true` / `false` |
+| `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
+| `host_nvidia_gpu_uvm_device_service_name` | systemd unit name for UVM device recreation | `nvidia-uvm-devices.service` | Valid unit name |
+| `host_nvidia_gpu_power_limit_watts` | GPU power limit (watts) applied on host boot via `nvidia-smi -pl` | `""` (disabled) | Empty or integer string |
+| `host_nvidia_gpu_power_limit_service_name` | systemd unit name for host power-limit apply job | `nvidia-power-limit.service` | Valid unit name |
+| `host_nvidia_gpu_power_limit_script_path` | Path to generated host power-limit helper script | `/usr/local/sbin/host-apply-nvidia-power-limit.sh` | Absolute path |
 | `host_nvidia_gpu_require_pve_kernel` | Enforce running `*-pve` kernel precondition | `true` | `true` / `false` |
 | `host_nvidia_gpu_require_nvidia_devices` | Enforce `/dev/nvidia*` existence check | `true` | `true` / `false` |
 | `host_nvidia_gpu_block_proxmox_removal` | Abort if apt plan would remove `proxmox-ve` | `true` | `true` / `false` |
@@ -43,4 +48,6 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - If Secure Boot is enabled, ensure DKMS MOK enrollment is completed so NVIDIA modules can be loaded.
 
 - The role also validates critical host CUDA nodes (`/dev/nvidiactl`, `/dev/nvidia-uvm`) are character devices before CT passthrough use.
+- By default, this role also deploys a host boot-time oneshot unit (`nvidia-uvm-devices.service`) so `/dev/nvidia-uvm*` is recreated automatically after reboot.
+- When `host_nvidia_gpu_power_limit_watts` is set, the role deploys/enables `nvidia-power-limit.service` on host and applies `nvidia-smi -pm 1` + `nvidia-smi -pl <watts>`.
 - To enforce a CUDA 12.8-class host baseline in automation, set `host_nvidia_gpu_min_installed_driver_major: 570`.

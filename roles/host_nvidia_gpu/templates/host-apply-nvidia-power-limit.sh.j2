@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ! -c /dev/nvidiactl ]]; then
+  exit 0
+fi
+
+/usr/bin/nvidia-smi -pm 1 >/dev/null
+/usr/bin/nvidia-smi -pl {{ host_nvidia_gpu_power_limit_watts }}

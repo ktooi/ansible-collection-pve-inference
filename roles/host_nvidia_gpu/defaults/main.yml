@@ -34,6 +34,11 @@ host_nvidia_gpu_modules_current:
   - nvidia-current-drm
 
 host_nvidia_gpu_enable_persistenced: true
+host_nvidia_gpu_ensure_uvm_device_service: true
+host_nvidia_gpu_uvm_device_service_name: nvidia-uvm-devices.service
+host_nvidia_gpu_power_limit_watts: ""
+host_nvidia_gpu_power_limit_service_name: nvidia-power-limit.service
+host_nvidia_gpu_power_limit_script_path: /usr/local/sbin/host-apply-nvidia-power-limit.sh
 host_nvidia_gpu_require_pve_kernel: true
 host_nvidia_gpu_require_nvidia_devices: true
 host_nvidia_gpu_block_proxmox_removal: true
