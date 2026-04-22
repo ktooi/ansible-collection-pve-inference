@@ -140,6 +140,8 @@ ansible-playbook -i inventory.ini playbooks/ct_create.yml --vault-password-file 
 vault_pve_api_token_secret: "REPLACE_WITH_REAL_TOKEN_SECRET"
 vault_ct_root_password: "REPLACE_WITH_STRONG_PASSWORD"
 vault_ct_root_pubkey: "ssh-ed25519 AAAA... your-key-comment"
+# HF_TOKEN を指定する場合には、ansible-vault 経由で安全に管理してください
+vault_hf_token: "hf_xxx"
 ```
 
 ### トラブルシューティング: 403 Forbidden (`Permission check failed (/, Sys.Modify)`)
@@ -290,6 +292,8 @@ ct_instance_rootfs_size: 512     # CT のディスクサイズ (GiB)
 ct_instance_storage: "local-lvm"
 ct_instance_ostemplate: "local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst"
 ct_instance_enable_nvidia_passthrough: true
+# 任意: runtime 変数も pve_hosts.yml で共通管理する場合
+ct_runtime_vllm_hf_token: "{{ vault_hf_token }}"
 ```
 
 `group_vars/ct_targets.yml` 例:
@@ -314,6 +318,8 @@ ct_runtime_launcher_port: 8000
 # ランタイム固有変数も引き続き指定可能
 ct_runtime_vllm_dtype: "auto"
 ct_runtime_vllm_kv_cache_dtype: "auto"
+# 任意: vLLM の Hugging Face Hub ダウンロードを認証する場合
+ct_runtime_vllm_hf_token: "{{ vault_hf_token }}"
 ```
 
 ### 調整頻度が高い変数
@@ -429,6 +435,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_enable_nvidia_passthrough` | CT 設定へ NVIDIA パススルーブロックを管理 | `false` | `true` / `false` |
 | `ct_instance_ostemplate` | CT OS テンプレート | Debian 12 template path | 既存 `vztmpl` パス |
 | `ct_runtime_vllm_model` | vLLM 配信モデル ID | `mistralai/Mistral-7B-Instruct-v0.3` | 有効な HF/ローカルモデル識別子 |
+| `ct_runtime_vllm_hf_token` | vLLM ダウンロード時に使う任意の Hugging Face Token（`HF_TOKEN`） | `""` | 空文字または Token 文字列（vault 推奨） |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor Parallel 数 | `1` | `1` 以上の整数 |
 | `ct_runtime_vllm_max_model_len` | LLM コンテキスト長 | `8192` | `1` 以上の整数 |
 

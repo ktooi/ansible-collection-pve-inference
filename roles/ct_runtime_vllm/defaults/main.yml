@@ -46,6 +46,7 @@ ct_runtime_vllm_nccl_ignore_disabled_p2p: 1
 ct_runtime_vllm_omp_num_threads: ""
 ct_runtime_vllm_ld_library_path: /usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu
 ct_runtime_vllm_hf_cache_dir: ""
+ct_runtime_vllm_hf_token: ""
 
 # Package and extensibility
 ct_runtime_vllm_extra_args: "{{ ct_runtime_launcher_extra_args | default('') }}"
