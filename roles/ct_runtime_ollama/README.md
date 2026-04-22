@@ -22,8 +22,10 @@ flowchart TD
     B --> C[Render env and systemd unit]
     C --> D[Enable/start service]
     D --> E{pull_model?}
-    E -->|true| F[ollama pull model]
-    E -->|false| G[done]
+    E -->|true| F{model exists?}
+    F -->|no| G[ollama pull model]
+    F -->|yes| H[skip pull]
+    E -->|false| H[done]
 ```
 
 ## Variables

@@ -49,8 +49,17 @@
     state: started
 
 - name: Pull configured Ollama model
+  ansible.builtin.command: "/usr/local/bin/ollama show {{ ct_runtime_ollama_model }}"
+  register: ct_runtime_ollama_model_show
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_ollama_pull_model
+    - ct_runtime_ollama_model | length > 0
+
+- name: Pull configured Ollama model when missing
   ansible.builtin.command: "/usr/local/bin/ollama pull {{ ct_runtime_ollama_model }}"
   when:
     - ct_runtime_ollama_pull_model
     - ct_runtime_ollama_model | length > 0
-  changed_when: true
+    - ct_runtime_ollama_model_show.rc != 0
