@@ -6,4 +6,4 @@ if [[ ! -c /dev/nvidiactl ]]; then
 fi
 
 /usr/bin/nvidia-smi -pm 1 >/dev/null
-/usr/bin/nvidia-smi -pl {{ ct_runtime_common_nvidia_power_limit_watts }}
+/usr/bin/nvidia-smi -pl {{ host_nvidia_gpu_power_limit_watts }}

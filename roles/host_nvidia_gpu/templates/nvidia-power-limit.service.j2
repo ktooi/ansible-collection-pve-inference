@@ -1,10 +1,10 @@
 [Unit]
-Description=Apply NVIDIA GPU power limit in CT
+Description=Apply NVIDIA GPU power limit on host boot
 After=multi-user.target
 
 [Service]
 Type=oneshot
-ExecStart={{ ct_runtime_common_nvidia_power_limit_script_path }}
+ExecStart={{ host_nvidia_gpu_power_limit_script_path }}
 RemainAfterExit=yes
 
 [Install]

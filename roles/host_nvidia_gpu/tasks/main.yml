@@ -503,6 +503,40 @@
   register: nvidia_smi_devices
   changed_when: false
 
+- name: Deploy host NVIDIA power-limit helper script
+  ansible.builtin.template:
+    src: host-apply-nvidia-power-limit.sh.j2
+    dest: "{{ host_nvidia_gpu_power_limit_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  register: host_nvidia_gpu_power_limit_script
+  when: (host_nvidia_gpu_power_limit_watts | string | length) > 0
+
+- name: Deploy host NVIDIA power-limit service unit
+  ansible.builtin.template:
+    src: nvidia-power-limit.service.j2
+    dest: "/etc/systemd/system/{{ host_nvidia_gpu_power_limit_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: host_nvidia_gpu_power_limit_service
+  when: (host_nvidia_gpu_power_limit_watts | string | length) > 0
+
+- name: Reload systemd daemon for host NVIDIA power-limit unit updates
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when:
+    - (host_nvidia_gpu_power_limit_watts | string | length) > 0
+    - host_nvidia_gpu_power_limit_script is changed or host_nvidia_gpu_power_limit_service is changed
+
+- name: Ensure host NVIDIA power-limit service state
+  ansible.builtin.systemd_service:
+    name: "{{ host_nvidia_gpu_power_limit_service_name }}"
+    enabled: true
+    state: started
+  when: (host_nvidia_gpu_power_limit_watts | string | length) > 0
+
 - name: Query installed NVIDIA driver version from nvidia-smi
   ansible.builtin.command: nvidia-smi --query-gpu=driver_version --format=csv,noheader
   register: host_nvidia_gpu_driver_version_query
