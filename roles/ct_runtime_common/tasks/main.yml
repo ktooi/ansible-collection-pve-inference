@@ -31,6 +31,83 @@
     state: present
   when: ansible_os_family != 'Debian'
 
+- name: Build effective strict-mode flag for nvidia-smi installation
+  ansible.builtin.set_fact:
+    ct_runtime_common_fail_on_nvidia_smi_install_effective: >-
+      {{
+        ct_runtime_common_fail_on_nvidia_smi_install
+        or
+        ((ct_runtime_common_nvidia_power_limit_watts | string | length) > 0)
+      }}
+
+- name: Ensure optional nvidia-smi package is installed in CT
+  ansible.builtin.package:
+    name: "{{ ct_runtime_common_nvidia_smi_packages }}"
+    state: present
+  register: ct_runtime_common_nvidia_smi_install
+  failed_when: false
+  when:
+    - ct_runtime_common_install_nvidia_smi
+    - ct_runtime_common_nvidia_smi_packages | length > 0
+
+- name: Fail if nvidia-smi package install failed and strict mode is enabled
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_common_nvidia_smi_install is not failed
+    fail_msg: >-
+      Failed to install CT nvidia-smi packages: {{ ct_runtime_common_nvidia_smi_packages }}.
+      Override ct_runtime_common_nvidia_smi_packages for your distro.
+      Note: strict mode is always enabled when ct_runtime_common_nvidia_power_limit_watts is set.
+  when:
+    - ct_runtime_common_install_nvidia_smi
+    - ct_runtime_common_nvidia_smi_packages | length > 0
+    - ct_runtime_common_fail_on_nvidia_smi_install_effective
+
+- name: Warn when nvidia-smi package install failed but strict mode is disabled
+  ansible.builtin.debug:
+    msg: >-
+      nvidia-smi package install failed for {{ ct_runtime_common_nvidia_smi_packages }}.
+      Continuing because ct_runtime_common_fail_on_nvidia_smi_install_effective=false.
+  when:
+    - ct_runtime_common_install_nvidia_smi
+    - ct_runtime_common_nvidia_smi_packages | length > 0
+    - ct_runtime_common_nvidia_smi_install is failed
+    - not ct_runtime_common_fail_on_nvidia_smi_install_effective
+
+- name: Deploy NVIDIA power-limit helper script in CT
+  ansible.builtin.template:
+    src: ct-apply-nvidia-power-limit.sh.j2
+    dest: "{{ ct_runtime_common_nvidia_power_limit_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  register: ct_runtime_common_nvidia_power_limit_script
+  when: (ct_runtime_common_nvidia_power_limit_watts | string | length) > 0
+
+- name: Deploy NVIDIA power-limit service unit in CT
+  ansible.builtin.template:
+    src: ct-nvidia-power-limit.service.j2
+    dest: "/etc/systemd/system/{{ ct_runtime_common_nvidia_power_limit_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: ct_runtime_common_nvidia_power_limit_service
+  when: (ct_runtime_common_nvidia_power_limit_watts | string | length) > 0
+
+- name: Reload systemd daemon for CT NVIDIA power-limit unit updates
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when:
+    - (ct_runtime_common_nvidia_power_limit_watts | string | length) > 0
+    - ct_runtime_common_nvidia_power_limit_script is changed or ct_runtime_common_nvidia_power_limit_service is changed
+
+- name: Ensure CT NVIDIA power-limit service state
+  ansible.builtin.systemd_service:
+    name: "{{ ct_runtime_common_nvidia_power_limit_service_name }}"
+    enabled: true
+    state: started
+  when: (ct_runtime_common_nvidia_power_limit_watts | string | length) > 0
+
 - name: Ensure runtime group exists
   ansible.builtin.group:
     name: "{{ ct_runtime_common_group }}"

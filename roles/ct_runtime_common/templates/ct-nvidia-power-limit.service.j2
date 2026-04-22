@@ -1,0 +1,11 @@
+[Unit]
+Description=Apply NVIDIA GPU power limit in CT
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart={{ ct_runtime_common_nvidia_power_limit_script_path }}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

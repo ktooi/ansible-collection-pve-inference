@@ -4,6 +4,7 @@ ct_runtime_common_group: infer
 ct_runtime_common_home: /opt/inference
 ct_runtime_common_venv: /opt/inference/venv
 ct_runtime_common_packages: "{{ ct_runtime_common_packages_os | default(['python3','python3-venv','python3-pip','curl','git']) }}"
+ct_runtime_common_nvidia_smi_packages: "{{ ct_runtime_common_nvidia_smi_packages_os | default([]) }}"
 ct_runtime_common_directories:
   - /opt/inference
   - /opt/inference/bin
@@ -11,3 +12,8 @@ ct_runtime_common_directories:
   - /var/cache/inference
 
 ct_runtime_common_apt_cache_valid_time: 3600
+ct_runtime_common_install_nvidia_smi: true
+ct_runtime_common_fail_on_nvidia_smi_install: false
+ct_runtime_common_nvidia_power_limit_watts: ""
+ct_runtime_common_nvidia_power_limit_service_name: ct-nvidia-power-limit.service
+ct_runtime_common_nvidia_power_limit_script_path: /usr/local/sbin/ct-apply-nvidia-power-limit.sh

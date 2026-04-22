@@ -1,0 +1,11 @@
+[Unit]
+Description=Ensure NVIDIA UVM device nodes exist
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nvidia-modprobe -u -c=0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
