@@ -1,11 +1,18 @@
 [Unit]
-Description=Ensure NVIDIA UVM device nodes exist
-After=multi-user.target
+Description=Ensure NVIDIA UVM device nodes exist before PVE guests start
+Documentation=man:nvidia-modprobe(1)
+{% if host_nvidia_gpu_uvm_device_service_after | length > 0 %}
+After={{ host_nvidia_gpu_uvm_device_service_after | join(' ') }}
+{% endif %}
+{% if host_nvidia_gpu_uvm_device_service_before | length > 0 %}
+Before={{ host_nvidia_gpu_uvm_device_service_before | join(' ') }}
+{% endif %}
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/nvidia-modprobe -u -c=0
+ExecStart=/bin/sh -c 'for _ in $(seq 1 {{ host_nvidia_gpu_uvm_device_wait_timeout | int }}); do [ -c /dev/nvidiactl ] && [ -c /dev/nvidia-uvm ] && exit 0; sleep 1; done; echo "NVIDIA device nodes were not ready before timeout" >&2; exit 1'
 RemainAfterExit=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy={{ host_nvidia_gpu_uvm_device_service_wanted_by | join(' ') }}

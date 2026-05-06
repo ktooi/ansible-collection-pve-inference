@@ -28,6 +28,10 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_enable_persistenced` | Enable/start `nvidia-persistenced` | `true` | `true` / `false` |
 | `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
 | `host_nvidia_gpu_uvm_device_service_name` | systemd unit name for UVM device recreation | `nvidia-uvm-devices.service` | Valid unit name |
+| `host_nvidia_gpu_uvm_device_service_after` | Units that should start before UVM device recreation | `[systemd-modules-load.service]` | List of systemd unit names |
+| `host_nvidia_gpu_uvm_device_service_before` | Units that should wait for UVM device recreation | `[pve-guests.service]` | List of systemd unit names |
+| `host_nvidia_gpu_uvm_device_service_wanted_by` | Targets that pull in the UVM device recreation service | `[multi-user.target]` | List of systemd target names |
+| `host_nvidia_gpu_uvm_device_wait_timeout` | Seconds to wait for `/dev/nvidiactl` and `/dev/nvidia-uvm` character devices | `30` | Integer `>=1` |
 | `host_nvidia_gpu_power_limit_watts` | GPU power limit (watts) applied on host boot via `nvidia-smi -pl` | `""` (disabled) | Empty or integer string |
 | `host_nvidia_gpu_power_limit_service_name` | systemd unit name for host power-limit apply job | `nvidia-power-limit.service` | Valid unit name |
 | `host_nvidia_gpu_power_limit_script_path` | Path to generated host power-limit helper script | `/usr/local/sbin/host-apply-nvidia-power-limit.sh` | Absolute path |
@@ -48,6 +52,12 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - If Secure Boot is enabled, ensure DKMS MOK enrollment is completed so NVIDIA modules can be loaded.
 
 - The role also validates critical host CUDA nodes (`/dev/nvidiactl`, `/dev/nvidia-uvm`) are character devices before CT passthrough use.
-- By default, this role also deploys a host boot-time oneshot unit (`nvidia-uvm-devices.service`) so `/dev/nvidia-uvm*` is recreated automatically after reboot.
+- By default, this role also deploys a host boot-time oneshot unit (`nvidia-uvm-devices.service`) so `/dev/nvidia-uvm*` is recreated automatically after reboot. The unit is ordered before `pve-guests.service`, which prevents PVE on-boot CTs from binding placeholder regular files for `/dev/nvidia-uvm*` before host device nodes exist.
 - When `host_nvidia_gpu_power_limit_watts` is set, the role deploys/enables `nvidia-power-limit.service` on host and applies `nvidia-smi -pm 1` + `nvidia-smi -pl <watts>`.
 - To enforce a CUDA 12.8-class host baseline in automation, set `host_nvidia_gpu_min_installed_driver_major: 570`.
+
+### Boot ordering for CT GPU passthrough
+
+If a GPU CT starts before the PVE host has recreated `/dev/nvidia-uvm*`, LXC can bind-mount placeholder regular files into the CT. Inside the CT this commonly appears as mode `----------` for `/dev/nvidia-uvm` and `/dev/nvidia-uvm-tools`, and CUDA runtimes such as vLLM may fail until the CT is restarted.
+
+Keep `host_nvidia_gpu_ensure_uvm_device_service: true` on GPU CT hosts. The generated `nvidia-uvm-devices.service` runs `nvidia-modprobe -u -c=0`, waits for `/dev/nvidiactl` and `/dev/nvidia-uvm` to become character devices, and starts before `pve-guests.service` by default. If your site starts GPU CTs through another host-side unit, add that unit name to `host_nvidia_gpu_uvm_device_service_before`.
