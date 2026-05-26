@@ -92,7 +92,7 @@ flowchart TD
 | `ct_runtime_vllm_max_num_seqs` | Max concurrent sequences | `32` | Integer `>=1` |
 | `ct_runtime_vllm_max_num_batched_tokens` | Max batched tokens | `4096` | Integer `>=1` |
 | `ct_runtime_vllm_enable_mtp` | Enable vLLM MTP (`method=mtp`) | `false` | `true` / `false` |
-| `ct_runtime_vllm_mtp_num_speculative_tokens` | MTP speculative depth (`--speculative_config`) | `1` | Integer `>=1` |
+| `ct_runtime_vllm_mtp_num_speculative_tokens` | MTP speculative depth (`--speculative_config` JSON) | `1` | Integer `>=1` |
 | `ct_runtime_vllm_tool_call_parser` | Tool call parser backend | `""` | Empty or parser name |
 | `ct_runtime_vllm_reasoning_parser` | Reasoning parser backend | `""` | Empty or parser name |
 | `ct_runtime_vllm_enable_auto_tool_choice` | Enable vLLM `--enable-auto-tool-choice` | `false` | `true` / `false` |
