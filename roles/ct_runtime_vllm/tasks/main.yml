@@ -329,6 +329,48 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
 
+- name: Probe installed torch package metadata in vLLM venv
+  ansible.builtin.command:
+    argv:
+      - "{{ ct_runtime_vllm_venv }}/bin/python"
+      - -c
+      - |
+        import json
+        import torch
+        print(json.dumps({"torch_version": torch.__version__, "torch_cuda": torch.version.cuda}))
+  register: ct_runtime_vllm_torch_version_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Build torch package metadata fact
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_torch_version_info: >-
+      {{
+        (ct_runtime_vllm_torch_version_probe.stdout | default('{}') | trim | from_json)
+        if ct_runtime_vllm_torch_version_probe.rc == 0
+        else {}
+      }}
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Warn when torch backend override does not change installed torch CUDA wheel tag
+  ansible.builtin.debug:
+    msg: >-
+      ct_runtime_vllm_torch_backend='{{ ct_runtime_vllm_torch_backend }}' is a runtime backend selector for vLLM
+      and does not reinstall torch wheels. Installed torch in venv is currently
+      {{ ct_runtime_vllm_torch_version_info.torch_version | default('unknown') }}
+      (cuda={{ ct_runtime_vllm_torch_version_info.torch_cuda | default('unknown') }}).
+      If you need a different torch CUDA wheel tag, rebuild/recreate the venv with matching torch/vLLM artifacts.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+    - ct_runtime_vllm_torch_backend | default('') | length > 0
+    - ct_runtime_vllm_torch_version_probe.rc == 0
+
 - name: Assert torch can see CUDA devices in vLLM venv
   ansible.builtin.assert:
     that:

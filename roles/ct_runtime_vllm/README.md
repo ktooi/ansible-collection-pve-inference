@@ -116,6 +116,8 @@ flowchart TD
 
 > Driver/torch alignment note: this role fails fast when `ct_runtime_vllm_torch_package` or `ct_runtime_vllm_torch_extra_index_url` is set, because pip dependency resolution during vLLM install can still replace torch later and produce non-deterministic results. For CUDA compatibility tuning, prefer `ct_runtime_vllm_torch_backend` (for example `cu129`) so runtime selection is explicit on vLLM startup.
 
+> `--torch-backend` note: setting `ct_runtime_vllm_torch_backend` does **not** change `torch.__version__` or `torch.version.cuda` shown from plain Python (`import torch`). It only affects backend selection in the vLLM process at startup. Seeing `torch=...+cu130` after role run is therefore expected unless you rebuild the venv with different wheel artifacts.
+
 > Logging note: when `ct_runtime_vllm_systemd_log_to_files=true` (default), this role now mirrors stdout/stderr to both log files (`/var/log/inference/vllm.stdout.log`, `/var/log/inference/vllm.stderr.log`) and journald, so `journalctl -u vllm.service` remains usable.
 
 > CLI compatibility note: older vLLM versions may reject `--device cuda`. This role omits `--device` for CUDA by default and only passes it for non-CUDA devices (or when `ct_runtime_vllm_force_device_arg=true`).
