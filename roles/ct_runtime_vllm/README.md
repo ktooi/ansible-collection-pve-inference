@@ -110,6 +110,7 @@ flowchart TD
 | `ct_runtime_vllm_torch_package` | Reserved (deprecated): when set, role fails fast to avoid non-deterministic torch dependency resolution | `""` | Must be empty |
 | `ct_runtime_vllm_torch_extra_index_url` | Reserved (deprecated): paired with `ct_runtime_vllm_torch_package`; keep empty | `""` | Must be empty |
 | `ct_runtime_vllm_torch_backend` | Optional vLLM torch backend selector (`--torch-backend`) | `""` | Empty or backend string (e.g. `cu129`) |
+| `ct_runtime_vllm_pass_torch_backend_cli` | Pass `--torch-backend` CLI arg (enable only when your installed vLLM supports it) | `false` | `true` / `false` |
 
 
 > CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check. When `ct_runtime_vllm_torch_backend` is set, preflight is automatically relaxed from `strict` to `count` because backend selection is applied at vLLM startup (not plain `import torch`).

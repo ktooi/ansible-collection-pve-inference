@@ -56,6 +56,7 @@ ct_runtime_vllm_version: ""
 ct_runtime_vllm_torch_package: ""
 ct_runtime_vllm_torch_extra_index_url: ""
 ct_runtime_vllm_torch_backend: ""
+ct_runtime_vllm_pass_torch_backend_cli: false
 
 ct_runtime_vllm_install_cuda_userspace: true
 ct_runtime_vllm_cuda_packages: "{{ ct_runtime_vllm_cuda_packages_os | default([]) }}"

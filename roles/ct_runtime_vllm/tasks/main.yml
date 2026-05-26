@@ -257,6 +257,16 @@
     - (ct_runtime_vllm_torch_cuda_probe_mode | default('strict')) == 'strict'
     - ct_runtime_vllm_torch_backend | default('') | length > 0
 
+- name: Warn when torch backend is set but CLI flag injection is disabled
+  ansible.builtin.debug:
+    msg: >-
+      ct_runtime_vllm_torch_backend='{{ ct_runtime_vllm_torch_backend }}' is set, but
+      ct_runtime_vllm_pass_torch_backend_cli=false, so --torch-backend is not passed to vLLM.
+      Enable ct_runtime_vllm_pass_torch_backend_cli only when your installed vLLM build supports the flag.
+  when:
+    - ct_runtime_vllm_torch_backend | default('') | length > 0
+    - not ct_runtime_vllm_pass_torch_backend_cli
+
 - name: Install vLLM package
   ansible.builtin.pip:
     name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
