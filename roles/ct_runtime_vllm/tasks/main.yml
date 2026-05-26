@@ -237,7 +237,7 @@
         'count'
         if (
           (ct_runtime_vllm_torch_cuda_probe_mode | default('strict')) == 'strict'
-          and (ct_runtime_vllm_torch_backend | default('') | length > 0)
+          and ((ct_runtime_vllm_torch_backend | default('') | length > 0) or (ct_runtime_vllm_version | length > 0))
         )
         else (ct_runtime_vllm_torch_cuda_probe_mode | default('strict'))
       }}
@@ -250,22 +250,12 @@
     msg: >-
       ct_runtime_vllm_torch_backend='{{ ct_runtime_vllm_torch_backend }}' is set, so torch preflight mode is
       relaxed from strict to count. This checks device enumeration only. Runtime CUDA initialization is validated
-      by vLLM process startup with --torch-backend.
+      by vLLM process startup.
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
     - (ct_runtime_vllm_torch_cuda_probe_mode | default('strict')) == 'strict'
-    - ct_runtime_vllm_torch_backend | default('') | length > 0
-
-- name: Warn when torch backend is set but CLI flag injection is disabled
-  ansible.builtin.debug:
-    msg: >-
-      ct_runtime_vllm_torch_backend='{{ ct_runtime_vllm_torch_backend }}' is set, but
-      ct_runtime_vllm_pass_torch_backend_cli=false, so --torch-backend is not passed to vLLM.
-      Enable ct_runtime_vllm_pass_torch_backend_cli only when your installed vLLM build supports the flag.
-  when:
-    - ct_runtime_vllm_torch_backend | default('') | length > 0
-    - not ct_runtime_vllm_pass_torch_backend_cli
+    - (ct_runtime_vllm_torch_backend | default('') | length > 0) or (ct_runtime_vllm_version | length > 0)
 
 - name: Install vLLM package
   ansible.builtin.pip:

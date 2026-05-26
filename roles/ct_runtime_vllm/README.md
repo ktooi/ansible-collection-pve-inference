@@ -109,15 +109,14 @@ flowchart TD
 | `ct_runtime_vllm_version` | Pin version (optional) | `""` | Empty or semantic version string |
 | `ct_runtime_vllm_torch_package` | Reserved (deprecated): when set, role fails fast to avoid non-deterministic torch dependency resolution | `""` | Must be empty |
 | `ct_runtime_vllm_torch_extra_index_url` | Reserved (deprecated): paired with `ct_runtime_vllm_torch_package`; keep empty | `""` | Must be empty |
-| `ct_runtime_vllm_torch_backend` | Optional vLLM torch backend selector (`--torch-backend`) | `""` | Empty or backend string (e.g. `cu129`) |
-| `ct_runtime_vllm_pass_torch_backend_cli` | Pass `--torch-backend` CLI arg (enable only when your installed vLLM supports it) | `false` | `true` / `false` |
+| `ct_runtime_vllm_torch_backend` | Informational compatibility hint only (not passed to `vllm serve`) | `""` | Empty or backend string (e.g. `cu129`) |
 
 
-> CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check. When `ct_runtime_vllm_torch_backend` is set, preflight is automatically relaxed from `strict` to `count` because backend selection is applied at vLLM startup (not plain `import torch`).
+> CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check. When `ct_runtime_vllm_torch_backend` or `ct_runtime_vllm_version` is set, preflight is automatically relaxed from `strict` to `count` to avoid false negatives caused by installer/backend mismatches before vLLM runtime initialization.
 
-> Driver/torch alignment note: this role fails fast when `ct_runtime_vllm_torch_package` or `ct_runtime_vllm_torch_extra_index_url` is set, because pip dependency resolution during vLLM install can still replace torch later and produce non-deterministic results. For CUDA compatibility tuning, prefer `ct_runtime_vllm_torch_backend` (for example `cu129`) so runtime selection is explicit on vLLM startup.
+> Driver/torch alignment note: this role fails fast when `ct_runtime_vllm_torch_package` or `ct_runtime_vllm_torch_extra_index_url` is set, because pip dependency resolution during vLLM install can still replace torch later and produce non-deterministic results. For CUDA compatibility tuning, align installation workflow itself (for example `uv pip install vllm --torch-backend=cu128` or `UV_TORCH_BACKEND=...`) before running this role.
 
-> `--torch-backend` note: setting `ct_runtime_vllm_torch_backend` does **not** change `torch.__version__` or `torch.version.cuda` shown from plain Python (`import torch`). It only affects backend selection in the vLLM process at startup. Seeing `torch=...+cu130` after role run is therefore expected unless you rebuild the venv with different wheel artifacts.
+> `--torch-backend` note: in current vLLM releases, `--torch-backend` is an install-time (`uv pip`) option, not a stable `vllm serve` runtime flag across versions. This role does not pass `--torch-backend` to `vllm serve`.
 
 > Logging note: when `ct_runtime_vllm_systemd_log_to_files=true` (default), this role now mirrors stdout/stderr to both log files (`/var/log/inference/vllm.stdout.log`, `/var/log/inference/vllm.stderr.log`) and journald, so `journalctl -u vllm.service` remains usable.
 
