@@ -107,13 +107,14 @@ flowchart TD
 | `ct_runtime_vllm_hf_token` | Hugging Face Hub token exported as `HF_TOKEN` | `""` | Empty or token string (prefer Ansible Vault) |
 | `ct_runtime_vllm_extra_args` | Extra CLI args | `""` | String |
 | `ct_runtime_vllm_version` | Pin version (optional) | `""` | Empty or semantic version string |
-| `ct_runtime_vllm_torch_package` | Optional explicit torch package to install in venv before CUDA probe | `""` | Empty or pip requirement string (e.g. `torch==2.6.0`) |
-| `ct_runtime_vllm_torch_extra_index_url` | Optional extra index URL used with `ct_runtime_vllm_torch_package` | `""` | Empty or URL |
+| `ct_runtime_vllm_torch_package` | Reserved (deprecated): when set, role fails fast to avoid non-deterministic torch dependency resolution | `""` | Must be empty |
+| `ct_runtime_vllm_torch_extra_index_url` | Reserved (deprecated): paired with `ct_runtime_vllm_torch_package`; keep empty | `""` | Must be empty |
+| `ct_runtime_vllm_torch_backend` | Optional vLLM torch backend selector (`--torch-backend`) | `""` | Empty or backend string (e.g. `cu129`) |
 
 
 > CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check.
 
-> Driver/torch alignment note: when host driver is older than the default torch CUDA build bundled via `vllm`, set `ct_runtime_vllm_torch_package` and `ct_runtime_vllm_torch_extra_index_url` to install a compatible torch wheel explicitly before preflight (for example CUDA 12.4 wheels for NVIDIA 550-series hosts). If you pin torch, also pin a compatible `ct_runtime_vllm_version`; mismatched torch/vLLM binary ABI can cause `undefined symbol` import errors in `vllm._C`.
+> Driver/torch alignment note: this role fails fast when `ct_runtime_vllm_torch_package` is set, because pip dependency resolution during vLLM install can still replace torch later and produce non-deterministic results. For CUDA compatibility tuning, prefer `ct_runtime_vllm_torch_backend` (for example `cu129`) so runtime selection is explicit on vLLM startup.
 
 > Logging note: when `ct_runtime_vllm_systemd_log_to_files=true` (default), this role now mirrors stdout/stderr to both log files (`/var/log/inference/vllm.stdout.log`, `/var/log/inference/vllm.stderr.log`) and journald, so `journalctl -u vllm.service` remains usable.
 
