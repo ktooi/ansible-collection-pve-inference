@@ -15,6 +15,8 @@ Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaL
     - role: ktooi.pve_inference.ct_runtime_tgi
 ```
 
+> MTP note: TGI exposes speculation methods such as Medusa/ngram, but this role does not expose a dedicated MTP toggle because TGI currently has no documented native `method=mtp` mode. Use `ct_runtime_tgi_extra_args` for non-MTP speculation tuning if needed.
+
 ## Variables
 
 | Variable | Description | Default | Allowed values |

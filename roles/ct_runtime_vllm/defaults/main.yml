@@ -29,6 +29,8 @@ ct_runtime_vllm_kv_cache_dtype: "{{ ct_runtime_launcher_kv_cache_dtype | default
 ct_runtime_vllm_max_model_len: "{{ ct_runtime_launcher_context_length | default(8192) }}"
 ct_runtime_vllm_max_num_seqs: "{{ ct_runtime_launcher_max_num_seqs | default(32) }}"
 ct_runtime_vllm_max_num_batched_tokens: "{{ ct_runtime_launcher_max_num_batched_tokens | default(4096) }}"
+ct_runtime_vllm_enable_mtp: false
+ct_runtime_vllm_mtp_num_speculative_tokens: 1
 
 # Tool/reasoning parsing
 ct_runtime_vllm_tool_call_parser: "{{ ct_runtime_launcher_tool_call_parser | default('') }}"
