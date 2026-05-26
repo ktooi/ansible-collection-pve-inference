@@ -30,6 +30,7 @@ ct_runtime_vllm_max_model_len: "{{ ct_runtime_launcher_context_length | default(
 ct_runtime_vllm_max_num_seqs: "{{ ct_runtime_launcher_max_num_seqs | default(32) }}"
 ct_runtime_vllm_max_num_batched_tokens: "{{ ct_runtime_launcher_max_num_batched_tokens | default(4096) }}"
 ct_runtime_vllm_enable_mtp: false
+ct_runtime_vllm_speculative_method: mtp
 ct_runtime_vllm_mtp_num_speculative_tokens: 1
 
 # Tool/reasoning parsing
