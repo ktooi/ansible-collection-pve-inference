@@ -96,6 +96,7 @@ flowchart TD
 | `ct_runtime_vllm_mtp_num_speculative_tokens` | MTP speculative depth (`--speculative_config` JSON) | `1` | Integer `>=1` |
 | `ct_runtime_vllm_tool_call_parser` | Tool call parser backend | `""` | Empty or parser name |
 | `ct_runtime_vllm_reasoning_parser` | Reasoning parser backend | `""` | Empty or parser name |
+| `ct_runtime_vllm_language_model_only` | Force language-only path for multimodal-capable checkpoints (`--language-model-only`) | `false` | `true` / `false` |
 | `ct_runtime_vllm_enable_auto_tool_choice` | Enable vLLM `--enable-auto-tool-choice` | `false` | `true` / `false` |
 | `ct_runtime_vllm_nccl_p2p_disable` | NCCL P2P disable flag | `0` | `0` / `1` |
 | `ct_runtime_vllm_nccl_ib_disable` | NCCL IB disable flag | `0` | `0` / `1` |

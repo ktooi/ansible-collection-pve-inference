@@ -37,6 +37,7 @@ ct_runtime_vllm_mtp_num_speculative_tokens: 1
 ct_runtime_vllm_tool_call_parser: "{{ ct_runtime_launcher_tool_call_parser | default('') }}"
 ct_runtime_vllm_reasoning_parser: "{{ ct_runtime_launcher_reasoning_parser | default('') }}"
 ct_runtime_vllm_enable_auto_tool_choice: false
+ct_runtime_vllm_language_model_only: false
 
 # NCCL / comms
 ct_runtime_vllm_nccl_p2p_disable: 0
