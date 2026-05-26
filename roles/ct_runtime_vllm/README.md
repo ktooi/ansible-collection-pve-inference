@@ -112,9 +112,9 @@ flowchart TD
 | `ct_runtime_vllm_torch_backend` | Optional vLLM torch backend selector (`--torch-backend`) | `""` | Empty or backend string (e.g. `cu129`) |
 
 
-> CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check.
+> CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check. When `ct_runtime_vllm_torch_backend` is set, preflight is automatically relaxed from `strict` to `count` because backend selection is applied at vLLM startup (not plain `import torch`).
 
-> Driver/torch alignment note: this role fails fast when `ct_runtime_vllm_torch_package` is set, because pip dependency resolution during vLLM install can still replace torch later and produce non-deterministic results. For CUDA compatibility tuning, prefer `ct_runtime_vllm_torch_backend` (for example `cu129`) so runtime selection is explicit on vLLM startup.
+> Driver/torch alignment note: this role fails fast when `ct_runtime_vllm_torch_package` or `ct_runtime_vllm_torch_extra_index_url` is set, because pip dependency resolution during vLLM install can still replace torch later and produce non-deterministic results. For CUDA compatibility tuning, prefer `ct_runtime_vllm_torch_backend` (for example `cu129`) so runtime selection is explicit on vLLM startup.
 
 > Logging note: when `ct_runtime_vllm_systemd_log_to_files=true` (default), this role now mirrors stdout/stderr to both log files (`/var/log/inference/vllm.stdout.log`, `/var/log/inference/vllm.stderr.log`) and journald, so `journalctl -u vllm.service` remains usable.
 

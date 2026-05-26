@@ -222,11 +222,40 @@
   ansible.builtin.assert:
     that:
       - ct_runtime_vllm_torch_package | length == 0
+      - ct_runtime_vllm_torch_extra_index_url | length == 0
     fail_msg: >-
-      ct_runtime_vllm_torch_package is set to '{{ ct_runtime_vllm_torch_package }}', but explicit torch pinning
+      ct_runtime_vllm_torch_package ('{{ ct_runtime_vllm_torch_package }}') or
+      ct_runtime_vllm_torch_extra_index_url ('{{ ct_runtime_vllm_torch_extra_index_url }}') is set, but explicit torch pinning
       is not supported in this role because vLLM may upgrade/downgrade torch again via dependency resolution.
-      Remove ct_runtime_vllm_torch_package/ct_runtime_vllm_torch_extra_index_url and use
+      Remove ct_runtime_vllm_torch_package and ct_runtime_vllm_torch_extra_index_url, and use
       ct_runtime_vllm_torch_backend (for example 'cu129') to pass --torch-backend at runtime instead.
+
+- name: Build effective torch CUDA probe mode for preflight
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_torch_cuda_probe_mode_effective: >-
+      {{
+        'count'
+        if (
+          (ct_runtime_vllm_torch_cuda_probe_mode | default('strict')) == 'strict'
+          and (ct_runtime_vllm_torch_backend | default('') | length > 0)
+        )
+        else (ct_runtime_vllm_torch_cuda_probe_mode | default('strict'))
+      }}
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Warn when strict probe is relaxed to count due to torch backend override
+  ansible.builtin.debug:
+    msg: >-
+      ct_runtime_vllm_torch_backend='{{ ct_runtime_vllm_torch_backend }}' is set, so torch preflight mode is
+      relaxed from strict to count. This checks device enumeration only. Runtime CUDA initialization is validated
+      by vLLM process startup with --torch-backend.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_require_torch_cuda_available
+    - (ct_runtime_vllm_torch_cuda_probe_mode | default('strict')) == 'strict'
+    - ct_runtime_vllm_torch_backend | default('') | length > 0
 
 - name: Install vLLM package
   ansible.builtin.pip:
@@ -307,7 +336,7 @@
       - (ct_runtime_vllm_torch_cuda_info.device_count | default(0) | int) > 0
       - >-
         (
-          (ct_runtime_vllm_torch_cuda_probe_mode | default('strict')) == 'count'
+          (ct_runtime_vllm_torch_cuda_probe_mode_effective | default(ct_runtime_vllm_torch_cuda_probe_mode | default('strict'))) == 'count'
         )
         or
         (
@@ -315,7 +344,7 @@
         )
     fail_msg: >-
       torch in {{ ct_runtime_vllm_venv }} cannot use CUDA devices (probe={{ ct_runtime_vllm_torch_cuda_info | default({}) }},
-      mode={{ ct_runtime_vllm_torch_cuda_probe_mode | default('strict') }}).
+      mode={{ ct_runtime_vllm_torch_cuda_probe_mode_effective | default(ct_runtime_vllm_torch_cuda_probe_mode | default('strict')) }}).
       In strict mode, both torch.cuda.device_count()>0 and torch.cuda.is_available()==True are required.
       If you intentionally want count-only validation, set ct_runtime_vllm_torch_cuda_probe_mode='count'.
   when:
