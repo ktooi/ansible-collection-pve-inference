@@ -218,18 +218,6 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
 
-- name: Fail when explicit torch package pin is set for vLLM role
-  ansible.builtin.assert:
-    that:
-      - ct_runtime_vllm_torch_package | length == 0
-      - ct_runtime_vllm_torch_extra_index_url | length == 0
-    fail_msg: >-
-      ct_runtime_vllm_torch_package ('{{ ct_runtime_vllm_torch_package }}') or
-      ct_runtime_vllm_torch_extra_index_url ('{{ ct_runtime_vllm_torch_extra_index_url }}') is set, but explicit torch pinning
-      is not supported in this role because vLLM may upgrade/downgrade torch again via dependency resolution.
-      Remove ct_runtime_vllm_torch_package and ct_runtime_vllm_torch_extra_index_url, and use
-      ct_runtime_vllm_torch_backend (for example 'cu129') to pass --torch-backend at runtime instead.
-
 - name: Build effective torch CUDA probe mode for preflight
   ansible.builtin.set_fact:
     ct_runtime_vllm_torch_cuda_probe_mode_effective: >-
@@ -261,6 +249,19 @@
   ansible.builtin.pip:
     name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
     virtualenv: "{{ ct_runtime_vllm_venv }}"
+
+- name: Reinstall pinned torch package after vLLM install (optional)
+  ansible.builtin.pip:
+    name: "{{ ct_runtime_vllm_torch_package }}"
+    state: forcereinstall
+    virtualenv: "{{ ct_runtime_vllm_venv }}"
+    extra_args: >-
+      {{
+        ('--extra-index-url ' ~ ct_runtime_vllm_torch_extra_index_url)
+        if (ct_runtime_vllm_torch_extra_index_url | length > 0)
+        else omit
+      }}
+  when: ct_runtime_vllm_torch_package | length > 0
 
 - name: Probe NVIDIA driver runtime with nvidia-smi
   ansible.builtin.command:
