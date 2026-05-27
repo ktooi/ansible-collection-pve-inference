@@ -63,6 +63,31 @@
     - ct_runtime_vllm_cuda_pkg_install is failed
     - not ct_runtime_vllm_fail_on_cuda_package_install
 
+
+# Purpose: Ensure optional build tools required by Triton/vLLM runtime are installed を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+- name: Ensure optional build tools required by Triton/vLLM runtime are installed
+  ansible.builtin.package:
+    name: "{{ ct_runtime_vllm_build_packages }}"
+    state: present
+  register: ct_runtime_vllm_build_tools_install
+  failed_when: false
+  when:
+    - ct_runtime_vllm_install_build_tools
+    - ct_runtime_vllm_build_packages | length > 0
+
+# Purpose: Warn when build tools install failed while continuing non-strict flow を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+- name: Warn when build tools install failed while continuing non-strict flow
+  ansible.builtin.debug:
+    msg: >-
+      Failed to install build tool packages {{ ct_runtime_vllm_build_packages }}.
+      stdout={{ ct_runtime_vllm_build_tools_install.stdout | default('') | trim }}
+      stderr={{ ct_runtime_vllm_build_tools_install.stderr | default('') | trim }}
+      Continuing because these tools are optional for some wheel/runtime combinations.
+  when:
+    - ct_runtime_vllm_install_build_tools
+    - ct_runtime_vllm_build_packages | length > 0
+    - ct_runtime_vllm_build_tools_install is failed
+
 # Purpose: Check NVIDIA device node visibility in CT を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Check NVIDIA device node visibility in CT
   ansible.builtin.find:

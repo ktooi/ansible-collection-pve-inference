@@ -5,3 +5,6 @@ ct_runtime_vllm_cuda_packages_os:
   - libnvidia-ml1
 ct_runtime_vllm_nvcc_toolkit_packages_os:
   - nvidia-cuda-toolkit
+
+ct_runtime_vllm_build_packages_os:
+  - ninja-build
