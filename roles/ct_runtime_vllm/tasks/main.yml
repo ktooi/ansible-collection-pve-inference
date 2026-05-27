@@ -296,6 +296,36 @@
     - ct_runtime_vllm_auto_install_nvcc_toolkit
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
 
+- name: Install nvcc via pip fallback when apt candidates are unavailable
+  ansible.builtin.pip:
+    name: "{{ ct_runtime_vllm_nvcc_pip_package }}"
+    virtualenv: "{{ ct_runtime_vllm_venv }}"
+  register: ct_runtime_vllm_nvcc_pip_install
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+
+- name: Resolve CUDA_HOME from nvcc pip package fallback
+  ansible.builtin.command:
+    argv:
+      - "{{ ct_runtime_vllm_venv }}/bin/python"
+      - -c
+      - |
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.find_spec("nvidia.cuda_nvcc")
+        if spec and spec.origin:
+            print(str(Path(spec.origin).resolve().parent))
+  register: ct_runtime_vllm_nvcc_pip_cuda_home
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+
 - name: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing
   ansible.builtin.command: "apt-cache policy {{ item }}"
   loop: "{{ ct_runtime_vllm_nvcc_toolkit_packages }}"
@@ -319,7 +349,7 @@
           else (
             (ct_runtime_vllm_nvcc_path.stdout | trim | regex_replace('/bin/nvcc$', ''))
             if (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length > 0)
-            else ''
+            else (ct_runtime_vllm_nvcc_pip_cuda_home.stdout | default('') | trim)
           )
         )
       }}

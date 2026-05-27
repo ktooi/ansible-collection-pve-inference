@@ -64,6 +64,8 @@ ct_runtime_vllm_install_cuda_userspace: true
 ct_runtime_vllm_cuda_packages: "{{ ct_runtime_vllm_cuda_packages_os | default([]) }}"
 ct_runtime_vllm_auto_install_nvcc_toolkit: true
 ct_runtime_vllm_nvcc_toolkit_packages: "{{ ct_runtime_vllm_nvcc_toolkit_packages_os | default(['nvidia-cuda-toolkit']) }}"
+ct_runtime_vllm_auto_install_nvcc_pip_fallback: true
+ct_runtime_vllm_nvcc_pip_package: nvidia-cuda-nvcc-cu12
 ct_runtime_vllm_require_libcuda: true
 ct_runtime_vllm_require_nvidia_device_nodes: true
 ct_runtime_vllm_require_nvidia_smi: true
