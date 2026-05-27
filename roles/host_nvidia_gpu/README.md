@@ -79,7 +79,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - By default, this role installs a systemd override to run `nvidia-persistenced` as root (`host_nvidia_gpu_persistenced_run_as_root: true`) because some hosts fail device queries under the packaged unprivileged service user even when `/dev/nvidia*` exists and is group-readable/writable.
 - The role now probes `nvidia-smi -L` before attempting `nvidia-persistenced`; if this probe fails, the role fails early with guidance to fix driver runtime readiness (typically reboot-after-driver-update or resolving kernel/userspace mismatch) before service startup.
 - If you need one pass that configures packages/services before a planned reboot, set `host_nvidia_gpu_allow_degraded_nvidia_smi_after_install: true` to continue with a warning when the probe fails; rerun the role after reboot and return this setting to `false`.
-- If `nvidia-smi` reports `Driver/library version mismatch`, you can set `host_nvidia_gpu_auto_reboot_on_nvml_mismatch: true` to let this role reboot host automatically, re-probe, and continue in a single run.
+- If `nvidia-smi` reports `Driver/library version mismatch`, you can set `host_nvidia_gpu_auto_reboot_on_nvml_mismatch: true` to let this role reboot host automatically, re-probe, and continue in a single run. After reboot, the role also retries `nvidia-modprobe`/`modprobe` + `nvidia-smi -L` to absorb short post-boot driver bring-up lag.
 
 ### Boot ordering for CT GPU passthrough
 

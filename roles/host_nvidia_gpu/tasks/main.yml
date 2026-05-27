@@ -608,6 +608,37 @@
     - host_nvidia_gpu_auto_reboot_on_nvml_mismatch
     - host_nvidia_gpu_nvml_mismatch_detected | default(false)
 
+- name: Retry NVIDIA module/device bring-up when probe is still not ready after auto-reboot
+  block:
+    - name: Trigger NVIDIA device node recreation after auto-reboot
+      ansible.builtin.command: nvidia-modprobe -u -c=0
+      changed_when: false
+      failed_when: false
+
+    - name: Retry loading selected NVIDIA module set after auto-reboot
+      ansible.builtin.command: "modprobe --ignore-install {{ item }}"
+      loop: "{{ host_nvidia_gpu_modules_to_load }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Retry nvidia-smi probe after module/device recovery
+      ansible.builtin.command: nvidia-smi -L
+      register: host_nvidia_gpu_pre_persistenced_smi
+      changed_when: false
+      failed_when: false
+      retries: 5
+      delay: 5
+      until: host_nvidia_gpu_pre_persistenced_smi.rc == 0
+
+    - name: Re-derive NVIDIA userspace readiness fact after recovery retries
+      ansible.builtin.set_fact:
+        host_nvidia_gpu_pre_persistenced_smi_ready: "{{ (host_nvidia_gpu_pre_persistenced_smi.rc | int) == 0 }}"
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - host_nvidia_gpu_auto_reboot_on_nvml_mismatch
+    - host_nvidia_gpu_nvml_mismatch_detected | default(false)
+    - not (host_nvidia_gpu_pre_persistenced_smi_ready | default(false))
+
 - name: Warn when NVIDIA userspace is degraded but degraded mode is allowed
   ansible.builtin.debug:
     msg: >-
