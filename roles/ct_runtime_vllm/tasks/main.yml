@@ -412,17 +412,7 @@
                   '/usr/local/nvidia'
                   if (
                     ((ct_runtime_vllm_cuda_home_nvidia_stat is defined) and (ct_runtime_vllm_cuda_home_nvidia_stat.stat is defined) and (ct_runtime_vllm_cuda_home_nvidia_stat.stat.exists | default(false)))
-                    or
-                    (
-                      ct_runtime_vllm_libcuda_candidate_stats.results
-                      | default([])
-                      | selectattr('stat', 'defined')
-                      | selectattr('stat.exists', 'equalto', true)
-                      | map(attribute='stat.path')
-                      | select('match', '^/usr/local/nvidia/')
-                      | list
-                      | length
-                    ) > 0
+                    or (ct_runtime_vllm_libcuda_available | default(false))
                   )
                   else ''
                 )
