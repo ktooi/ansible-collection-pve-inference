@@ -38,6 +38,8 @@ host_nvidia_gpu_fail_on_persistenced_start: true
 host_nvidia_gpu_persistenced_user: nvidia-persistenced
 host_nvidia_gpu_persistenced_device_groups:
   - video
+host_nvidia_gpu_device_node_group: video
+host_nvidia_gpu_device_node_mode: "0660"
 host_nvidia_gpu_ensure_uvm_device_service: true
 host_nvidia_gpu_uvm_device_service_name: nvidia-uvm-devices.service
 host_nvidia_gpu_uvm_device_service_after:

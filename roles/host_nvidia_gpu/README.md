@@ -29,6 +29,8 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_fail_on_persistenced_start` | Fail role if `nvidia-persistenced` cannot be started | `true` | `true` / `false` |
 | `host_nvidia_gpu_persistenced_user` | Service user expected by `nvidia-persistenced` | `nvidia-persistenced` | Existing/valid local user |
 | `host_nvidia_gpu_persistenced_device_groups` | Supplemental groups granted to persistenced user for `/dev/nvidia*` access | `['video']` | Group name list |
+| `host_nvidia_gpu_device_node_group` | Group ownership enforced for NVIDIA character devices under `/dev/nvidia*` | `video` | Existing local group |
+| `host_nvidia_gpu_device_node_mode` | File mode enforced for NVIDIA character devices under `/dev/nvidia*` | `0660` | Octal mode string |
 | `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
 | `host_nvidia_gpu_uvm_device_service_name` | systemd unit name for UVM device recreation | `nvidia-uvm-devices.service` | Valid unit name |
 | `host_nvidia_gpu_uvm_device_service_after` | Units that should start before UVM device recreation | `[systemd-modules-load.service]` | List of systemd unit names |
@@ -69,6 +71,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - If `nvidia-driver` still resolves to older distro packages, enable `host_nvidia_gpu_use_cuda_drivers_meta: true` so this role installs NVIDIA's `cuda-drivers` meta package path from the configured CUDA repository.
 - `nvidia-persistenced` start failure is treated as an error by default (`host_nvidia_gpu_fail_on_persistenced_start: true`) and the role includes `systemctl status` + `journalctl` output in the failure message for diagnosis. You can explicitly opt into warning-only continuation by setting `host_nvidia_gpu_fail_on_persistenced_start: false`.
 - Before starting `nvidia-persistenced`, this role ensures the service user is present and appended to `host_nvidia_gpu_persistenced_device_groups` (default `video`) so it can open `/dev/nvidia*` nodes.
+- The role also normalizes ownership/permissions of discovered NVIDIA character devices to `root:{{ host_nvidia_gpu_device_node_group }}` with mode `{{ host_nvidia_gpu_device_node_mode }}` before starting `nvidia-persistenced`.
 
 ### Boot ordering for CT GPU passthrough
 

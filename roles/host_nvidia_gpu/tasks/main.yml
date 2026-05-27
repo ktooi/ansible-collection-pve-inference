@@ -512,6 +512,25 @@
       is not loaded correctly or package installation failed.
   when: host_nvidia_gpu_require_nvidia_devices
 
+- name: Gather stat for discovered NVIDIA device paths
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ host_nvidia_dev_nodes.files }}"
+  register: host_nvidia_dev_node_stats
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Normalize ownership and mode of NVIDIA character device nodes
+  ansible.builtin.file:
+    path: "{{ item.stat.path }}"
+    owner: root
+    group: "{{ host_nvidia_gpu_device_node_group }}"
+    mode: "{{ host_nvidia_gpu_device_node_mode }}"
+  loop: "{{ host_nvidia_dev_node_stats.results }}"
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - item.stat.exists | default(false)
+    - item.stat.ischr | default(false)
+
 - name: Ensure persistenced supplemental groups exist
   ansible.builtin.group:
     name: "{{ item }}"
