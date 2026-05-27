@@ -61,6 +61,7 @@ flowchart TD
 | `ct_runtime_vllm_env_file` | Environment file path | `/etc/default/vllm` | Absolute path |
 | `ct_runtime_vllm_service_name` | systemd service unit name | `vllm.service` | Valid unit name |
 | `ct_runtime_vllm_systemd_log_to_files` | Write service stdout/stderr to files via systemd `append:` | `true` | `true` / `false` |
+| `ct_runtime_vllm_systemd_dump_runtime_env` | Dump sorted runtime environment variables to stderr at service start (for debugging) | `false` | `true` / `false` |
 | `ct_runtime_vllm_stdout_log` | vLLM stdout log file path (when file logging enabled) | `/var/log/inference/vllm.stdout.log` | Absolute path |
 | `ct_runtime_vllm_stderr_log` | vLLM stderr log file path (when file logging enabled) | `/var/log/inference/vllm.stderr.log` | Absolute path |
 | `ct_runtime_vllm_systemd_restart` | systemd restart policy for vLLM service | `on-failure` | `no`, `on-failure`, `always`, ... |
@@ -144,6 +145,7 @@ flowchart TD
 > `--torch-backend` note: in current vLLM releases, `--torch-backend` is an install-time (`uv pip`) option, not a stable `vllm serve` runtime flag across versions. This role does not pass `--torch-backend` to `vllm serve`.
 
 > Logging note: when `ct_runtime_vllm_systemd_log_to_files=true` (default), this role now mirrors stdout/stderr to both log files (`/var/log/inference/vllm.stdout.log`, `/var/log/inference/vllm.stderr.log`) and journald, so `journalctl -u vllm.service` remains usable.
+> Debug note: set `ct_runtime_vllm_systemd_dump_runtime_env=true` temporarily to print process environment at startup (`[vllm-env] begin/end`) into stderr logs/journald for CUDA_HOME/PATH troubleshooting; disable after investigation.
 
 > CLI compatibility note: older vLLM versions may reject `--device cuda`. This role omits `--device` for CUDA by default and only passes it for non-CUDA devices (or when `ct_runtime_vllm_force_device_arg=true`).
 
