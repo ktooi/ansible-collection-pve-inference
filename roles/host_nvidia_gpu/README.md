@@ -43,7 +43,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_manage_nvidia_cuda_repo` | Manage NVIDIA CUDA apt repository from this role when source is `nvidia` | `false` | `true` / `false` |
 | `host_nvidia_gpu_nvidia_cuda_repo_url` | NVIDIA CUDA repository URL (Debian 13 default) | `https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/` | Valid apt repo URL |
 | `host_nvidia_gpu_nvidia_cuda_repo_keyring_deb_url` | NVIDIA CUDA keyring package URL | `https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/cuda-keyring_1.1-1_all.deb` | Valid URL |
-| `host_nvidia_gpu_nvidia_cuda_repo_keyring_path` | Installed keyring path used for signed-by | `/usr/share/keyrings/nvidia-cuda-archive-keyring.gpg` | Absolute path |
+| `host_nvidia_gpu_nvidia_cuda_repo_keyring_path` | Installed keyring path used for signed-by | `/usr/share/keyrings/cuda-archive-keyring.gpg` | Absolute path |
 | `host_nvidia_gpu_nvidia_cuda_repo_list_filename` | apt sources list filename for NVIDIA repo | `nvidia-cuda` | filename without extension |
 
 ## Notes
