@@ -105,6 +105,8 @@ flowchart TD
 | `ct_runtime_vllm_nccl_ignore_disabled_p2p` | Ignore disabled P2P warning | `1` | `0` / `1` |
 | `ct_runtime_vllm_omp_num_threads` | OMP thread count | `""` | Empty or integer string |
 | `ct_runtime_vllm_ld_library_path` | Library search path | `/usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu` | PATH-like string |
+| `ct_runtime_vllm_cuda_home` | Explicit CUDA toolkit root exported as `CUDA_HOME` for runtime processes | `""` (auto-derive) | Empty or absolute path (e.g. `/usr/local/cuda`) |
+| `ct_runtime_vllm_require_nvcc` | Fail preflight when `CUDA_HOME`/`nvcc` cannot be resolved in CT | `false` | `true` / `false` |
 | `ct_runtime_vllm_hf_cache_dir` | Hugging Face cache dir | `""` | Empty or absolute path |
 | `ct_runtime_vllm_hf_token` | Hugging Face Hub token exported as `HF_TOKEN` | `""` | Empty or token string (prefer Ansible Vault) |
 | `ct_runtime_vllm_extra_args` | Extra CLI args | `""` | String |
@@ -115,6 +117,8 @@ flowchart TD
 
 
 > CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check. When `ct_runtime_vllm_torch_backend` or `ct_runtime_vllm_version` is set, preflight is automatically relaxed from `strict` to `count` to avoid false negatives caused by installer/backend mismatches before vLLM runtime initialization.
+>
+> NVCC/CUDA_HOME note: some vLLM/Triton combinations require `nvcc`/`CUDA_HOME` at runtime. This role now derives `CUDA_HOME` from `ct_runtime_vllm_cuda_home`, `/usr/local/cuda`, or `command -v nvcc` and writes it into `vllm` environment. If your CT still reports `Could not find nvcc and default cuda_home='/usr/local/cuda' doesn't exist`, set `ct_runtime_vllm_cuda_home` explicitly and ensure CUDA toolkit userspace is installed in CT. Set `ct_runtime_vllm_require_nvcc: true` to enforce this as a hard preflight requirement.
 
 > Driver/torch alignment note: to align CT torch CUDA with host driver, set `ct_runtime_vllm_torch_package` (and optionally `ct_runtime_vllm_torch_extra_index_url`). This role installs vLLM first and then force-reinstalls torch in the same venv so the final torch wheel matches your specified CUDA line (for example cu124 on NVIDIA 550 / CUDA 12.4 hosts).
 
