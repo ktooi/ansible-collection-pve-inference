@@ -1,7 +1,9 @@
 ---
+# Purpose: Load OS/distribution specific variables を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
+# Purpose: Normalize served model name for vLLM CLI を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Normalize served model name for vLLM CLI
   ansible.builtin.set_fact:
     ct_runtime_vllm_served_model_name_effective: >-
@@ -25,6 +27,7 @@
         )
       }}
 
+# Purpose: Ensure optional CUDA userspace packages are installed を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Ensure optional CUDA userspace packages are installed
   ansible.builtin.package:
     name: "{{ ct_runtime_vllm_cuda_packages }}"
@@ -35,6 +38,7 @@
     - ct_runtime_vllm_install_cuda_userspace
     - ct_runtime_vllm_cuda_packages | length > 0
 
+# Purpose: Fail if CUDA userspace package install failed and strict mode is enabled を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Fail if CUDA userspace package install failed and strict mode is enabled
   ansible.builtin.assert:
     that:
@@ -47,6 +51,7 @@
     - ct_runtime_vllm_cuda_packages | length > 0
     - ct_runtime_vllm_fail_on_cuda_package_install
 
+# Purpose: Warn when CUDA userspace package install failed but strict mode is disabled を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Warn when CUDA userspace package install failed but strict mode is disabled
   ansible.builtin.debug:
     msg: >-
@@ -58,6 +63,7 @@
     - ct_runtime_vllm_cuda_pkg_install is failed
     - not ct_runtime_vllm_fail_on_cuda_package_install
 
+# Purpose: Check NVIDIA device node visibility in CT を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Check NVIDIA device node visibility in CT
   ansible.builtin.find:
     paths: /dev
@@ -65,6 +71,7 @@
     file_type: any
   register: ct_runtime_vllm_dev_nodes
 
+# Purpose: Assert NVIDIA device nodes are visible in CT を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Assert NVIDIA device nodes are visible in CT
   ansible.builtin.assert:
     that:
@@ -76,6 +83,7 @@
     - ct_runtime_vllm_require_nvidia_device_nodes
 
 
+# Purpose: Check critical NVIDIA device node types in CT を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Check critical NVIDIA device node types in CT
   ansible.builtin.stat:
     path: "{{ item }}"
@@ -87,6 +95,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvidia_device_nodes
 
+# Purpose: Assert critical NVIDIA nodes are character devices を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Assert critical NVIDIA nodes are character devices
   ansible.builtin.assert:
     that:
@@ -101,6 +110,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvidia_device_nodes
 
+# Purpose: Check libcuda visibility from dynamic linker cache を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Check libcuda visibility from dynamic linker cache
   ansible.builtin.command: ldconfig -p
   register: ct_runtime_vllm_ldconfig
@@ -109,6 +119,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
 
+# Purpose: Check common libcuda.so.1 file locations in CT を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Check common libcuda.so.1 file locations in CT
   ansible.builtin.stat:
     path: "{{ item }}"
@@ -118,6 +129,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
 
+# Purpose: Build libcuda availability fact を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Build libcuda availability fact
   ansible.builtin.set_fact:
     ct_runtime_vllm_libcuda_available: >-
@@ -135,6 +147,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
 
+# Purpose: Discover fallback NVIDIA compute package candidate (APT) を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Discover fallback NVIDIA compute package candidate (APT)
   ansible.builtin.shell: |
     set -o pipefail
@@ -153,6 +166,7 @@
     - ansible_pkg_mgr == "apt"
     - ct_runtime_vllm_install_cuda_userspace
 
+# Purpose: Try installing fallback NVIDIA compute package when libcuda is still missing を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Try installing fallback NVIDIA compute package when libcuda is still missing
   ansible.builtin.package:
     name: "{{ ct_runtime_vllm_libcuda_fallback_pkg.stdout }}"
@@ -167,6 +181,7 @@
     - ct_runtime_vllm_install_cuda_userspace
     - ct_runtime_vllm_libcuda_fallback_pkg.stdout | length > 0
 
+# Purpose: Re-check libcuda visibility from dynamic linker cache after fallback install を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Re-check libcuda visibility from dynamic linker cache after fallback install
   ansible.builtin.command: ldconfig -p
   register: ct_runtime_vllm_ldconfig
@@ -176,6 +191,7 @@
     - ct_runtime_vllm_require_libcuda
     - not ct_runtime_vllm_libcuda_available
 
+# Purpose: Re-check common libcuda.so.1 file locations in CT after fallback install を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Re-check common libcuda.so.1 file locations in CT after fallback install
   ansible.builtin.stat:
     path: "{{ item }}"
@@ -186,6 +202,7 @@
     - ct_runtime_vllm_require_libcuda
     - not ct_runtime_vllm_libcuda_available
 
+# Purpose: Rebuild libcuda availability fact after fallback install を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Rebuild libcuda availability fact after fallback install
   ansible.builtin.set_fact:
     ct_runtime_vllm_libcuda_available: >-
@@ -204,6 +221,7 @@
     - ct_runtime_vllm_require_libcuda
     - not ct_runtime_vllm_libcuda_available
 
+# Purpose: Assert libcuda.so.1 is available in CT を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Assert libcuda.so.1 is available in CT
   ansible.builtin.assert:
     that:
@@ -218,6 +236,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
 
+# Purpose: Build effective torch CUDA probe mode for preflight を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Build effective torch CUDA probe mode for preflight
   ansible.builtin.set_fact:
     ct_runtime_vllm_torch_cuda_probe_mode_effective: >-
@@ -233,6 +252,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
 
+# Purpose: Warn when strict probe is relaxed to count due to torch backend override を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Warn when strict probe is relaxed to count due to torch backend override
   ansible.builtin.debug:
     msg: >-
@@ -245,18 +265,21 @@
     - (ct_runtime_vllm_torch_cuda_probe_mode | default('strict')) == 'strict'
     - (ct_runtime_vllm_torch_backend | default('') | length > 0) or (ct_runtime_vllm_version | length > 0)
 
+# Purpose: Check whether /usr/local/cuda exists in CT を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Check whether /usr/local/cuda exists in CT
   ansible.builtin.stat:
     path: /usr/local/cuda
   register: ct_runtime_vllm_cuda_home_default_stat
   when: ct_runtime_vllm_device == "cuda"
 
+# Purpose: Probe nvcc path for CUDA_HOME derivation を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Probe nvcc path for CUDA_HOME derivation
   ansible.builtin.command: bash -lc 'command -v nvcc || true'
   register: ct_runtime_vllm_nvcc_path
   changed_when: false
   when: ct_runtime_vllm_device == "cuda"
 
+# Purpose: Install CUDA toolkit packages when nvcc is missing (auto-remediation) を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Install CUDA toolkit packages when nvcc is missing (auto-remediation)
   ansible.builtin.apt:
     name: "{{ ct_runtime_vllm_nvcc_toolkit_packages }}"
@@ -271,6 +294,7 @@
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
 
+# Purpose: Warn when nvcc toolkit auto-remediation failed を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Warn when nvcc toolkit auto-remediation failed
   ansible.builtin.debug:
     msg: >-
@@ -286,6 +310,7 @@
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
     - ct_runtime_vllm_nvcc_toolkit_install is failed
 
+# Purpose: Re-probe nvcc path after auto-remediation を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Re-probe nvcc path after auto-remediation
   ansible.builtin.command: bash -lc 'command -v nvcc || true'
   register: ct_runtime_vllm_nvcc_path
@@ -296,6 +321,7 @@
     - ct_runtime_vllm_auto_install_nvcc_toolkit
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
 
+# Purpose: Install nvcc via pip fallback when apt candidates are unavailable を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Install nvcc via pip fallback when apt candidates are unavailable
   ansible.builtin.pip:
     name: "{{ ct_runtime_vllm_nvcc_pip_package }}"
@@ -307,6 +333,7 @@
     - ct_runtime_vllm_auto_install_nvcc_pip_fallback
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
+# Purpose: Resolve CUDA_HOME from nvcc pip package fallback を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Resolve CUDA_HOME from nvcc pip package fallback
   ansible.builtin.command:
     argv:
@@ -330,6 +357,7 @@
     - ct_runtime_vllm_auto_install_nvcc_pip_fallback
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
+# Purpose: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing
   ansible.builtin.command: "apt-cache policy {{ item }}"
   loop: "{{ ct_runtime_vllm_nvcc_toolkit_packages }}"
@@ -341,6 +369,7 @@
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
 
+# Purpose: Derive effective CUDA_HOME for vLLM runtime を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Derive effective CUDA_HOME for vLLM runtime
   ansible.builtin.set_fact:
     ct_runtime_vllm_cuda_home_effective: >-
@@ -359,6 +388,7 @@
       }}
   when: ct_runtime_vllm_device == "cuda"
 
+# Purpose: Derive nvcc bin path from effective CUDA_HOME を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Derive nvcc bin path from effective CUDA_HOME
   ansible.builtin.set_fact:
     ct_runtime_vllm_nvcc_bin_path_effective: >-
@@ -369,6 +399,7 @@
       }}
   when: ct_runtime_vllm_device == "cuda"
 
+# Purpose: Warn when nvcc/CUDA_HOME is not detected for CUDA runtime を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Warn when nvcc/CUDA_HOME is not detected for CUDA runtime
   ansible.builtin.debug:
     msg: >-
@@ -381,6 +412,7 @@
     - (ct_runtime_vllm_cuda_home_effective | default('') | length) == 0
     - not ct_runtime_vllm_require_nvcc
 
+# Purpose: Assert nvcc/CUDA_HOME is available when strict requirement is enabled を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Assert nvcc/CUDA_HOME is available when strict requirement is enabled
   ansible.builtin.assert:
     that:
@@ -399,11 +431,13 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvcc
 
+# Purpose: Install vLLM package を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Install vLLM package
   ansible.builtin.pip:
     name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
     virtualenv: "{{ ct_runtime_vllm_venv }}"
 
+# Purpose: Reinstall pinned torch package after vLLM install (optional) を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Reinstall pinned torch package after vLLM install (optional)
   ansible.builtin.pip:
     name: "{{ ct_runtime_vllm_torch_package }}"
@@ -417,6 +451,7 @@
       }}
   when: ct_runtime_vllm_torch_package | length > 0
 
+# Purpose: Probe NVIDIA driver runtime with nvidia-smi を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Probe NVIDIA driver runtime with nvidia-smi
   ansible.builtin.command:
     argv:
@@ -429,6 +464,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvidia_smi
 
+# Purpose: Assert nvidia-smi probe succeeded in CT を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Assert nvidia-smi probe succeeded in CT
   ansible.builtin.assert:
     that:
@@ -443,6 +479,7 @@
     - ct_runtime_vllm_require_nvidia_smi
     - ct_runtime_vllm_fail_on_nvidia_smi_probe
 
+# Purpose: Warn when nvidia-smi probe failed but strict nvidia-smi mode is disabled を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Warn when nvidia-smi probe failed but strict nvidia-smi mode is disabled
   ansible.builtin.debug:
     msg: >-
@@ -456,6 +493,7 @@
     - not ct_runtime_vllm_fail_on_nvidia_smi_probe
     - ct_runtime_vllm_nvidia_smi_probe.rc != 0
 
+# Purpose: Probe CUDA availability from torch in vLLM venv を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Probe CUDA availability from torch in vLLM venv
   ansible.builtin.command:
     argv:
@@ -472,6 +510,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
 
+# Purpose: Build torch CUDA probe fact を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Build torch CUDA probe fact
   ansible.builtin.set_fact:
     ct_runtime_vllm_torch_cuda_info: >-
@@ -484,6 +523,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
 
+# Purpose: Probe installed torch package metadata in vLLM venv を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Probe installed torch package metadata in vLLM venv
   ansible.builtin.command:
     argv:
@@ -500,6 +540,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
 
+# Purpose: Build torch package metadata fact を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Build torch package metadata fact
   ansible.builtin.set_fact:
     ct_runtime_vllm_torch_version_info: >-
@@ -512,6 +553,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
 
+# Purpose: Warn when torch backend override does not change installed torch CUDA wheel tag を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Warn when torch backend override does not change installed torch CUDA wheel tag
   ansible.builtin.debug:
     msg: >-
@@ -526,6 +568,7 @@
     - ct_runtime_vllm_torch_backend | default('') | length > 0
     - ct_runtime_vllm_torch_version_probe.rc == 0
 
+# Purpose: Assert torch can see CUDA devices in vLLM venv を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Assert torch can see CUDA devices in vLLM venv
   ansible.builtin.assert:
     that:
@@ -548,6 +591,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
 
+# Purpose: Render vLLM environment file を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Render vLLM environment file
   ansible.builtin.template:
     src: vllm.env.j2
@@ -557,6 +601,7 @@
     mode: "0644"
   notify: Restart vllm
 
+# Purpose: Ensure vLLM log files exist when file logging is enabled を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Ensure vLLM log files exist when file logging is enabled
   ansible.builtin.file:
     path: "{{ item }}"
@@ -569,6 +614,7 @@
     - "{{ ct_runtime_vllm_stderr_log }}"
   when: ct_runtime_vllm_systemd_log_to_files
 
+# Purpose: Render vLLM systemd service unit を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Render vLLM systemd service unit
   ansible.builtin.template:
     src: vllm.service.j2
@@ -580,6 +626,7 @@
     - Reload systemd
     - Restart vllm
 
+# Purpose: Enable and start vLLM service を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Enable and start vLLM service
   ansible.builtin.service:
     name: "{{ ct_runtime_vllm_service_name }}"
