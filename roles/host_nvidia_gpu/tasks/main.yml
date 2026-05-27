@@ -282,6 +282,19 @@
       {{
         (
           host_nvidia_gpu_packages
+          | reject('equalto', 'nvidia-driver')
+          | reject('equalto', 'nvidia-kernel-dkms')
+          | list
+          + ['cuda-drivers']
+        )
+        if (
+          host_nvidia_gpu_repository_source == 'nvidia'
+          and host_nvidia_gpu_manage_nvidia_cuda_repo
+          and host_nvidia_gpu_use_cuda_drivers_meta
+        )
+        else
+        (
+          host_nvidia_gpu_packages
           | map('regex_replace', '^nvidia-kernel-dkms$', 'nvidia-open-kernel-dkms')
           | list
         )
