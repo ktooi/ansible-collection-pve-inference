@@ -381,6 +381,14 @@
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
 
+
+# Purpose: Check whether /usr/local/nvidia exists in CT as CUDA_HOME fallback を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+- name: Check whether /usr/local/nvidia exists in CT as CUDA_HOME fallback
+  ansible.builtin.stat:
+    path: /usr/local/nvidia
+  register: ct_runtime_vllm_cuda_home_nvidia_stat
+  when: ct_runtime_vllm_device == "cuda"
+
 # Purpose: Derive effective CUDA_HOME for vLLM runtime を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Derive effective CUDA_HOME for vLLM runtime
   ansible.builtin.set_fact:
@@ -397,7 +405,15 @@
             else (
               (ct_runtime_vllm_nvcc_path_venv.stdout | trim | regex_replace('/bin/nvcc$', ''))
               if (ct_runtime_vllm_nvcc_path_venv.stdout | default('') | trim | length > 0)
-              else (ct_runtime_vllm_nvcc_pip_cuda_home.stdout | default('') | trim)
+              else (
+                (ct_runtime_vllm_nvcc_pip_cuda_home.stdout | default('') | trim)
+                if (ct_runtime_vllm_nvcc_pip_cuda_home.stdout | default('') | trim | length > 0)
+                else (
+                  '/usr/local/nvidia'
+                  if (ct_runtime_vllm_cuda_home_nvidia_stat.stat.exists | default(false))
+                  else ''
+                )
+              )
             )
           )
         )
