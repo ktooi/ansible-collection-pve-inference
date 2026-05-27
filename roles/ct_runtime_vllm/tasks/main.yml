@@ -262,12 +262,29 @@
     name: "{{ ct_runtime_vllm_nvcc_toolkit_packages }}"
     state: present
     update_cache: true
+  register: ct_runtime_vllm_nvcc_toolkit_install
+  failed_when: false
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_install_cuda_userspace
     - ct_runtime_vllm_auto_install_nvcc_toolkit
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
+
+- name: Warn when nvcc toolkit auto-remediation failed
+  ansible.builtin.debug:
+    msg: >-
+      Failed to auto-install nvcc toolkit packages {{ ct_runtime_vllm_nvcc_toolkit_packages }}.
+      stdout={{ ct_runtime_vllm_nvcc_toolkit_install.stdout | default('') | trim }}
+      stderr={{ ct_runtime_vllm_nvcc_toolkit_install.stderr | default('') | trim }}
+      Continuing to re-probe nvcc; set ct_runtime_vllm_require_nvcc=true to fail hard when nvcc is mandatory.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+    - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
+    - ct_runtime_vllm_nvcc_toolkit_install is failed
 
 - name: Re-probe nvcc path after auto-remediation
   ansible.builtin.command: bash -lc 'command -v nvcc || true'
