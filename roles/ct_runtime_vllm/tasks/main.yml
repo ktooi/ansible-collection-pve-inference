@@ -729,8 +729,15 @@
       {{ ct_runtime_vllm_nvcc_pip_show_files.stdout | default('') | trim }}
       nvcc files discovered in venv site-packages:
       {{ ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines | default([]) }}
+      {% if ct_runtime_vllm_use_host_cuda_stack %}
+      Host-CUDA mode is enabled, but host-mounted toolkit binaries were not found.
+      In this mode, /usr/local/nvidia alone is insufficient because some vLLM/FlashInfer paths call ${CUDA_HOME}/bin/nvcc directly.
+      Mount a real CUDA toolkit path from host into CT (for example {{ ct_runtime_vllm_host_cuda_toolkit_mount_hint }})
+      and set ct_runtime_vllm_cuda_home to that mounted path.
+      {% else %}
       If the pip package is present but does not ship an nvcc binary for this environment,
       configure a real toolkit path (ct_runtime_vllm_cuda_home=/usr/local/cuda*) or install toolkit packages from a CUDA-enabled apt repository.
+      {% endif %}
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvcc
