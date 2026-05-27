@@ -398,7 +398,7 @@
         if (ct_runtime_vllm_cuda_home | default('') | length > 0)
         else (
           '/usr/local/cuda'
-          if (ct_runtime_vllm_cuda_home_default_stat.stat.exists | default(false))
+          if ((ct_runtime_vllm_cuda_home_default_stat is defined) and (ct_runtime_vllm_cuda_home_default_stat.stat is defined) and (ct_runtime_vllm_cuda_home_default_stat.stat.exists | default(false)))
           else (
             (ct_runtime_vllm_nvcc_path.stdout | trim | regex_replace('/bin/nvcc$', ''))
             if (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length > 0)
