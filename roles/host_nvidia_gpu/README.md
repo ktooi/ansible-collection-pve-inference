@@ -39,6 +39,12 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_require_nvidia_devices` | Enforce `/dev/nvidia*` existence check | `true` | `true` / `false` |
 | `host_nvidia_gpu_block_proxmox_removal` | Abort if apt plan would remove `proxmox-ve` | `true` | `true` / `false` |
 | `host_nvidia_gpu_require_exact_headers` | Require exact running-kernel headers | `true` | `true` / `false` |
+| `host_nvidia_gpu_repository_source` | NVIDIA package source selector | `debian` | `debian`, `nvidia` |
+| `host_nvidia_gpu_manage_nvidia_cuda_repo` | Manage NVIDIA CUDA apt repository from this role when source is `nvidia` | `false` | `true` / `false` |
+| `host_nvidia_gpu_nvidia_cuda_repo_url` | NVIDIA CUDA repository URL (Debian 13 default) | `https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/` | Valid apt repo URL |
+| `host_nvidia_gpu_nvidia_cuda_repo_keyring_url` | NVIDIA CUDA repository public key URL | `https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/3bf863cc.pub` | Valid URL |
+| `host_nvidia_gpu_nvidia_cuda_repo_keyring_path` | Installed keyring path used for signed-by | `/usr/share/keyrings/nvidia-cuda-archive-keyring.gpg` | Absolute path |
+| `host_nvidia_gpu_nvidia_cuda_repo_list_filename` | apt sources list filename for NVIDIA repo | `nvidia-cuda` | filename without extension |
 
 ## Notes
 - This role validates implicit prerequisites (Debian family host, Proxmox kernel, exact headers, NVIDIA device nodes) and fails early if they are not met.
@@ -55,6 +61,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - By default, this role also deploys a host boot-time oneshot unit (`nvidia-uvm-devices.service`) so `/dev/nvidia-uvm*` is recreated automatically after reboot. The unit is ordered before `pve-guests.service`, which prevents PVE on-boot CTs from binding placeholder regular files for `/dev/nvidia-uvm*` before host device nodes exist.
 - When `host_nvidia_gpu_power_limit_watts` is set, the role deploys/enables `nvidia-power-limit.service` on host and applies `nvidia-smi -pm 1` + `nvidia-smi -pl <watts>`.
 - To enforce a CUDA 12.8-class host baseline in automation, set `host_nvidia_gpu_min_installed_driver_major: 570`.
+- If Debian official repositories do not provide a required driver major (for example 570+), set `host_nvidia_gpu_repository_source: nvidia` and `host_nvidia_gpu_manage_nvidia_cuda_repo: true` to let this role configure NVIDIA's official CUDA apt repository before package installation.
 
 ### Boot ordering for CT GPU passthrough
 

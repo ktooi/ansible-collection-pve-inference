@@ -14,6 +14,45 @@
       Install and boot a pve kernel first.
   when: host_nvidia_gpu_require_pve_kernel
 
+- name: Assert repository source selector is valid
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_repository_source in ['debian', 'nvidia']
+    fail_msg: >-
+      host_nvidia_gpu_repository_source must be either 'debian' or 'nvidia'.
+      Current value: {{ host_nvidia_gpu_repository_source }}.
+
+- name: Install apt prerequisites for external repository management
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+  when: host_nvidia_gpu_repository_source == 'nvidia' and host_nvidia_gpu_manage_nvidia_cuda_repo
+
+- name: Download NVIDIA CUDA repository signing key
+  ansible.builtin.get_url:
+    url: "{{ host_nvidia_gpu_nvidia_cuda_repo_keyring_url }}"
+    dest: /tmp/nvidia-cuda-repo-key.pub
+    mode: "0644"
+  when: host_nvidia_gpu_repository_source == 'nvidia' and host_nvidia_gpu_manage_nvidia_cuda_repo
+
+- name: Install NVIDIA CUDA repository keyring
+  ansible.builtin.command: >-
+    gpg --dearmor --yes --output {{ host_nvidia_gpu_nvidia_cuda_repo_keyring_path }} /tmp/nvidia-cuda-repo-key.pub
+  changed_when: true
+  when: host_nvidia_gpu_repository_source == 'nvidia' and host_nvidia_gpu_manage_nvidia_cuda_repo
+
+- name: Configure NVIDIA CUDA apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ host_nvidia_gpu_nvidia_cuda_repo_keyring_path }}] {{ host_nvidia_gpu_nvidia_cuda_repo_url }} /"
+    filename: "{{ host_nvidia_gpu_nvidia_cuda_repo_list_filename }}"
+    state: present
+    update_cache: true
+  when: host_nvidia_gpu_repository_source == 'nvidia' and host_nvidia_gpu_manage_nvidia_cuda_repo
+
 - name: Collect apt policy output when target release override is set
   ansible.builtin.command: apt-cache policy
   register: host_nvidia_gpu_apt_policy
