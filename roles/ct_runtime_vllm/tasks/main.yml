@@ -473,6 +473,24 @@
     - ct_runtime_vllm_auto_install_nvcc_pip_fallback
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
+# Purpose: Inspect pip fallback package payload for nvcc artifacts when nvcc is still missing を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+- name: Inspect pip fallback package payload for nvcc artifacts when nvcc is still missing
+  ansible.builtin.command:
+    argv:
+      - "{{ ct_runtime_vllm_venv }}/bin/pip"
+      - show
+      - -f
+      - "{{ ct_runtime_vllm_nvcc_pip_package }}"
+  register: ct_runtime_vllm_nvcc_pip_show_files
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+    - (ct_runtime_vllm_nvcc_path_venv.stdout | default('') | trim | length) == 0
+    - (ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines | default([]) | length) == 0
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+
 # Purpose: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing
   ansible.builtin.command: "apt-cache policy {{ item }}"
@@ -603,8 +621,12 @@
       nvcc pip fallback install output:
       stdout={{ ct_runtime_vllm_nvcc_pip_install.stdout | default('') | trim }}
       stderr={{ ct_runtime_vllm_nvcc_pip_install.stderr | default('') | trim }}
+      nvcc pip fallback package file listing:
+      {{ ct_runtime_vllm_nvcc_pip_show_files.stdout | default('') | trim }}
       nvcc files discovered in venv site-packages:
       {{ ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines | default([]) }}
+      If the pip package is present but does not ship an nvcc binary for this environment,
+      configure a real toolkit path (ct_runtime_vllm_cuda_home=/usr/local/cuda*) or install toolkit packages from a CUDA-enabled apt repository.
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvcc
