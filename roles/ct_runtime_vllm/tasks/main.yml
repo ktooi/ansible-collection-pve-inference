@@ -411,7 +411,7 @@
                 else (
                   '/usr/local/nvidia'
                   if (
-                    (ct_runtime_vllm_cuda_home_nvidia_stat.stat.exists | default(false))
+                    ((ct_runtime_vllm_cuda_home_nvidia_stat is defined) and (ct_runtime_vllm_cuda_home_nvidia_stat.stat is defined) and (ct_runtime_vllm_cuda_home_nvidia_stat.stat.exists | default(false)))
                     or
                     (
                       ct_runtime_vllm_libcuda_candidate_stats.results
