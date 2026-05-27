@@ -357,6 +357,36 @@
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
 
+- name: Re-probe nvcc path after toolkit install attempt (pre-pip fallback)
+  ansible.builtin.command: bash -lc 'command -v nvcc || true'
+  register: ct_runtime_vllm_nvcc_path_after_toolkit
+  changed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+    - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
+
+- name: Warn when toolkit install attempt completed but nvcc is still missing
+  ansible.builtin.debug:
+    msg: >-
+      nvcc is still missing after toolkit install attempt with packages
+      {{ ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) }}.
+      apt_result changed={{ ct_runtime_vllm_nvcc_toolkit_install.changed | default(false) }}
+      failed={{ ct_runtime_vllm_nvcc_toolkit_install.failed | default(false) }}
+      msg={{ ct_runtime_vllm_nvcc_toolkit_install.msg | default('') | trim }}
+      stdout={{ ct_runtime_vllm_nvcc_toolkit_install.stdout | default('') | trim }}
+      stderr={{ ct_runtime_vllm_nvcc_toolkit_install.stderr | default('') | trim }}
+      Proceeding to pip fallback / strict assertion path.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+    - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
+    - (ct_runtime_vllm_nvcc_path_after_toolkit.stdout | default('') | trim | length) == 0
+
 # Purpose: Warn when nvcc toolkit auto-remediation failed を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Warn when nvcc toolkit auto-remediation failed
   ansible.builtin.debug:
@@ -364,6 +394,7 @@
       Failed to auto-install nvcc toolkit packages {{ ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) }}.
       stdout={{ ct_runtime_vllm_nvcc_toolkit_install.stdout | default('') | trim }}
       stderr={{ ct_runtime_vllm_nvcc_toolkit_install.stderr | default('') | trim }}
+      msg={{ ct_runtime_vllm_nvcc_toolkit_install.msg | default('') | trim }}
       Continuing to re-probe nvcc; set ct_runtime_vllm_require_nvcc=true to fail hard when nvcc is mandatory.
   when:
     - ct_runtime_vllm_device == "cuda"
@@ -383,6 +414,15 @@
     - ct_runtime_vllm_install_cuda_userspace
     - ct_runtime_vllm_auto_install_nvcc_toolkit
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
+
+- name: Probe nvcc path from versioned /usr/local/cuda-* directories
+  ansible.builtin.command: bash -lc 'ls -1d /usr/local/cuda-*/bin/nvcc 2>/dev/null | head -n1 | xargs -r realpath'
+  register: ct_runtime_vllm_nvcc_path_versioned_cuda
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
 # Purpose: Install nvcc via pip fallback when apt candidates are unavailable を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Install nvcc via pip fallback when apt candidates are unavailable
@@ -607,8 +647,8 @@
               (ct_runtime_vllm_nvcc_path_venv.stdout | trim | regex_replace('/bin/nvcc$', ''))
               if (ct_runtime_vllm_nvcc_path_venv.stdout | default('') | trim | length > 0)
               else (
-                (ct_runtime_vllm_nvcc_sitepackages_cuda_home | default('') | trim)
-                if (ct_runtime_vllm_nvcc_sitepackages_cuda_home | default('') | trim | length > 0)
+                (ct_runtime_vllm_nvcc_path_versioned_cuda.stdout | trim | regex_replace('/bin/nvcc$', ''))
+                if (ct_runtime_vllm_nvcc_path_versioned_cuda.stdout | default('') | trim | length > 0)
                 else ''
               )
             )
