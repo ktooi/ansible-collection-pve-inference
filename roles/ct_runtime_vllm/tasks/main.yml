@@ -28,6 +28,32 @@
       }}
 
 # Purpose: Ensure optional CUDA userspace packages are installed を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+
+
+# Purpose: Build effective CUDA management mode for CT runtime を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+- name: Build effective CUDA management mode for CT runtime
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_install_cuda_userspace_effective: "{{ ct_runtime_vllm_install_cuda_userspace and (not ct_runtime_vllm_use_host_cuda_stack) }}"
+    ct_runtime_vllm_manage_nvidia_cuda_repo_effective: "{{ ct_runtime_vllm_manage_nvidia_cuda_repo and (not ct_runtime_vllm_use_host_cuda_stack) }}"
+    ct_runtime_vllm_auto_install_nvcc_toolkit_effective: "{{ ct_runtime_vllm_auto_install_nvcc_toolkit and (not ct_runtime_vllm_use_host_cuda_stack) }}"
+    ct_runtime_vllm_auto_install_nvcc_pip_fallback_effective: "{{ ct_runtime_vllm_auto_install_nvcc_pip_fallback and (not ct_runtime_vllm_use_host_cuda_stack) }}"
+
+- name: Warn when CT host-CUDA mode overrides internal CUDA management flags
+  ansible.builtin.debug:
+    msg: >-
+      ct_runtime_vllm_use_host_cuda_stack=true is enabled, so CT-internal CUDA management flags are overridden:
+      install_cuda_userspace={{ ct_runtime_vllm_install_cuda_userspace }} -> {{ ct_runtime_vllm_install_cuda_userspace_effective }},
+      manage_nvidia_cuda_repo={{ ct_runtime_vllm_manage_nvidia_cuda_repo }} -> {{ ct_runtime_vllm_manage_nvidia_cuda_repo_effective }},
+      auto_install_nvcc_toolkit={{ ct_runtime_vllm_auto_install_nvcc_toolkit }} -> {{ ct_runtime_vllm_auto_install_nvcc_toolkit_effective }},
+      auto_install_nvcc_pip_fallback={{ ct_runtime_vllm_auto_install_nvcc_pip_fallback }} -> {{ ct_runtime_vllm_auto_install_nvcc_pip_fallback_effective }}.
+      Provide nvcc from host-mounted CUDA toolkit and set ct_runtime_vllm_cuda_home explicitly when needed.
+  when:
+    - ct_runtime_vllm_use_host_cuda_stack
+    - ct_runtime_vllm_install_cuda_userspace
+      or ct_runtime_vllm_manage_nvidia_cuda_repo
+      or ct_runtime_vllm_auto_install_nvcc_toolkit
+      or ct_runtime_vllm_auto_install_nvcc_pip_fallback
+
 - name: Ensure optional CUDA userspace packages are installed
   ansible.builtin.package:
     name: "{{ ct_runtime_vllm_cuda_packages }}"
@@ -35,7 +61,7 @@
   register: ct_runtime_vllm_cuda_pkg_install
   failed_when: false
   when:
-    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_install_cuda_userspace_effective
     - ct_runtime_vllm_cuda_packages | length > 0
 
 # Purpose: Fail if CUDA userspace package install failed and strict mode is enabled を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
@@ -47,7 +73,7 @@
       Failed to install CUDA userspace packages: {{ ct_runtime_vllm_cuda_packages }}.
       Set ct_runtime_vllm_cuda_packages explicitly for your distro or disable strict mode.
   when:
-    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_install_cuda_userspace_effective
     - ct_runtime_vllm_cuda_packages | length > 0
     - ct_runtime_vllm_fail_on_cuda_package_install
 
@@ -58,7 +84,7 @@
       CUDA userspace package install failed for {{ ct_runtime_vllm_cuda_packages }}.
       Continuing because ct_runtime_vllm_fail_on_cuda_package_install=false. libcuda preflight will still run.
   when:
-    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_install_cuda_userspace_effective
     - ct_runtime_vllm_cuda_packages | length > 0
     - ct_runtime_vllm_cuda_pkg_install is failed
     - not ct_runtime_vllm_fail_on_cuda_package_install
@@ -189,7 +215,7 @@
     - ct_runtime_vllm_require_libcuda
     - not ct_runtime_vllm_libcuda_available
     - ansible_pkg_mgr == "apt"
-    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_install_cuda_userspace_effective
 
 # Purpose: Try installing fallback NVIDIA compute package when libcuda is still missing を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Try installing fallback NVIDIA compute package when libcuda is still missing
@@ -203,7 +229,7 @@
     - ct_runtime_vllm_require_libcuda
     - not ct_runtime_vllm_libcuda_available
     - ansible_pkg_mgr == "apt"
-    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_install_cuda_userspace_effective
     - ct_runtime_vllm_libcuda_fallback_pkg.stdout | length > 0
 
 # Purpose: Re-check libcuda visibility from dynamic linker cache after fallback install を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
@@ -314,8 +340,8 @@
     nvidia_cuda_repo_common_list_filename: "{{ ct_runtime_vllm_nvidia_cuda_repo_list_filename }}"
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_manage_nvidia_cuda_repo
-    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_manage_nvidia_cuda_repo_effective
+    - ct_runtime_vllm_install_cuda_userspace_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
 - name: Discover NVIDIA CUDA toolkit package candidates when using NVIDIA repository source
@@ -326,7 +352,7 @@
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_repository_source == 'nvidia'
-    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - ct_runtime_vllm_auto_install_nvcc_toolkit_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
 - name: Build effective nvcc toolkit package list
@@ -352,8 +378,8 @@
   failed_when: false
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_install_cuda_userspace
-    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - ct_runtime_vllm_install_cuda_userspace_effective
+    - ct_runtime_vllm_auto_install_nvcc_toolkit_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
 
@@ -363,8 +389,8 @@
   changed_when: false
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_install_cuda_userspace
-    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - ct_runtime_vllm_install_cuda_userspace_effective
+    - ct_runtime_vllm_auto_install_nvcc_toolkit_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
 
@@ -381,8 +407,8 @@
       Proceeding to pip fallback / strict assertion path.
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_install_cuda_userspace
-    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - ct_runtime_vllm_install_cuda_userspace_effective
+    - ct_runtime_vllm_auto_install_nvcc_toolkit_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
     - (ct_runtime_vllm_nvcc_path_after_toolkit.stdout | default('') | trim | length) == 0
@@ -398,8 +424,8 @@
       Continuing to re-probe nvcc; set ct_runtime_vllm_require_nvcc=true to fail hard when nvcc is mandatory.
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_install_cuda_userspace
-    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - ct_runtime_vllm_install_cuda_userspace_effective
+    - ct_runtime_vllm_auto_install_nvcc_toolkit_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
     - ct_runtime_vllm_nvcc_toolkit_install is failed
@@ -411,8 +437,8 @@
   changed_when: false
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_install_cuda_userspace
-    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - ct_runtime_vllm_install_cuda_userspace_effective
+    - ct_runtime_vllm_auto_install_nvcc_toolkit_effective
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
 
 - name: Probe nvcc path from versioned /usr/local/cuda-* directories
@@ -433,7 +459,7 @@
   failed_when: false
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
 
@@ -447,7 +473,7 @@
       Continuing to CUDA_HOME derivation. If strict nvcc is enabled, role will fail with remediation guidance.
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - ct_runtime_vllm_nvcc_pip_install is failed
 
@@ -499,7 +525,7 @@
   failed_when: false
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
 
@@ -537,7 +563,7 @@
   failed_when: false
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
 # Purpose: Probe nvcc path from venv bin after pip fallback を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
@@ -548,7 +574,7 @@
   failed_when: false
   when:
     - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback_effective
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
 # Purpose: Inspect pip fallback package payload for nvcc artifacts when nvcc is still missing を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
@@ -567,7 +593,7 @@
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - (ct_runtime_vllm_nvcc_path_venv.stdout | default('') | trim | length) == 0
     - (ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines | default([]) | length) == 0
-    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback_effective
 
 # Purpose: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing
@@ -601,7 +627,7 @@
   when:
     - ct_runtime_vllm_device == "cuda"
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
-    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback_effective
 
 
 # Purpose: Check whether /usr/local/nvidia exists in CT as CUDA_HOME fallback を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
