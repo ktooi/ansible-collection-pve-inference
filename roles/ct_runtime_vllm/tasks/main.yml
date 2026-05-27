@@ -416,6 +416,7 @@
                     (
                       ct_runtime_vllm_libcuda_candidate_stats.results
                       | default([])
+                      | selectattr('stat', 'defined')
                       | selectattr('stat.exists', 'equalto', true)
                       | map(attribute='stat.path')
                       | select('match', '^/usr/local/nvidia/')
