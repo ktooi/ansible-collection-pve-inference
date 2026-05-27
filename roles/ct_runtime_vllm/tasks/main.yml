@@ -358,6 +358,21 @@
     - ct_runtime_vllm_auto_install_nvcc_pip_fallback
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
+
+# Purpose: Warn when nvcc pip fallback install failed を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+- name: Warn when nvcc pip fallback install failed
+  ansible.builtin.debug:
+    msg: >-
+      Failed to install nvcc pip fallback package {{ ct_runtime_vllm_nvcc_pip_package }}.
+      stdout={{ ct_runtime_vllm_nvcc_pip_install.stdout | default('') | trim }}
+      stderr={{ ct_runtime_vllm_nvcc_pip_install.stderr | default('') | trim }}
+      Continuing to CUDA_HOME derivation. If strict nvcc is enabled, role will fail with remediation guidance.
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+    - ct_runtime_vllm_nvcc_pip_install is failed
+
 # Purpose: Resolve CUDA_HOME from nvcc pip package fallback を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Resolve CUDA_HOME from nvcc pip package fallback
   ansible.builtin.command:
@@ -480,6 +495,9 @@
         | map(attribute='stdout')
         | list
       }}
+      nvcc pip fallback install output:
+      stdout={{ ct_runtime_vllm_nvcc_pip_install.stdout | default('') | trim }}
+      stderr={{ ct_runtime_vllm_nvcc_pip_install.stderr | default('') | trim }}
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvcc
