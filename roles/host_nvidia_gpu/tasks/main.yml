@@ -556,6 +556,24 @@
     - host_nvidia_gpu_enable_persistenced
     - (host_nvidia_gpu_persistenced_device_groups | length) > 0
 
+- name: Probe NVIDIA userspace readiness before starting nvidia-persistenced
+  ansible.builtin.command: nvidia-smi -L
+  register: host_nvidia_gpu_pre_persistenced_smi
+  changed_when: false
+  failed_when: false
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Assert NVIDIA userspace is ready before starting nvidia-persistenced
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_pre_persistenced_smi.rc == 0
+    fail_msg: >-
+      nvidia-smi probe failed before nvidia-persistenced startup (rc={{ host_nvidia_gpu_pre_persistenced_smi.rc }}).
+      stderr={{ host_nvidia_gpu_pre_persistenced_smi.stderr | default('') }}.
+      This usually indicates host driver runtime is not ready yet (for example reboot is still required after driver update,
+      or kernel/userspace mismatch remains). Resolve nvidia-smi first, then rerun this role.
+  when: host_nvidia_gpu_enable_persistenced
+
 - name: Ensure systemd override directory exists for nvidia-persistenced
   ansible.builtin.file:
     path: /etc/systemd/system/nvidia-persistenced.service.d

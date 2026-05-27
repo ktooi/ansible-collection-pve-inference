@@ -74,6 +74,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - Before starting `nvidia-persistenced`, this role ensures the service user is present and appended to `host_nvidia_gpu_persistenced_device_groups` (default `video`) so it can open `/dev/nvidia*` nodes.
 - The role also normalizes ownership/permissions of discovered NVIDIA character devices to `root:{{ host_nvidia_gpu_device_node_group }}` with mode `{{ host_nvidia_gpu_device_node_mode }}` before starting `nvidia-persistenced`.
 - By default, this role installs a systemd override to run `nvidia-persistenced` as root (`host_nvidia_gpu_persistenced_run_as_root: true`) because some hosts fail device queries under the packaged unprivileged service user even when `/dev/nvidia*` exists and is group-readable/writable.
+- The role now probes `nvidia-smi -L` before attempting `nvidia-persistenced`; if this probe fails, the role fails early with guidance to fix driver runtime readiness (typically reboot-after-driver-update or resolving kernel/userspace mismatch) before service startup.
 
 ### Boot ordering for CT GPU passthrough
 
