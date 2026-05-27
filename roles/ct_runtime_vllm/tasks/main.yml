@@ -296,6 +296,17 @@
     - ct_runtime_vllm_auto_install_nvcc_toolkit
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
 
+- name: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing
+  ansible.builtin.command: "apt-cache policy {{ item }}"
+  loop: "{{ ct_runtime_vllm_nvcc_toolkit_packages }}"
+  register: ct_runtime_vllm_nvcc_toolkit_policy
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+    - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
+
 - name: Derive effective CUDA_HOME for vLLM runtime
   ansible.builtin.set_fact:
     ct_runtime_vllm_cuda_home_effective: >-
@@ -333,6 +344,13 @@
     fail_msg: >-
       nvcc/CUDA_HOME is required but not available in CT.
       Set ct_runtime_vllm_cuda_home or install CUDA toolkit so nvcc is available in PATH.
+      Toolkit package policy output:
+      {{
+        ct_runtime_vllm_nvcc_toolkit_policy.results
+        | default([])
+        | map(attribute='stdout')
+        | list
+      }}
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvcc

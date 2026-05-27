@@ -50,7 +50,7 @@ ct_runtime_vllm_nccl_ignore_disabled_p2p: 1
 ct_runtime_vllm_omp_num_threads: ""
 ct_runtime_vllm_ld_library_path: /usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu
 ct_runtime_vllm_cuda_home: ""
-ct_runtime_vllm_require_nvcc: false
+ct_runtime_vllm_require_nvcc: true
 ct_runtime_vllm_hf_cache_dir: ""
 ct_runtime_vllm_hf_token: ""
 
