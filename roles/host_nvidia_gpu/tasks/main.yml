@@ -335,6 +335,56 @@
     update_cache: true
     default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
 
+- name: Discover host CUDA toolkit package candidates from NVIDIA repository
+  ansible.builtin.shell: |
+    set -o pipefail
+    apt-cache search '^cuda-toolkit-[0-9-]+$'       | awk '{print $1}'       | sort -Vu
+  args:
+    executable: /bin/bash
+  register: host_nvidia_gpu_cuda_toolkit_pkg_candidates
+  changed_when: false
+  when:
+    - host_nvidia_gpu_install_cuda_toolkit
+    - host_nvidia_gpu_repository_source == 'nvidia'
+
+- name: Build effective host CUDA toolkit package list
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_cuda_toolkit_packages_effective: >-
+      {{
+        [
+          (
+            host_nvidia_gpu_cuda_toolkit_pkg_candidates.stdout_lines
+            | default([])
+            | reject('equalto', '')
+            | list
+            | last
+          )
+        ]
+        if (
+          host_nvidia_gpu_repository_source == 'nvidia'
+          and
+          (
+            host_nvidia_gpu_cuda_toolkit_pkg_candidates.stdout_lines
+            | default([])
+            | reject('equalto', '')
+            | list
+            | length > 0
+          )
+        )
+        else host_nvidia_gpu_cuda_toolkit_packages
+      }}
+  when: host_nvidia_gpu_install_cuda_toolkit
+
+- name: Warn when NVIDIA repository source is selected but no cuda-toolkit-* candidates were discovered
+  ansible.builtin.debug:
+    msg: >-
+      host_nvidia_gpu_repository_source=nvidia is selected, but no cuda-toolkit-* package candidates were discovered.
+      Falling back to host_nvidia_gpu_cuda_toolkit_packages={{ host_nvidia_gpu_cuda_toolkit_packages }}.
+  when:
+    - host_nvidia_gpu_install_cuda_toolkit
+    - host_nvidia_gpu_repository_source == 'nvidia'
+    - (host_nvidia_gpu_cuda_toolkit_pkg_candidates.stdout_lines | default([]) | reject('equalto', '') | list | length) == 0
+
 - name: Probe nvcc on host
   ansible.builtin.command: command -v nvcc
   register: host_nvidia_gpu_nvcc_path
@@ -343,7 +393,7 @@
 
 - name: Install host CUDA toolkit packages when nvcc is missing (optional)
   ansible.builtin.apt:
-    name: "{{ host_nvidia_gpu_cuda_toolkit_packages }}"
+    name: "{{ host_nvidia_gpu_cuda_toolkit_packages_effective | default(host_nvidia_gpu_cuda_toolkit_packages) }}"
     state: present
     update_cache: true
     default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
@@ -372,6 +422,7 @@
       stdout={{ host_nvidia_gpu_cuda_toolkit_install.stdout | default('') | trim }}
       stderr={{ host_nvidia_gpu_cuda_toolkit_install.stderr | default('') | trim }}
       Ensure host CUDA toolkit is installable and mount it into CT (for example {{ host_nvidia_gpu_cuda_home_hint }}).
+      Effective toolkit packages: {{ host_nvidia_gpu_cuda_toolkit_packages_effective | default(host_nvidia_gpu_cuda_toolkit_packages) }}
   when:
     - host_nvidia_gpu_install_cuda_toolkit
     - host_nvidia_gpu_require_nvcc_when_toolkit_enabled
