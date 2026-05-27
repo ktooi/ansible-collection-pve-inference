@@ -416,11 +416,40 @@
   failed_when: false
   when: host_nvidia_gpu_install_cuda_toolkit
 
+# Purpose: Probe versioned CUDA directories for nvcc when PATH does not include CUDA bin.
+- name: Probe nvcc from /usr/local/cuda and /usr/local/cuda-* directories
+  ansible.builtin.shell: |
+    set -o pipefail
+    for candidate in /usr/local/cuda/bin/nvcc /usr/local/cuda-*/bin/nvcc; do
+      if [ -x "${candidate}" ]; then
+        echo "${candidate}"
+        exit 0
+      fi
+    done
+    exit 1
+  args:
+    executable: /bin/bash
+  register: host_nvidia_gpu_nvcc_path_fallback
+  changed_when: false
+  failed_when: false
+  when: host_nvidia_gpu_install_cuda_toolkit
+
+# Purpose: Build effective host nvcc path from PATH-based and fallback probes.
+- name: Build effective host nvcc path
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_nvcc_path_effective: >-
+      {{
+        (host_nvidia_gpu_nvcc_path_after.stdout | default('') | trim)
+        if (host_nvidia_gpu_nvcc_path_after.stdout | default('') | trim | length) > 0
+        else (host_nvidia_gpu_nvcc_path_fallback.stdout | default('') | trim)
+      }}
+  when: host_nvidia_gpu_install_cuda_toolkit
+
 # Purpose: Enforce host nvcc availability when toolkit provisioning strict mode is enabled.
 - name: Assert nvcc is available when host toolkit provisioning is enabled
   ansible.builtin.assert:
     that:
-      - (host_nvidia_gpu_nvcc_path_after.stdout | default('') | trim | length) > 0
+      - (host_nvidia_gpu_nvcc_path_effective | default('') | trim | length) > 0
     fail_msg: >-
       host_nvidia_gpu_install_cuda_toolkit=true but nvcc is still unavailable on host.
       Install result: changed={{ host_nvidia_gpu_cuda_toolkit_install.changed | default(false) }}
@@ -444,7 +473,7 @@
   when:
     - host_nvidia_gpu_install_cuda_toolkit
     - not host_nvidia_gpu_require_nvcc_when_toolkit_enabled
-    - (host_nvidia_gpu_nvcc_path_after.stdout | default('') | trim | length) == 0
+    - (host_nvidia_gpu_nvcc_path_effective | default('') | trim | length) == 0
 
 - name: Deploy modprobe blacklist for conflicting NVIDIA framebuffer drivers
   ansible.builtin.copy:
