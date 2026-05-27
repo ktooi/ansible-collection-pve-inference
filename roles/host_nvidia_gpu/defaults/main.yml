@@ -71,3 +71,10 @@ host_nvidia_gpu_nvidia_cuda_repo_keyring_deb_url: "https://developer.download.nv
 host_nvidia_gpu_nvidia_cuda_repo_keyring_path: /usr/share/keyrings/cuda-archive-keyring.gpg
 host_nvidia_gpu_nvidia_cuda_repo_list_filename: nvidia-cuda
 host_nvidia_gpu_use_cuda_drivers_meta: false
+
+# Optional host-side CUDA toolkit (nvcc) provisioning
+host_nvidia_gpu_install_cuda_toolkit: false
+host_nvidia_gpu_cuda_toolkit_packages:
+  - nvidia-cuda-toolkit
+host_nvidia_gpu_cuda_home_hint: "/usr/local/cuda"
+host_nvidia_gpu_require_nvcc_when_toolkit_enabled: true

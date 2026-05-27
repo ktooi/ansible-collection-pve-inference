@@ -1,0 +1,23 @@
+---
+# Purpose: Ensure repository bootstrap tools are present before adding external apt sources.
+- name: Install apt prerequisites for external repository management
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+
+# Purpose: Install NVIDIA-provided keyring package used to verify CUDA repository packages.
+- name: Install NVIDIA CUDA keyring package
+  ansible.builtin.apt:
+    deb: "{{ nvidia_cuda_repo_common_keyring_deb_url }}"
+
+# Purpose: Register NVIDIA CUDA apt repository in host/CT apt sources and refresh metadata.
+- name: Configure NVIDIA CUDA apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ nvidia_cuda_repo_common_keyring_path }}] {{ nvidia_cuda_repo_common_repo_url }} /"
+    filename: "{{ nvidia_cuda_repo_common_list_filename }}"
+    state: present
+    update_cache: true

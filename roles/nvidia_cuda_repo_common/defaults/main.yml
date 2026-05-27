@@ -1,0 +1,5 @@
+---
+nvidia_cuda_repo_common_repo_url: ""
+nvidia_cuda_repo_common_keyring_deb_url: ""
+nvidia_cuda_repo_common_keyring_path: /usr/share/keyrings/cuda-archive-keyring.gpg
+nvidia_cuda_repo_common_list_filename: nvidia-cuda
