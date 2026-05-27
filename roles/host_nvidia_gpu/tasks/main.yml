@@ -284,6 +284,7 @@
           host_nvidia_gpu_packages
           | reject('equalto', 'nvidia-driver')
           | reject('equalto', 'nvidia-kernel-dkms')
+          | reject('equalto', 'nvidia-smi')
           | list
           + ['cuda-drivers']
         )
