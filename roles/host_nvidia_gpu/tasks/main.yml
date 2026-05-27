@@ -463,6 +463,18 @@
     host_nvidia_modprobe_fallback_failed: false
   when: not host_nvidia_modprobe_primary_failed
 
+- name: Collect NVIDIA PCI inventory for module-load diagnostics
+  ansible.builtin.command: lspci -nnk
+  register: host_nvidia_lspci_nnk
+  changed_when: false
+  failed_when: false
+
+- name: Collect recent kernel log lines for NVIDIA diagnostics
+  ansible.builtin.command: dmesg
+  register: host_nvidia_dmesg
+  changed_when: false
+  failed_when: false
+
 - name: Assert NVIDIA modules could be loaded
   ansible.builtin.assert:
     that:
@@ -473,6 +485,8 @@
       DKMS status: {{ host_nvidia_dkms_status_after.stdout | default('n/a') }}.
       Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
       Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
+      NVIDIA PCI inventory: {{ host_nvidia_lspci_nnk.stdout | default('n/a') | regex_findall('(?ms)^.*NVIDIA.*(?:\\n\\s+.*)*') }}
+      Recent NVIDIA kernel log lines: {{ host_nvidia_dmesg.stdout | default('') | regex_findall('(?m)^.*(?:NVRM|nvidia|nouveau).*$') | list | last(40) }}
 - name: Trigger NVIDIA device node creation after modules are loaded
   ansible.builtin.command: nvidia-modprobe -u -c=0
   changed_when: false
