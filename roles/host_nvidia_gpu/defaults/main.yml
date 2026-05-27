@@ -55,6 +55,6 @@ host_nvidia_gpu_require_exact_headers: true
 host_nvidia_gpu_repository_source: debian
 host_nvidia_gpu_manage_nvidia_cuda_repo: false
 host_nvidia_gpu_nvidia_cuda_repo_url: "https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/"
-host_nvidia_gpu_nvidia_cuda_repo_keyring_url: "https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/3bf863cc.pub"
+host_nvidia_gpu_nvidia_cuda_repo_keyring_deb_url: "https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/cuda-keyring_1.1-1_all.deb"
 host_nvidia_gpu_nvidia_cuda_repo_keyring_path: /usr/share/keyrings/nvidia-cuda-archive-keyring.gpg
 host_nvidia_gpu_nvidia_cuda_repo_list_filename: nvidia-cuda
