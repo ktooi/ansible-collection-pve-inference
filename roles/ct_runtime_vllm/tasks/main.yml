@@ -313,11 +313,15 @@
       - "{{ ct_runtime_vllm_venv }}/bin/python"
       - -c
       - |
-        import importlib.util
+        import glob
+        import site
         from pathlib import Path
-        spec = importlib.util.find_spec("nvidia.cuda_nvcc")
-        if spec and spec.origin:
-            print(str(Path(spec.origin).resolve().parent))
+        candidates = []
+        for base in site.getsitepackages():
+            candidates.extend(glob.glob(str(Path(base) / "nvidia" / "**" / "bin" / "nvcc"), recursive=True))
+        if candidates:
+            nvcc_path = Path(sorted(candidates)[0]).resolve()
+            print(str(nvcc_path.parent.parent))
   register: ct_runtime_vllm_nvcc_pip_cuda_home
   changed_when: false
   failed_when: false
@@ -352,6 +356,16 @@
             else (ct_runtime_vllm_nvcc_pip_cuda_home.stdout | default('') | trim)
           )
         )
+      }}
+  when: ct_runtime_vllm_device == "cuda"
+
+- name: Derive nvcc bin path from effective CUDA_HOME
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_nvcc_bin_path_effective: >-
+      {{
+        (ct_runtime_vllm_cuda_home_effective ~ '/bin')
+        if (ct_runtime_vllm_cuda_home_effective | default('') | length > 0)
+        else ''
       }}
   when: ct_runtime_vllm_device == "cuda"
 
