@@ -14,6 +14,37 @@
       Install and boot a pve kernel first.
   when: host_nvidia_gpu_require_pve_kernel
 
+- name: Assert repository source selector is valid
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_repository_source in ['debian', 'nvidia']
+    fail_msg: >-
+      host_nvidia_gpu_repository_source must be either 'debian' or 'nvidia'.
+      Current value: {{ host_nvidia_gpu_repository_source }}.
+
+- name: Install apt prerequisites for external repository management
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+  when: host_nvidia_gpu_repository_source == 'nvidia' and host_nvidia_gpu_manage_nvidia_cuda_repo
+
+- name: Install NVIDIA CUDA keyring package
+  ansible.builtin.apt:
+    deb: "{{ host_nvidia_gpu_nvidia_cuda_repo_keyring_deb_url }}"
+  when: host_nvidia_gpu_repository_source == 'nvidia' and host_nvidia_gpu_manage_nvidia_cuda_repo
+
+- name: Configure NVIDIA CUDA apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ host_nvidia_gpu_nvidia_cuda_repo_keyring_path }}] {{ host_nvidia_gpu_nvidia_cuda_repo_url }} /"
+    filename: "{{ host_nvidia_gpu_nvidia_cuda_repo_list_filename }}"
+    state: present
+    update_cache: true
+  when: host_nvidia_gpu_repository_source == 'nvidia' and host_nvidia_gpu_manage_nvidia_cuda_repo
+
 - name: Collect apt policy output when target release override is set
   ansible.builtin.command: apt-cache policy
   register: host_nvidia_gpu_apt_policy
@@ -251,6 +282,20 @@
       {{
         (
           host_nvidia_gpu_packages
+          | reject('equalto', 'nvidia-driver')
+          | reject('equalto', 'nvidia-kernel-dkms')
+          | reject('equalto', 'nvidia-smi')
+          | list
+          + ['cuda-drivers']
+        )
+        if (
+          host_nvidia_gpu_repository_source == 'nvidia'
+          and host_nvidia_gpu_manage_nvidia_cuda_repo
+          and host_nvidia_gpu_use_cuda_drivers_meta
+        )
+        else
+        (
+          host_nvidia_gpu_packages
           | map('regex_replace', '^nvidia-kernel-dkms$', 'nvidia-open-kernel-dkms')
           | list
         )
@@ -302,6 +347,37 @@
     state: present
     update_cache: true
     default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
+
+- name: Deploy modprobe blacklist for conflicting NVIDIA framebuffer drivers
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/host-nvidia-gpu-blacklist.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ktooi.pve_inference.host_nvidia_gpu
+      blacklist nouveau
+      blacklist nvidiafb
+      options nouveau modeset=0
+  register: host_nvidia_gpu_blacklist_conf
+  when: host_nvidia_gpu_manage_framebuffer_blacklist
+
+- name: Rebuild initramfs after blacklist update
+  ansible.builtin.command: update-initramfs -u
+  changed_when: true
+  when:
+    - host_nvidia_gpu_manage_framebuffer_blacklist
+    - host_nvidia_gpu_blacklist_conf is changed
+
+- name: Reboot host after framebuffer blacklist update when enabled
+  ansible.builtin.reboot:
+    reboot_timeout: 1800
+    post_reboot_delay: "{{ host_nvidia_gpu_post_reboot_delay }}"
+    msg: "Reboot triggered by host_nvidia_gpu to apply NVIDIA framebuffer blacklist changes."
+  when:
+    - host_nvidia_gpu_manage_framebuffer_blacklist
+    - host_nvidia_gpu_reboot_after_framebuffer_blacklist
+    - host_nvidia_gpu_blacklist_conf is changed
 
 - name: Build DKMS modules for running kernel
   ansible.builtin.command: "dkms autoinstall -k {{ ansible_kernel }}"
@@ -418,6 +494,27 @@
     host_nvidia_modprobe_fallback_failed: false
   when: not host_nvidia_modprobe_primary_failed
 
+- name: Collect NVIDIA PCI inventory for module-load diagnostics
+  ansible.builtin.command: lspci -nnk
+  register: host_nvidia_lspci_nnk
+  changed_when: false
+  failed_when: false
+
+- name: Collect recent kernel log lines for NVIDIA diagnostics
+  ansible.builtin.command: dmesg
+  register: host_nvidia_dmesg
+  changed_when: false
+  failed_when: false
+
+- name: Derive framebuffer-conflict fact for NVIDIA module-load diagnostics
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_framebuffer_conflict_detected: >-
+      {{
+        (host_nvidia_dmesg.stdout | default('')) is search('GPU .* is already bound to nvidiafb')
+        or
+        (host_nvidia_dmesg.stdout | default('')) is search('obtained ownership of the NVIDIA device')
+      }}
+
 - name: Assert NVIDIA modules could be loaded
   ansible.builtin.assert:
     that:
@@ -426,8 +523,12 @@
       Failed to load NVIDIA modules for kernel {{ ansible_kernel }}.
       Found module files in /lib/modules: {{ host_nvidia_module_files.matched }}.
       DKMS status: {{ host_nvidia_dkms_status_after.stdout | default('n/a') }}.
-      Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
-      Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
+      Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}.
+      Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}.
+      Framebuffer conflict detected: {{ host_nvidia_gpu_framebuffer_conflict_detected | default(false) }}.
+      NVIDIA PCI inventory: {{ host_nvidia_lspci_nnk.stdout | default('n/a') | regex_findall('(?ms)^.*NVIDIA.*(?:\\n\\s+.*)*') }}.
+      Recent NVIDIA kernel log lines: {{ (host_nvidia_dmesg.stdout | default('') | regex_findall('(?m)^.*(?:NVRM|nvidia|nouveau).*$'))[-40:] }}.
+      If framebuffer conflict is true, ensure nvidiafb/nouveau are blacklisted, run update-initramfs, reboot, and rerun this role.
 - name: Trigger NVIDIA device node creation after modules are loaded
   ansible.builtin.command: nvidia-modprobe -u -c=0
   changed_when: false
@@ -467,11 +568,227 @@
       is not loaded correctly or package installation failed.
   when: host_nvidia_gpu_require_nvidia_devices
 
+- name: Gather stat for discovered NVIDIA device paths
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ host_nvidia_dev_nodes.files }}"
+  register: host_nvidia_dev_node_stats
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Normalize ownership and mode of NVIDIA character device nodes
+  ansible.builtin.file:
+    path: "{{ item.stat.path }}"
+    owner: root
+    group: "{{ host_nvidia_gpu_device_node_group }}"
+    mode: "{{ host_nvidia_gpu_device_node_mode }}"
+  loop: "{{ host_nvidia_dev_node_stats.results }}"
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - item.stat.exists | default(false)
+    - item.stat.ischr | default(false)
+
+- name: Ensure persistenced supplemental groups exist
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ host_nvidia_gpu_persistenced_device_groups }}"
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - (host_nvidia_gpu_persistenced_device_groups | length) > 0
+
+- name: Ensure nvidia-persistenced user exists
+  ansible.builtin.user:
+    name: "{{ host_nvidia_gpu_persistenced_user }}"
+    system: true
+    state: present
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Ensure nvidia-persistenced user has access groups for /dev/nvidia*
+  ansible.builtin.user:
+    name: "{{ host_nvidia_gpu_persistenced_user }}"
+    groups: "{{ host_nvidia_gpu_persistenced_device_groups }}"
+    append: true
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - (host_nvidia_gpu_persistenced_device_groups | length) > 0
+
+- name: Probe NVIDIA userspace readiness before starting nvidia-persistenced
+  ansible.builtin.command: nvidia-smi -L
+  register: host_nvidia_gpu_pre_persistenced_smi
+  changed_when: false
+  failed_when: false
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Derive NVIDIA userspace readiness fact before persistenced startup
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_pre_persistenced_smi_ready: "{{ (host_nvidia_gpu_pre_persistenced_smi.rc | int) == 0 }}"
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Derive NVML mismatch fact from nvidia-smi probe
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_nvml_mismatch_detected: >-
+      {{
+        (host_nvidia_gpu_pre_persistenced_smi.rc | int) != 0
+        and (
+          'Driver/library version mismatch'
+          in (host_nvidia_gpu_pre_persistenced_smi.stdout | default(''))
+        )
+      }}
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Reboot host when NVML mismatch is detected and auto-reboot is enabled
+  ansible.builtin.reboot:
+    reboot_timeout: 1800
+    post_reboot_delay: "{{ host_nvidia_gpu_post_reboot_delay }}"
+    msg: "Reboot triggered by host_nvidia_gpu due to NVML driver/library mismatch."
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - host_nvidia_gpu_auto_reboot_on_nvml_mismatch
+    - host_nvidia_gpu_nvml_mismatch_detected | default(false)
+
+- name: Re-probe NVIDIA userspace readiness after auto-reboot
+  ansible.builtin.command: nvidia-smi -L
+  register: host_nvidia_gpu_pre_persistenced_smi
+  changed_when: false
+  failed_when: false
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - host_nvidia_gpu_auto_reboot_on_nvml_mismatch
+    - host_nvidia_gpu_nvml_mismatch_detected | default(false)
+
+- name: Re-derive NVIDIA userspace readiness fact after auto-reboot
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_pre_persistenced_smi_ready: "{{ (host_nvidia_gpu_pre_persistenced_smi.rc | int) == 0 }}"
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - host_nvidia_gpu_auto_reboot_on_nvml_mismatch
+    - host_nvidia_gpu_nvml_mismatch_detected | default(false)
+
+- name: Retry NVIDIA module/device bring-up when probe is still not ready after auto-reboot
+  block:
+    - name: Trigger NVIDIA device node recreation after auto-reboot
+      ansible.builtin.command: nvidia-modprobe -u -c=0
+      changed_when: false
+      failed_when: false
+
+    - name: Retry loading selected NVIDIA module set after auto-reboot
+      ansible.builtin.command: "modprobe --ignore-install {{ item }}"
+      loop: "{{ host_nvidia_gpu_modules_to_load }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Retry nvidia-smi probe after module/device recovery
+      ansible.builtin.command: nvidia-smi -L
+      register: host_nvidia_gpu_pre_persistenced_smi
+      changed_when: false
+      failed_when: false
+      retries: 5
+      delay: 5
+      until: host_nvidia_gpu_pre_persistenced_smi.rc == 0
+
+    - name: Re-derive NVIDIA userspace readiness fact after recovery retries
+      ansible.builtin.set_fact:
+        host_nvidia_gpu_pre_persistenced_smi_ready: "{{ (host_nvidia_gpu_pre_persistenced_smi.rc | int) == 0 }}"
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - host_nvidia_gpu_auto_reboot_on_nvml_mismatch
+    - host_nvidia_gpu_nvml_mismatch_detected | default(false)
+    - not (host_nvidia_gpu_pre_persistenced_smi_ready | default(false))
+
+- name: Warn when NVIDIA userspace is degraded but degraded mode is allowed
+  ansible.builtin.debug:
+    msg: >-
+      nvidia-smi probe is degraded before nvidia-persistenced startup (rc={{ host_nvidia_gpu_pre_persistenced_smi.rc | default('n/a') }}).
+      stdout={{ host_nvidia_gpu_pre_persistenced_smi.stdout | default('') }}.
+      stderr={{ host_nvidia_gpu_pre_persistenced_smi.stderr | default('') }}.
+      Continuing because host_nvidia_gpu_allow_degraded_nvidia_smi_after_install=true.
+      Reboot host and rerun this role to complete driver runtime activation.
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - not (host_nvidia_gpu_pre_persistenced_smi_ready | default(false))
+    - host_nvidia_gpu_allow_degraded_nvidia_smi_after_install
+
+- name: Assert NVIDIA userspace is ready before starting nvidia-persistenced
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_pre_persistenced_smi_ready | default(false)
+    fail_msg: >-
+      nvidia-smi probe failed before nvidia-persistenced startup (rc={{ host_nvidia_gpu_pre_persistenced_smi.rc | default('n/a') }}).
+      stdout={{ host_nvidia_gpu_pre_persistenced_smi.stdout | default('') }}.
+      stderr={{ host_nvidia_gpu_pre_persistenced_smi.stderr | default('') }}.
+      This usually indicates host driver runtime is not ready yet (for example reboot is still required after driver update,
+      or kernel/userspace mismatch remains). Reboot host and rerun this role.
+      If you intentionally want to continue in degraded mode, set
+      host_nvidia_gpu_allow_degraded_nvidia_smi_after_install=true.
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - not host_nvidia_gpu_allow_degraded_nvidia_smi_after_install
+
+- name: Ensure systemd override directory exists for nvidia-persistenced
+  ansible.builtin.file:
+    path: /etc/systemd/system/nvidia-persistenced.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Render nvidia-persistenced systemd override
+  ansible.builtin.template:
+    src: nvidia-persistenced-override.conf.j2
+    dest: /etc/systemd/system/nvidia-persistenced.service.d/override.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: host_nvidia_gpu_persistenced_override
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Reload systemd daemon when nvidia-persistenced override changes
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - host_nvidia_gpu_persistenced_override is changed
+
 - name: Ensure nvidia-persistenced service state
-  ansible.builtin.service:
-    name: nvidia-persistenced
-    enabled: true
-    state: started
+  block:
+    - name: Enable and start nvidia-persistenced service
+      ansible.builtin.service:
+        name: nvidia-persistenced
+        enabled: true
+        state: started
+  rescue:
+    - name: Collect nvidia-persistenced service status summary
+      ansible.builtin.command: systemctl --no-pager --full status nvidia-persistenced
+      register: host_nvidia_gpu_persistenced_status
+      changed_when: false
+      failed_when: false
+
+    - name: Collect nvidia-persistenced journal summary
+      ansible.builtin.command: journalctl -u nvidia-persistenced --no-pager -n 50
+      register: host_nvidia_gpu_persistenced_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Fail when nvidia-persistenced start fails and strict mode is enabled
+      ansible.builtin.fail:
+        msg: >-
+          Failed to start nvidia-persistenced service.
+          systemctl status:
+          {{ host_nvidia_gpu_persistenced_status.stdout | default('N/A') }}
+          journalctl tail:
+          {{ host_nvidia_gpu_persistenced_journal.stdout | default('N/A') }}
+      when: host_nvidia_gpu_fail_on_persistenced_start
+
+    - name: Warn when nvidia-persistenced start fails but strict mode is disabled
+      ansible.builtin.debug:
+        msg: >-
+          Failed to start nvidia-persistenced service. Continuing because
+          host_nvidia_gpu_fail_on_persistenced_start=false.
+          systemctl status:
+          {{ host_nvidia_gpu_persistenced_status.stdout | default('N/A') }}
+          journalctl tail:
+          {{ host_nvidia_gpu_persistenced_journal.stdout | default('N/A') }}
   when: host_nvidia_gpu_enable_persistenced
 
 - name: Deploy boot-time NVIDIA UVM device recreation service

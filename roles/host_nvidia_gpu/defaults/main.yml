@@ -34,6 +34,18 @@ host_nvidia_gpu_modules_current:
   - nvidia-current-drm
 
 host_nvidia_gpu_enable_persistenced: true
+host_nvidia_gpu_fail_on_persistenced_start: true
+host_nvidia_gpu_persistenced_user: nvidia-persistenced
+host_nvidia_gpu_persistenced_device_groups:
+  - video
+host_nvidia_gpu_persistenced_run_as_root: true
+host_nvidia_gpu_device_node_group: video
+host_nvidia_gpu_device_node_mode: "0660"
+host_nvidia_gpu_allow_degraded_nvidia_smi_after_install: false
+host_nvidia_gpu_auto_reboot_on_nvml_mismatch: false
+host_nvidia_gpu_post_reboot_delay: 20
+host_nvidia_gpu_manage_framebuffer_blacklist: true
+host_nvidia_gpu_reboot_after_framebuffer_blacklist: true
 host_nvidia_gpu_ensure_uvm_device_service: true
 host_nvidia_gpu_uvm_device_service_name: nvidia-uvm-devices.service
 host_nvidia_gpu_uvm_device_service_after:
@@ -50,3 +62,12 @@ host_nvidia_gpu_require_pve_kernel: true
 host_nvidia_gpu_require_nvidia_devices: true
 host_nvidia_gpu_block_proxmox_removal: true
 host_nvidia_gpu_require_exact_headers: true
+
+# NVIDIA repository source selection
+host_nvidia_gpu_repository_source: debian
+host_nvidia_gpu_manage_nvidia_cuda_repo: false
+host_nvidia_gpu_nvidia_cuda_repo_url: "https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/"
+host_nvidia_gpu_nvidia_cuda_repo_keyring_deb_url: "https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/cuda-keyring_1.1-1_all.deb"
+host_nvidia_gpu_nvidia_cuda_repo_keyring_path: /usr/share/keyrings/cuda-archive-keyring.gpg
+host_nvidia_gpu_nvidia_cuda_repo_list_filename: nvidia-cuda
+host_nvidia_gpu_use_cuda_drivers_meta: false

@@ -26,6 +26,17 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_modules_standard` | Standard NVIDIA module names | `['nvidia','nvidia_uvm','nvidia_modeset','nvidia_drm']` | Module name list |
 | `host_nvidia_gpu_modules_current` | Debian alias-based NVIDIA module names | `['nvidia-current','nvidia-current-uvm','nvidia-current-modeset','nvidia-current-drm']` | Module name list |
 | `host_nvidia_gpu_enable_persistenced` | Enable/start `nvidia-persistenced` | `true` | `true` / `false` |
+| `host_nvidia_gpu_fail_on_persistenced_start` | Fail role if `nvidia-persistenced` cannot be started | `true` | `true` / `false` |
+| `host_nvidia_gpu_persistenced_user` | Service user expected by `nvidia-persistenced` | `nvidia-persistenced` | Existing/valid local user |
+| `host_nvidia_gpu_persistenced_device_groups` | Supplemental groups granted to persistenced user for `/dev/nvidia*` access | `['video']` | Group name list |
+| `host_nvidia_gpu_persistenced_run_as_root` | Run `nvidia-persistenced` as root via systemd override (avoids service-user device permission issues) | `true` | `true` / `false` |
+| `host_nvidia_gpu_device_node_group` | Group ownership enforced for NVIDIA character devices under `/dev/nvidia*` | `video` | Existing local group |
+| `host_nvidia_gpu_device_node_mode` | File mode enforced for NVIDIA character devices under `/dev/nvidia*` | `0660` | Octal mode string |
+| `host_nvidia_gpu_allow_degraded_nvidia_smi_after_install` | Allow role to continue when pre-persistenced `nvidia-smi -L` probe fails (degraded mode) | `false` | `true` / `false` |
+| `host_nvidia_gpu_auto_reboot_on_nvml_mismatch` | Auto-reboot host when `nvidia-smi` reports `Driver/library version mismatch` | `false` | `true` / `false` |
+| `host_nvidia_gpu_manage_framebuffer_blacklist` | Manage `/etc/modprobe.d/host-nvidia-gpu-blacklist.conf` to blacklist `nouveau`/`nvidiafb` conflicts | `true` | `true` / `false` |
+| `host_nvidia_gpu_reboot_after_framebuffer_blacklist` | Reboot automatically when framebuffer blacklist changed | `true` | `true` / `false` |
+| `host_nvidia_gpu_post_reboot_delay` | Seconds to wait after automatic reboot before continuing tasks | `20` | Integer `>=0` |
 | `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
 | `host_nvidia_gpu_uvm_device_service_name` | systemd unit name for UVM device recreation | `nvidia-uvm-devices.service` | Valid unit name |
 | `host_nvidia_gpu_uvm_device_service_after` | Units that should start before UVM device recreation | `[systemd-modules-load.service]` | List of systemd unit names |
@@ -39,6 +50,13 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_require_nvidia_devices` | Enforce `/dev/nvidia*` existence check | `true` | `true` / `false` |
 | `host_nvidia_gpu_block_proxmox_removal` | Abort if apt plan would remove `proxmox-ve` | `true` | `true` / `false` |
 | `host_nvidia_gpu_require_exact_headers` | Require exact running-kernel headers | `true` | `true` / `false` |
+| `host_nvidia_gpu_repository_source` | NVIDIA package source selector | `debian` | `debian`, `nvidia` |
+| `host_nvidia_gpu_manage_nvidia_cuda_repo` | Manage NVIDIA CUDA apt repository from this role when source is `nvidia` | `false` | `true` / `false` |
+| `host_nvidia_gpu_nvidia_cuda_repo_url` | NVIDIA CUDA repository URL (Debian 13 default) | `https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/` | Valid apt repo URL |
+| `host_nvidia_gpu_nvidia_cuda_repo_keyring_deb_url` | NVIDIA CUDA keyring package URL | `https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/cuda-keyring_1.1-1_all.deb` | Valid URL |
+| `host_nvidia_gpu_nvidia_cuda_repo_keyring_path` | Installed keyring path used for signed-by | `/usr/share/keyrings/cuda-archive-keyring.gpg` | Absolute path |
+| `host_nvidia_gpu_nvidia_cuda_repo_list_filename` | apt sources list filename for NVIDIA repo | `nvidia-cuda` | filename without extension |
+| `host_nvidia_gpu_use_cuda_drivers_meta` | Use NVIDIA repo `cuda-drivers` meta package instead of distro `nvidia-driver`/`nvidia-kernel-dkms` entries | `false` | `true` / `false` |
 
 ## Notes
 - This role validates implicit prerequisites (Debian family host, Proxmox kernel, exact headers, NVIDIA device nodes) and fails early if they are not met.
@@ -55,6 +73,16 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - By default, this role also deploys a host boot-time oneshot unit (`nvidia-uvm-devices.service`) so `/dev/nvidia-uvm*` is recreated automatically after reboot. The unit is ordered before `pve-guests.service`, which prevents PVE on-boot CTs from binding placeholder regular files for `/dev/nvidia-uvm*` before host device nodes exist.
 - When `host_nvidia_gpu_power_limit_watts` is set, the role deploys/enables `nvidia-power-limit.service` on host and applies `nvidia-smi -pm 1` + `nvidia-smi -pl <watts>`.
 - To enforce a CUDA 12.8-class host baseline in automation, set `host_nvidia_gpu_min_installed_driver_major: 570`.
+- If Debian official repositories do not provide a required driver major (for example 570+), set `host_nvidia_gpu_repository_source: nvidia` and `host_nvidia_gpu_manage_nvidia_cuda_repo: true` to let this role configure NVIDIA's official CUDA apt repository before package installation.
+- If `nvidia-driver` still resolves to older distro packages, enable `host_nvidia_gpu_use_cuda_drivers_meta: true` so this role installs NVIDIA's `cuda-drivers` meta package path from the configured CUDA repository.
+- `nvidia-persistenced` start failure is treated as an error by default (`host_nvidia_gpu_fail_on_persistenced_start: true`) and the role includes `systemctl status` + `journalctl` output in the failure message for diagnosis. You can explicitly opt into warning-only continuation by setting `host_nvidia_gpu_fail_on_persistenced_start: false`.
+- Before starting `nvidia-persistenced`, this role ensures the service user is present and appended to `host_nvidia_gpu_persistenced_device_groups` (default `video`) so it can open `/dev/nvidia*` nodes.
+- The role also normalizes ownership/permissions of discovered NVIDIA character devices to `root:{{ host_nvidia_gpu_device_node_group }}` with mode `{{ host_nvidia_gpu_device_node_mode }}` before starting `nvidia-persistenced`.
+- By default, this role installs a systemd override to run `nvidia-persistenced` as root (`host_nvidia_gpu_persistenced_run_as_root: true`) because some hosts fail device queries under the packaged unprivileged service user even when `/dev/nvidia*` exists and is group-readable/writable.
+- The role now probes `nvidia-smi -L` before attempting `nvidia-persistenced`; if this probe fails, the role fails early with guidance to fix driver runtime readiness (typically reboot-after-driver-update or resolving kernel/userspace mismatch) before service startup.
+- If you need one pass that configures packages/services before a planned reboot, set `host_nvidia_gpu_allow_degraded_nvidia_smi_after_install: true` to continue with a warning when the probe fails; rerun the role after reboot and return this setting to `false`.
+- If `nvidia-smi` reports `Driver/library version mismatch`, you can set `host_nvidia_gpu_auto_reboot_on_nvml_mismatch: true` to let this role reboot host automatically, re-probe, and continue in a single run. After reboot, the role also retries `nvidia-modprobe`/`modprobe` + `nvidia-smi -L` to absorb short post-boot driver bring-up lag.
+- By default, the role blacklists `nouveau` and `nvidiafb` via `/etc/modprobe.d/host-nvidia-gpu-blacklist.conf` and runs `update-initramfs -u`. This addresses failures where logs show `GPU ... is already bound to nvidiafb`. A reboot is then triggered by default (`host_nvidia_gpu_reboot_after_framebuffer_blacklist: true`) so blacklist changes are actually applied.
 
 ### Boot ordering for CT GPU passthrough
 

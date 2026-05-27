@@ -27,6 +27,8 @@ ct_runtime_vllm_kv_cache_dtype: "auto"
 ct_runtime_vllm_max_model_len: 262144
 ct_runtime_vllm_max_num_seqs: 128
 ct_runtime_vllm_max_num_batched_tokens: 8192
+ct_runtime_vllm_enable_mtp: true
+ct_runtime_vllm_mtp_num_speculative_tokens: 1
 ct_runtime_vllm_tool_call_parser: "qwen3_coder"
 ct_runtime_vllm_reasoning_parser: "qwen3"
 ct_runtime_vllm_enable_auto_tool_choice: true
@@ -89,8 +91,12 @@ flowchart TD
 | `ct_runtime_vllm_max_model_len` | Max model context length | `8192` | Integer `>=1` |
 | `ct_runtime_vllm_max_num_seqs` | Max concurrent sequences | `32` | Integer `>=1` |
 | `ct_runtime_vllm_max_num_batched_tokens` | Max batched tokens | `4096` | Integer `>=1` |
+| `ct_runtime_vllm_enable_mtp` | Enable vLLM MTP (`method=mtp`) | `false` | `true` / `false` |
+| `ct_runtime_vllm_speculative_method` | Speculative method name passed in `--speculative_config` JSON | `mtp` | Runtime-supported method string (e.g. `qwen3_next_mtp`) |
+| `ct_runtime_vllm_mtp_num_speculative_tokens` | MTP speculative depth (`--speculative_config` JSON) | `1` | Integer `>=1` |
 | `ct_runtime_vllm_tool_call_parser` | Tool call parser backend | `""` | Empty or parser name |
 | `ct_runtime_vllm_reasoning_parser` | Reasoning parser backend | `""` | Empty or parser name |
+| `ct_runtime_vllm_language_model_only` | Force language-only path for multimodal-capable checkpoints (`--language-model-only`) | `false` | `true` / `false` |
 | `ct_runtime_vllm_enable_auto_tool_choice` | Enable vLLM `--enable-auto-tool-choice` | `false` | `true` / `false` |
 | `ct_runtime_vllm_nccl_p2p_disable` | NCCL P2P disable flag | `0` | `0` / `1` |
 | `ct_runtime_vllm_nccl_ib_disable` | NCCL IB disable flag | `0` | `0` / `1` |
@@ -99,17 +105,30 @@ flowchart TD
 | `ct_runtime_vllm_nccl_ignore_disabled_p2p` | Ignore disabled P2P warning | `1` | `0` / `1` |
 | `ct_runtime_vllm_omp_num_threads` | OMP thread count | `""` | Empty or integer string |
 | `ct_runtime_vllm_ld_library_path` | Library search path | `/usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu` | PATH-like string |
+| `ct_runtime_vllm_cuda_home` | Explicit CUDA toolkit root exported as `CUDA_HOME` for runtime processes | `""` (auto-derive) | Empty or absolute path (e.g. `/usr/local/cuda`) |
+| `ct_runtime_vllm_require_nvcc` | Fail preflight when `CUDA_HOME`/`nvcc` cannot be resolved in CT | `false` | `true` / `false` |
+| `ct_runtime_vllm_auto_install_nvcc_toolkit` | Auto-install toolkit packages when `nvcc` is missing in CT | `true` | `true` / `false` |
+| `ct_runtime_vllm_nvcc_toolkit_packages` | Toolkit package list used for nvcc auto-remediation | distro-dependent | Package list |
+| `ct_runtime_vllm_auto_install_nvcc_pip_fallback` | Try pip-based nvcc fallback when apt candidates are unavailable | `true` | `true` / `false` |
+| `ct_runtime_vllm_nvcc_pip_package` | pip package used for nvcc fallback | `nvidia-cuda-nvcc-cu12` | pip package spec |
 | `ct_runtime_vllm_hf_cache_dir` | Hugging Face cache dir | `""` | Empty or absolute path |
 | `ct_runtime_vllm_hf_token` | Hugging Face Hub token exported as `HF_TOKEN` | `""` | Empty or token string (prefer Ansible Vault) |
 | `ct_runtime_vllm_extra_args` | Extra CLI args | `""` | String |
 | `ct_runtime_vllm_version` | Pin version (optional) | `""` | Empty or semantic version string |
-| `ct_runtime_vllm_torch_package` | Optional explicit torch package to install in venv before CUDA probe | `""` | Empty or pip requirement string (e.g. `torch==2.6.0`) |
-| `ct_runtime_vllm_torch_extra_index_url` | Optional extra index URL used with `ct_runtime_vllm_torch_package` | `""` | Empty or URL |
+| `ct_runtime_vllm_torch_package` | Optional pinned torch package reinstalled **after** vLLM install (for CUDA/driver alignment) | `""` | Empty or pip requirement string (e.g. `torch==2.6.0`) |
+| `ct_runtime_vllm_torch_extra_index_url` | Optional extra index URL for `ct_runtime_vllm_torch_package` | `""` | Empty or URL (e.g. `https://download.pytorch.org/whl/cu124`) |
+| `ct_runtime_vllm_torch_backend` | Informational compatibility hint only (not passed to `vllm serve`) | `""` | Empty or backend string (e.g. `cu129`) |
 
 
-> CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check.
+> CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check. When `ct_runtime_vllm_torch_backend` or `ct_runtime_vllm_version` is set, preflight is automatically relaxed from `strict` to `count` to avoid false negatives caused by installer/backend mismatches before vLLM runtime initialization.
+>
+> NVCC/CUDA_HOME note: some vLLM/Triton combinations require `nvcc`/`CUDA_HOME` at runtime. This role derives `CUDA_HOME` from `ct_runtime_vllm_cuda_home`, `/usr/local/cuda`, `command -v nvcc`, pip fallback package resolution (including `venv/bin/nvcc` probe), when toolkit binaries are unavailable, and writes it into `vllm` environment. The role intentionally does not treat `/usr/local/nvidia` alone as CUDA_HOME unless `nvcc` is actually resolvable, because some kernels (e.g. FlashInfer paths) invoke `${CUDA_HOME}/bin/nvcc` directly. When resolved, it also prepends the derived nvcc `bin` path to `PATH` in the vLLM env file.
 
-> Driver/torch alignment note: when host driver is older than the default torch CUDA build bundled via `vllm`, set `ct_runtime_vllm_torch_package` and `ct_runtime_vllm_torch_extra_index_url` to install a compatible torch wheel explicitly before preflight (for example CUDA 12.4 wheels for NVIDIA 550-series hosts). If you pin torch, also pin a compatible `ct_runtime_vllm_version`; mismatched torch/vLLM binary ABI can cause `undefined symbol` import errors in `vllm._C`.
+> NVCC fallback caveat: pip fallback packages may be unavailable for some Python/CUDA combinations; when that occurs this role surfaces pip install stderr in the strict nvcc assertion message to speed remediation.
+
+> Driver/torch alignment note: to align CT torch CUDA with host driver, set `ct_runtime_vllm_torch_package` (and optionally `ct_runtime_vllm_torch_extra_index_url`). This role installs vLLM first and then force-reinstalls torch in the same venv so the final torch wheel matches your specified CUDA line (for example cu124 on NVIDIA 550 / CUDA 12.4 hosts).
+
+> `--torch-backend` note: in current vLLM releases, `--torch-backend` is an install-time (`uv pip`) option, not a stable `vllm serve` runtime flag across versions. This role does not pass `--torch-backend` to `vllm serve`.
 
 > Logging note: when `ct_runtime_vllm_systemd_log_to_files=true` (default), this role now mirrors stdout/stderr to both log files (`/var/log/inference/vllm.stdout.log`, `/var/log/inference/vllm.stderr.log`) and journald, so `journalctl -u vllm.service` remains usable.
 

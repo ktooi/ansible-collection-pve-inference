@@ -28,6 +28,8 @@ flowchart TD
     E -->|false| H[done]
 ```
 
+> MTP note: Ollama currently has no documented native MTP server flag, so this role does not provide an MTP switch.
+
 ## Variables
 
 | Variable | Description | Default | Allowed values |

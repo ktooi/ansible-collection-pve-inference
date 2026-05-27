@@ -29,11 +29,15 @@ ct_runtime_vllm_kv_cache_dtype: "{{ ct_runtime_launcher_kv_cache_dtype | default
 ct_runtime_vllm_max_model_len: "{{ ct_runtime_launcher_context_length | default(8192) }}"
 ct_runtime_vllm_max_num_seqs: "{{ ct_runtime_launcher_max_num_seqs | default(32) }}"
 ct_runtime_vllm_max_num_batched_tokens: "{{ ct_runtime_launcher_max_num_batched_tokens | default(4096) }}"
+ct_runtime_vllm_enable_mtp: false
+ct_runtime_vllm_speculative_method: mtp
+ct_runtime_vllm_mtp_num_speculative_tokens: 1
 
 # Tool/reasoning parsing
 ct_runtime_vllm_tool_call_parser: "{{ ct_runtime_launcher_tool_call_parser | default('') }}"
 ct_runtime_vllm_reasoning_parser: "{{ ct_runtime_launcher_reasoning_parser | default('') }}"
 ct_runtime_vllm_enable_auto_tool_choice: false
+ct_runtime_vllm_language_model_only: false
 
 # NCCL / comms
 ct_runtime_vllm_nccl_p2p_disable: 0
@@ -45,6 +49,8 @@ ct_runtime_vllm_nccl_ignore_disabled_p2p: 1
 # Runtime environment
 ct_runtime_vllm_omp_num_threads: ""
 ct_runtime_vllm_ld_library_path: /usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu
+ct_runtime_vllm_cuda_home: ""
+ct_runtime_vllm_require_nvcc: false
 ct_runtime_vllm_hf_cache_dir: ""
 ct_runtime_vllm_hf_token: ""
 
@@ -56,6 +62,12 @@ ct_runtime_vllm_torch_extra_index_url: ""
 
 ct_runtime_vllm_install_cuda_userspace: true
 ct_runtime_vllm_cuda_packages: "{{ ct_runtime_vllm_cuda_packages_os | default([]) }}"
+ct_runtime_vllm_install_build_tools: true
+ct_runtime_vllm_build_packages: "{{ ct_runtime_vllm_build_packages_os | default(['ninja-build']) }}"
+ct_runtime_vllm_auto_install_nvcc_toolkit: true
+ct_runtime_vllm_nvcc_toolkit_packages: "{{ ct_runtime_vllm_nvcc_toolkit_packages_os | default(['nvidia-cuda-toolkit']) }}"
+ct_runtime_vllm_auto_install_nvcc_pip_fallback: true
+ct_runtime_vllm_nvcc_pip_package: nvidia-cuda-nvcc-cu12
 ct_runtime_vllm_require_libcuda: true
 ct_runtime_vllm_require_nvidia_device_nodes: true
 ct_runtime_vllm_require_nvidia_smi: true

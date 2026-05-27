@@ -27,8 +27,9 @@ This collection follows these principles:
 ---
 
 ## Support policy (summary)
-- **PVE 8.x**: supported
-- **PVE 9.x**: beta support
+- **PVE 9.1.x**: supported (main)
+- **PVE 8.x**: supported (compatibility path)
+- **PVE 9.0.x / other 9.x minors**: best-effort
 - Initial main path: **NVIDIA + vLLM**
 - Designed to expand toward additional vendors/runtimes
 
