@@ -516,12 +516,31 @@
   when: ct_runtime_vllm_device == "cuda"
 
 # Purpose: Derive effective CUDA_HOME for vLLM runtime を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+- name: Check whether explicit ct_runtime_vllm_cuda_home has nvcc
+  ansible.builtin.stat:
+    path: "{{ ct_runtime_vllm_cuda_home }}/bin/nvcc"
+  register: ct_runtime_vllm_cuda_home_explicit_nvcc_stat
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - (ct_runtime_vllm_cuda_home | default('') | length) > 0
+
+- name: Warn when explicit ct_runtime_vllm_cuda_home has no nvcc
+  ansible.builtin.debug:
+    msg: >-
+      ct_runtime_vllm_cuda_home={{ ct_runtime_vllm_cuda_home }} does not contain bin/nvcc.
+      Ignoring this CUDA_HOME value for vLLM runtime and falling back to auto-detected CUDA_HOME
+      to avoid runtime build failures such as "/usr/local/nvidia/bin/nvcc: not found".
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - (ct_runtime_vllm_cuda_home | default('') | length) > 0
+    - not (ct_runtime_vllm_cuda_home_explicit_nvcc_stat.stat.exists | default(false))
+
 - name: Derive effective CUDA_HOME for vLLM runtime
   ansible.builtin.set_fact:
     ct_runtime_vllm_cuda_home_effective: >-
       {{
         ct_runtime_vllm_cuda_home
-        if (ct_runtime_vllm_cuda_home | default('') | length > 0)
+        if ((ct_runtime_vllm_cuda_home | default('') | length > 0) and (ct_runtime_vllm_cuda_home_explicit_nvcc_stat.stat.exists | default(false)))
         else (
           '/usr/local/cuda'
           if ((ct_runtime_vllm_cuda_home_default_stat is defined) and (ct_runtime_vllm_cuda_home_default_stat.stat is defined) and (ct_runtime_vllm_cuda_home_default_stat.stat.exists | default(false)))
