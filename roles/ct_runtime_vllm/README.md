@@ -109,6 +109,11 @@ flowchart TD
 | `ct_runtime_vllm_require_nvcc` | Fail preflight when `CUDA_HOME`/`nvcc` cannot be resolved in CT | `true` | `true` / `false` |
 | `ct_runtime_vllm_auto_install_nvcc_toolkit` | Auto-install toolkit packages when `nvcc` is missing in CT | `true` | `true` / `false` |
 | `ct_runtime_vllm_nvcc_toolkit_packages` | Toolkit package list used for nvcc auto-remediation | distro-dependent | Package list |
+| `ct_runtime_vllm_manage_nvidia_cuda_repo` | Configure NVIDIA official CUDA apt repository in CT before nvcc remediation (opt-in) | `false` | `true` / `false` |
+| `ct_runtime_vllm_nvidia_cuda_repo_url` | NVIDIA CUDA repository URL for CT | `https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/` | Valid apt repo URL |
+| `ct_runtime_vllm_nvidia_cuda_repo_keyring_deb_url` | NVIDIA CUDA keyring package URL for CT | `https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/cuda-keyring_1.1-1_all.deb` | Valid URL |
+| `ct_runtime_vllm_nvidia_cuda_repo_keyring_path` | Installed keyring path used for signed-by in CT | `/usr/share/keyrings/cuda-archive-keyring.gpg` | Absolute path |
+| `ct_runtime_vllm_nvidia_cuda_repo_list_filename` | apt sources list filename for CT NVIDIA repo | `nvidia-cuda` | filename without extension |
 | `ct_runtime_vllm_auto_install_nvcc_pip_fallback` | Try pip-based nvcc fallback when apt candidates are unavailable | `true` | `true` / `false` |
 | `ct_runtime_vllm_nvcc_pip_package` | pip package used for nvcc fallback | `nvidia-cuda-nvcc-cu12` | pip package spec |
 | `ct_runtime_vllm_hf_cache_dir` | Hugging Face cache dir | `""` | Empty or absolute path |

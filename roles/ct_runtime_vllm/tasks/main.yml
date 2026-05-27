@@ -304,6 +304,20 @@
   changed_when: false
   when: ct_runtime_vllm_device == "cuda"
 
+- name: Configure NVIDIA CUDA apt repository in CT via shared role (optional)
+  ansible.builtin.include_role:
+    name: ktooi.pve_inference.nvidia_cuda_repo_common
+  vars:
+    nvidia_cuda_repo_common_repo_url: "{{ ct_runtime_vllm_nvidia_cuda_repo_url }}"
+    nvidia_cuda_repo_common_keyring_deb_url: "{{ ct_runtime_vllm_nvidia_cuda_repo_keyring_deb_url }}"
+    nvidia_cuda_repo_common_keyring_path: "{{ ct_runtime_vllm_nvidia_cuda_repo_keyring_path }}"
+    nvidia_cuda_repo_common_list_filename: "{{ ct_runtime_vllm_nvidia_cuda_repo_list_filename }}"
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_manage_nvidia_cuda_repo
+    - ct_runtime_vllm_install_cuda_userspace
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+
 # Purpose: Install CUDA toolkit packages when nvcc is missing (auto-remediation) を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Install CUDA toolkit packages when nvcc is missing (auto-remediation)
   ansible.builtin.apt:
