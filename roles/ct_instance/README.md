@@ -50,6 +50,9 @@ flowchart TD
 | `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA device passthrough entries in `/etc/pve/lxc/<vmid>.conf` | `false` | `true` / `false` |
 | `ct_instance_restart_on_nvidia_passthrough_change` | Restart CT when passthrough block changes | `true` | `true` / `false` |
 | `ct_instance_nvidia_passthrough_block` | Raw LXC config block for NVIDIA passthrough | built-in default block | Multiline LXC config text |
+| `ct_instance_nvidia_bind_driver_libraries` | Include file-level binds for `libcuda.so.1`/`libnvidia-ml.so.1` in managed NVIDIA passthrough block | `true` | `true` / `false` |
+| `ct_instance_nvidia_mount_host_cuda_toolkit` | Bind-mount host CUDA toolkit directory into CT in managed NVIDIA passthrough block | `false` | `true` / `false` |
+| `ct_instance_host_cuda_toolkit_path` | Host toolkit path used when `ct_instance_nvidia_mount_host_cuda_toolkit=true` | `/usr/local/cuda` | Absolute path |
 | `ct_instance_state` | Desired CT state | `present` | `present` / `absent` / module-supported states |
 
 
@@ -68,3 +71,6 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 > Also, passthrough restart logic tolerates `pct stop` returning `CT <vmid> not running`.
 
 > NVIDIA UVM majors can vary by host/driver (for example `/dev/nvidia-uvm` major `503` on newer stacks). The built-in passthrough block includes common UVM/caps majors, and you can still override `ct_instance_nvidia_passthrough_block` if your host uses a different major.
+
+
+> Host-CUDA recommendation: for CT runtimes that require `${CUDA_HOME}/bin/nvcc`, set `ct_instance_nvidia_mount_host_cuda_toolkit=true` and `ct_instance_host_cuda_toolkit_path` to a real host toolkit path. In this mode, consider `ct_instance_nvidia_bind_driver_libraries=false` to avoid file-level bind mounts that can conflict with CT-side apt package management.

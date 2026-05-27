@@ -116,12 +116,57 @@
         msg: "{{ ct_instance_manage_result.msg | default('CT lifecycle failed') }}"
 
 
+- name: Build effective NVIDIA passthrough block
+  ansible.builtin.set_fact:
+    ct_instance_nvidia_passthrough_block_effective: |-
+      lxc.cgroup2.devices.allow: c 195:* rwm
+      lxc.cgroup2.devices.allow: c 234:* rwm
+      lxc.cgroup2.devices.allow: c 235:* rwm
+      lxc.cgroup2.devices.allow: c 503:* rwm
+      lxc.cgroup2.devices.allow: c 508:* rwm
+      lxc.cgroup2.devices.allow: c 509:* rwm
+      lxc.cgroup2.devices.allow: c 510:* rwm
+      lxc.cgroup2.devices.allow: c 511:* rwm
+      lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file
+      lxc.mount.entry: /dev/nvidia1 dev/nvidia1 none bind,optional,create=file
+      lxc.mount.entry: /dev/nvidiactl dev/nvidiactl none bind,optional,create=file
+      lxc.mount.entry: /dev/nvidia-modeset dev/nvidia-modeset none bind,optional,create=file
+      lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
+      lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
+      lxc.mount.entry: /dev/nvidia-caps dev/nvidia-caps none bind,optional,create=dir
+      {%- if ct_instance_nvidia_bind_driver_libraries %}
+      lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libcuda.so.1 usr/lib/x86_64-linux-gnu/libcuda.so.1 none bind,optional,create=file
+      lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 none bind,optional,create=file
+      {%- endif %}
+      {%- if ct_instance_nvidia_mount_host_cuda_toolkit %}
+      lxc.mount.entry: {{ ct_instance_host_cuda_toolkit_path }} {{ ct_instance_host_cuda_toolkit_path | regex_replace('^/', '') }} none bind,optional,create=dir
+      {%- endif %}
+
+- name: Warn when CT NVIDIA file-level library binds are enabled
+  ansible.builtin.debug:
+    msg: >-
+      ct_instance_nvidia_bind_driver_libraries=true mounts individual NVIDIA library files into CT.
+      If CT also manages NVIDIA/CUDA packages with apt, dpkg cross-device link errors can occur.
+      For host-CUDA workflows, prefer ct_instance_nvidia_bind_driver_libraries=false and mount a full toolkit path.
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_nvidia_bind_driver_libraries | bool
+
+- name: Warn when host CUDA toolkit mount is enabled
+  ansible.builtin.debug:
+    msg: >-
+      ct_instance_nvidia_mount_host_cuda_toolkit=true will bind-mount {{ ct_instance_host_cuda_toolkit_path }} into CT.
+      Align ct_runtime_vllm_cuda_home with this path and disable CT-side CUDA package remediation.
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_nvidia_mount_host_cuda_toolkit | bool
+
 - name: Configure NVIDIA device passthrough in LXC config
   become: true
   ansible.builtin.blockinfile:
     path: "/etc/pve/lxc/{{ ct_instance_vmid }}.conf"
     marker: "# {mark} ANSIBLE MANAGED NVIDIA PASSTHROUGH"
-    block: "{{ ct_instance_nvidia_passthrough_block }}"
+    block: "{{ ct_instance_nvidia_passthrough_block_effective | default(ct_instance_nvidia_passthrough_block) }}"
     insertafter: EOF
   when:
     - ct_instance_enable_nvidia_passthrough | bool
