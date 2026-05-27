@@ -520,20 +520,37 @@
         enabled: true
         state: started
   rescue:
+    - name: Collect nvidia-persistenced service status summary
+      ansible.builtin.command: systemctl --no-pager --full status nvidia-persistenced
+      register: host_nvidia_gpu_persistenced_status
+      changed_when: false
+      failed_when: false
+
+    - name: Collect nvidia-persistenced journal summary
+      ansible.builtin.command: journalctl -u nvidia-persistenced --no-pager -n 50
+      register: host_nvidia_gpu_persistenced_journal
+      changed_when: false
+      failed_when: false
+
     - name: Fail when nvidia-persistenced start fails and strict mode is enabled
       ansible.builtin.fail:
         msg: >-
-          Failed to start nvidia-persistenced service. This can happen when NVIDIA device nodes are
-          not ready yet (for example before reboot after driver changes). Set
-          host_nvidia_gpu_fail_on_persistenced_start=false to continue with warning-only behavior.
+          Failed to start nvidia-persistenced service.
+          systemctl status:
+          {{ host_nvidia_gpu_persistenced_status.stdout | default('N/A') }}
+          journalctl tail:
+          {{ host_nvidia_gpu_persistenced_journal.stdout | default('N/A') }}
       when: host_nvidia_gpu_fail_on_persistenced_start
 
     - name: Warn when nvidia-persistenced start fails but strict mode is disabled
       ansible.builtin.debug:
         msg: >-
           Failed to start nvidia-persistenced service. Continuing because
-          host_nvidia_gpu_fail_on_persistenced_start=false. Ensure /dev/nvidia* exists and
-          reboot the host after driver changes if needed.
+          host_nvidia_gpu_fail_on_persistenced_start=false.
+          systemctl status:
+          {{ host_nvidia_gpu_persistenced_status.stdout | default('N/A') }}
+          journalctl tail:
+          {{ host_nvidia_gpu_persistenced_journal.stdout | default('N/A') }}
   when: host_nvidia_gpu_enable_persistenced
 
 - name: Deploy boot-time NVIDIA UVM device recreation service
