@@ -512,6 +512,31 @@
       is not loaded correctly or package installation failed.
   when: host_nvidia_gpu_require_nvidia_devices
 
+- name: Ensure persistenced supplemental groups exist
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ host_nvidia_gpu_persistenced_device_groups }}"
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - (host_nvidia_gpu_persistenced_device_groups | length) > 0
+
+- name: Ensure nvidia-persistenced user exists
+  ansible.builtin.user:
+    name: "{{ host_nvidia_gpu_persistenced_user }}"
+    system: true
+    state: present
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Ensure nvidia-persistenced user has access groups for /dev/nvidia*
+  ansible.builtin.user:
+    name: "{{ host_nvidia_gpu_persistenced_user }}"
+    groups: "{{ host_nvidia_gpu_persistenced_device_groups }}"
+    append: true
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - (host_nvidia_gpu_persistenced_device_groups | length) > 0
+
 - name: Ensure nvidia-persistenced service state
   block:
     - name: Enable and start nvidia-persistenced service

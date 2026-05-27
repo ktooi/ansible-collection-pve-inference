@@ -27,6 +27,8 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_modules_current` | Debian alias-based NVIDIA module names | `['nvidia-current','nvidia-current-uvm','nvidia-current-modeset','nvidia-current-drm']` | Module name list |
 | `host_nvidia_gpu_enable_persistenced` | Enable/start `nvidia-persistenced` | `true` | `true` / `false` |
 | `host_nvidia_gpu_fail_on_persistenced_start` | Fail role if `nvidia-persistenced` cannot be started | `true` | `true` / `false` |
+| `host_nvidia_gpu_persistenced_user` | Service user expected by `nvidia-persistenced` | `nvidia-persistenced` | Existing/valid local user |
+| `host_nvidia_gpu_persistenced_device_groups` | Supplemental groups granted to persistenced user for `/dev/nvidia*` access | `['video']` | Group name list |
 | `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
 | `host_nvidia_gpu_uvm_device_service_name` | systemd unit name for UVM device recreation | `nvidia-uvm-devices.service` | Valid unit name |
 | `host_nvidia_gpu_uvm_device_service_after` | Units that should start before UVM device recreation | `[systemd-modules-load.service]` | List of systemd unit names |
@@ -66,6 +68,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - If Debian official repositories do not provide a required driver major (for example 570+), set `host_nvidia_gpu_repository_source: nvidia` and `host_nvidia_gpu_manage_nvidia_cuda_repo: true` to let this role configure NVIDIA's official CUDA apt repository before package installation.
 - If `nvidia-driver` still resolves to older distro packages, enable `host_nvidia_gpu_use_cuda_drivers_meta: true` so this role installs NVIDIA's `cuda-drivers` meta package path from the configured CUDA repository.
 - `nvidia-persistenced` start failure is treated as an error by default (`host_nvidia_gpu_fail_on_persistenced_start: true`) and the role includes `systemctl status` + `journalctl` output in the failure message for diagnosis. You can explicitly opt into warning-only continuation by setting `host_nvidia_gpu_fail_on_persistenced_start: false`.
+- Before starting `nvidia-persistenced`, this role ensures the service user is present and appended to `host_nvidia_gpu_persistenced_device_groups` (default `video`) so it can open `/dev/nvidia*` nodes.
 
 ### Boot ordering for CT GPU passthrough
 
