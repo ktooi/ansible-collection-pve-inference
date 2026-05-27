@@ -485,6 +485,28 @@
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
     - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
 
+# Purpose: Derive CUDA_HOME candidate from discovered nvcc file list in site-packages を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+- name: Derive CUDA_HOME candidate from discovered nvcc file list in site-packages
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_nvcc_sitepackages_cuda_home: >-
+      {{
+        (
+          (ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines[0] | regex_replace('/bin/nvcc$', ''))
+          if ((ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines | default([]) | length) > 0
+              and ((ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines[0] | default('')) is regex('/bin/nvcc$')))
+          else (
+            (ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines[0] | regex_replace('/nvcc\\.bin$', ''))
+            if ((ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines | default([]) | length) > 0
+                and ((ct_runtime_vllm_nvcc_path_sitepackages.stdout_lines[0] | default('')) is regex('/nvcc\\.bin$')))
+            else ''
+          )
+        )
+      }}
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+    - ct_runtime_vllm_auto_install_nvcc_pip_fallback
+
 
 # Purpose: Check whether /usr/local/nvidia exists in CT as CUDA_HOME fallback を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Check whether /usr/local/nvidia exists in CT as CUDA_HOME fallback
@@ -510,8 +532,8 @@
               (ct_runtime_vllm_nvcc_path_venv.stdout | trim | regex_replace('/bin/nvcc$', ''))
               if (ct_runtime_vllm_nvcc_path_venv.stdout | default('') | trim | length > 0)
               else (
-                (ct_runtime_vllm_nvcc_pip_cuda_home.stdout | default('') | trim)
-                if (ct_runtime_vllm_nvcc_pip_cuda_home.stdout | default('') | trim | length > 0)
+                (ct_runtime_vllm_nvcc_sitepackages_cuda_home | default('') | trim)
+                if (ct_runtime_vllm_nvcc_sitepackages_cuda_home | default('') | trim | length > 0)
                 else ''
               )
             )
