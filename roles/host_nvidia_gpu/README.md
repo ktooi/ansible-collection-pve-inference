@@ -29,6 +29,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_fail_on_persistenced_start` | Fail role if `nvidia-persistenced` cannot be started | `true` | `true` / `false` |
 | `host_nvidia_gpu_persistenced_user` | Service user expected by `nvidia-persistenced` | `nvidia-persistenced` | Existing/valid local user |
 | `host_nvidia_gpu_persistenced_device_groups` | Supplemental groups granted to persistenced user for `/dev/nvidia*` access | `['video']` | Group name list |
+| `host_nvidia_gpu_persistenced_run_as_root` | Run `nvidia-persistenced` as root via systemd override (avoids service-user device permission issues) | `true` | `true` / `false` |
 | `host_nvidia_gpu_device_node_group` | Group ownership enforced for NVIDIA character devices under `/dev/nvidia*` | `video` | Existing local group |
 | `host_nvidia_gpu_device_node_mode` | File mode enforced for NVIDIA character devices under `/dev/nvidia*` | `0660` | Octal mode string |
 | `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
@@ -72,6 +73,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - `nvidia-persistenced` start failure is treated as an error by default (`host_nvidia_gpu_fail_on_persistenced_start: true`) and the role includes `systemctl status` + `journalctl` output in the failure message for diagnosis. You can explicitly opt into warning-only continuation by setting `host_nvidia_gpu_fail_on_persistenced_start: false`.
 - Before starting `nvidia-persistenced`, this role ensures the service user is present and appended to `host_nvidia_gpu_persistenced_device_groups` (default `video`) so it can open `/dev/nvidia*` nodes.
 - The role also normalizes ownership/permissions of discovered NVIDIA character devices to `root:{{ host_nvidia_gpu_device_node_group }}` with mode `{{ host_nvidia_gpu_device_node_mode }}` before starting `nvidia-persistenced`.
+- By default, this role installs a systemd override to run `nvidia-persistenced` as root (`host_nvidia_gpu_persistenced_run_as_root: true`) because some hosts fail device queries under the packaged unprivileged service user even when `/dev/nvidia*` exists and is group-readable/writable.
 
 ### Boot ordering for CT GPU passthrough
 
