@@ -91,6 +91,42 @@
 
 
 # Purpose: Ensure optional build tools required by Triton/vLLM runtime are installed を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
+- name: Check dpkg audit status before CUDA userspace remediations
+  ansible.builtin.command: dpkg --audit
+  register: ct_runtime_vllm_dpkg_audit
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_pkg_mgr == "apt"
+    - ct_runtime_vllm_install_cuda_userspace_effective
+
+- name: Assert dpkg package state is healthy before CUDA userspace remediations
+  ansible.builtin.assert:
+    that:
+      - (ct_runtime_vllm_dpkg_audit.stdout | default('') | trim | length) == 0
+    fail_msg: >-
+      dpkg reports broken/incomplete package state in CT, so CUDA userspace/nvcc remediation cannot proceed safely.
+      Resolve package consistency first (for example: apt --fix-broken install) and retry.
+      If CT bind-mounts individual NVIDIA files from host, avoid mixing file-level mounts with CT apt-managed NVIDIA packages.
+      dpkg --audit output: {{ ct_runtime_vllm_dpkg_audit.stdout | default('') | trim }}
+  when:
+    - ansible_pkg_mgr == "apt"
+    - ct_runtime_vllm_install_cuda_userspace_effective
+    - ct_runtime_vllm_require_nvcc
+
+- name: Warn when dpkg package state is unhealthy but strict nvcc requirement is disabled
+  ansible.builtin.debug:
+    msg: >-
+      dpkg reports broken/incomplete package state in CT.
+      CUDA userspace/nvcc remediation may fail until package consistency is fixed (for example: apt --fix-broken install).
+      If CT bind-mounts individual NVIDIA files from host, avoid mixing file-level mounts with CT apt-managed NVIDIA packages.
+      dpkg --audit output: {{ ct_runtime_vllm_dpkg_audit.stdout | default('') | trim }}
+  when:
+    - ansible_pkg_mgr == "apt"
+    - ct_runtime_vllm_install_cuda_userspace_effective
+    - not ct_runtime_vllm_require_nvcc
+    - (ct_runtime_vllm_dpkg_audit.stdout | default('') | trim | length) > 0
+
 - name: Ensure optional build tools required by Triton/vLLM runtime are installed
   ansible.builtin.package:
     name: "{{ ct_runtime_vllm_build_packages }}"
