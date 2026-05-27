@@ -382,6 +382,7 @@
       - |
         import site
         import sysconfig
+        import importlib.util
         from pathlib import Path
 
         search_roots = set()
@@ -390,6 +391,9 @@
         purelib = sysconfig.get_paths().get("purelib")
         if purelib:
             search_roots.add(Path(purelib))
+        module_spec = importlib.util.find_spec("nvidia.cuda_nvcc")
+        if module_spec and module_spec.origin:
+            search_roots.add(Path(module_spec.origin).resolve().parent)
 
         candidates = []
         for root in sorted(search_roots):
@@ -397,15 +401,21 @@
                 continue
             candidates.extend(root.rglob("nvcc"))
             candidates.extend(root.rglob("nvcc.bin"))
+            candidates.extend(root.rglob("*/bin/nvcc"))
 
         normalized = []
         for c in candidates:
-            if c.is_file() and "nvidia" in c.as_posix() and "/bin/" in c.as_posix():
+            if c.is_file() and "nvidia" in c.as_posix() and (
+                "/bin/" in c.as_posix() or c.name == "nvcc.bin"
+            ):
                 normalized.append(c.resolve())
 
         if normalized:
             nvcc_path = sorted(normalized)[0]
-            print(str(nvcc_path.parent.parent))
+            if nvcc_path.name == "nvcc.bin":
+                print(str(nvcc_path.parent))
+            else:
+                print(str(nvcc_path.parent.parent))
   register: ct_runtime_vllm_nvcc_pip_cuda_home
   changed_when: false
   failed_when: false
@@ -424,16 +434,23 @@
       - |
         import site
         import sysconfig
+        import importlib.util
         from pathlib import Path
         roots = set(Path(p) for p in site.getsitepackages())
         purelib = sysconfig.get_paths().get("purelib")
         if purelib:
             roots.add(Path(purelib))
+        module_spec = importlib.util.find_spec("nvidia.cuda_nvcc")
+        if module_spec and module_spec.origin:
+            roots.add(Path(module_spec.origin).resolve().parent)
         out = []
         for root in sorted(roots):
             if root.exists():
                 for c in root.rglob("nvcc"):
                     if c.is_file() and "nvidia" in c.as_posix() and "/bin/" in c.as_posix():
+                        out.append(str(c.resolve()))
+                for c in root.rglob("nvcc.bin"):
+                    if c.is_file() and "nvidia" in c.as_posix():
                         out.append(str(c.resolve()))
         if out:
             print("\n".join(sorted(set(out))))
