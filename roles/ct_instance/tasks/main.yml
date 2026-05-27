@@ -134,13 +134,13 @@
       lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
       lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
       lxc.mount.entry: /dev/nvidia-caps dev/nvidia-caps none bind,optional,create=dir
-      {%- if ct_instance_nvidia_bind_driver_libraries %}
+      {% if ct_instance_nvidia_bind_driver_libraries %}
       lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libcuda.so.1 usr/lib/x86_64-linux-gnu/libcuda.so.1 none bind,optional,create=file
       lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 none bind,optional,create=file
-      {%- endif %}
-      {%- if ct_instance_nvidia_mount_host_cuda_toolkit %}
+      {% endif %}
+      {% if ct_instance_nvidia_mount_host_cuda_toolkit %}
       lxc.mount.entry: {{ ct_instance_host_cuda_toolkit_path }} {{ ct_instance_host_cuda_toolkit_path | regex_replace('^/', '') }} none bind,optional,create=dir
-      {%- endif %}
+      {% endif %}
 
 # Purpose: Warn operators about dpkg cross-device-link risks when binding individual NVIDIA library files.
 - name: Warn when CT NVIDIA file-level library binds are enabled
