@@ -436,8 +436,7 @@
                     if c.is_file() and "nvidia" in c.as_posix() and "/bin/" in c.as_posix():
                         out.append(str(c.resolve()))
         if out:
-            print("
-".join(sorted(set(out))))
+            print("\n".join(sorted(set(out))))
   register: ct_runtime_vllm_nvcc_path_sitepackages
   changed_when: false
   failed_when: false
