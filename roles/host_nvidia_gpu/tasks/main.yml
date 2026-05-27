@@ -486,7 +486,7 @@
       Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
       Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
       NVIDIA PCI inventory: {{ host_nvidia_lspci_nnk.stdout | default('n/a') | regex_findall('(?ms)^.*NVIDIA.*(?:\\n\\s+.*)*') }}
-      Recent NVIDIA kernel log lines: {{ host_nvidia_dmesg.stdout | default('') | regex_findall('(?m)^.*(?:NVRM|nvidia|nouveau).*$') | list | last(40) }}
+      Recent NVIDIA kernel log lines: {{ (host_nvidia_dmesg.stdout | default('') | regex_findall('(?m)^.*(?:NVRM|nvidia|nouveau).*$') | list)[-40:] }}
 - name: Trigger NVIDIA device node creation after modules are loaded
   ansible.builtin.command: nvidia-modprobe -u -c=0
   changed_when: false
