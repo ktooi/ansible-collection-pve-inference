@@ -115,7 +115,7 @@
       ansible.builtin.fail:
         msg: "{{ ct_instance_manage_result.msg | default('CT lifecycle failed') }}"
 
-
+# Purpose: Build managed NVIDIA passthrough block from feature flags to avoid manual raw block edits.
 - name: Build effective NVIDIA passthrough block
   ansible.builtin.set_fact:
     ct_instance_nvidia_passthrough_block_effective: |-
@@ -142,6 +142,7 @@
       lxc.mount.entry: {{ ct_instance_host_cuda_toolkit_path }} {{ ct_instance_host_cuda_toolkit_path | regex_replace('^/', '') }} none bind,optional,create=dir
       {%- endif %}
 
+# Purpose: Warn operators about dpkg cross-device-link risks when binding individual NVIDIA library files.
 - name: Warn when CT NVIDIA file-level library binds are enabled
   ansible.builtin.debug:
     msg: >-
@@ -152,6 +153,7 @@
     - ct_instance_enable_nvidia_passthrough | bool
     - ct_instance_nvidia_bind_driver_libraries | bool
 
+# Purpose: Inform operators that host toolkit mount mode requires aligned CT runtime CUDA settings.
 - name: Warn when host CUDA toolkit mount is enabled
   ansible.builtin.debug:
     msg: >-
@@ -161,6 +163,7 @@
     - ct_instance_enable_nvidia_passthrough | bool
     - ct_instance_nvidia_mount_host_cuda_toolkit | bool
 
+# Purpose: Persist managed NVIDIA passthrough entries into the CT's LXC configuration file.
 - name: Configure NVIDIA device passthrough in LXC config
   become: true
   ansible.builtin.blockinfile:
@@ -173,6 +176,7 @@
     - ct_instance_state != 'absent'
   register: ct_instance_nvidia_passthrough_result
 
+# Purpose: Restart container lifecycle (stop) when passthrough configuration changed and restart is enabled.
 - name: Stop CT to apply NVIDIA passthrough config changes
   become: true
   ansible.builtin.command: "pct stop {{ ct_instance_vmid }}"
@@ -189,6 +193,7 @@
     - ct_instance_nvidia_passthrough_result is changed
     - ct_instance_state != 'absent'
 
+# Purpose: Restart container lifecycle (start) after passthrough configuration changes are applied.
 - name: Start CT after NVIDIA passthrough config change
   become: true
   ansible.builtin.command: "pct start {{ ct_instance_vmid }}"

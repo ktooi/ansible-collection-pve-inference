@@ -327,7 +327,7 @@
       Typical fixes: keep Proxmox repositories enabled and avoid mixing Debian firmware packages
       that replace `pve-firmware`.
   when: host_nvidia_gpu_block_proxmox_removal
-
+# Purpose: Install selected NVIDIA driver/runtime package set on PVE host.
 - name: Install NVIDIA driver stack packages
   ansible.builtin.apt:
     name: "{{ host_nvidia_gpu_packages_effective }}"
@@ -335,6 +335,7 @@
     update_cache: true
     default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
 
+# Purpose: Query NVIDIA repo for toolkit package naming (cuda-toolkit-<major>-<minor>) candidates.
 - name: Discover host CUDA toolkit package candidates from NVIDIA repository
   ansible.builtin.shell: |
     set -o pipefail
@@ -347,6 +348,7 @@
     - host_nvidia_gpu_install_cuda_toolkit
     - host_nvidia_gpu_repository_source == 'nvidia'
 
+# Purpose: Resolve effective toolkit package list based on repository source and discovered candidates.
 - name: Build effective host CUDA toolkit package list
   ansible.builtin.set_fact:
     host_nvidia_gpu_cuda_toolkit_packages_effective: >-
@@ -375,6 +377,7 @@
       }}
   when: host_nvidia_gpu_install_cuda_toolkit
 
+# Purpose: Warn when NVIDIA repository mode cannot provide any cuda-toolkit-* candidates.
 - name: Warn when NVIDIA repository source is selected but no cuda-toolkit-* candidates were discovered
   ansible.builtin.debug:
     msg: >-
@@ -385,12 +388,14 @@
     - host_nvidia_gpu_repository_source == 'nvidia'
     - (host_nvidia_gpu_cuda_toolkit_pkg_candidates.stdout_lines | default([]) | reject('equalto', '') | list | length) == 0
 
+# Purpose: Detect whether nvcc is already present on host before optional toolkit provisioning.
 - name: Probe nvcc on host
   ansible.builtin.command: command -v nvcc
   register: host_nvidia_gpu_nvcc_path
   changed_when: false
   failed_when: false
 
+# Purpose: Install optional host CUDA toolkit packages when nvcc is missing.
 - name: Install host CUDA toolkit packages when nvcc is missing (optional)
   ansible.builtin.apt:
     name: "{{ host_nvidia_gpu_cuda_toolkit_packages_effective | default(host_nvidia_gpu_cuda_toolkit_packages) }}"
@@ -403,6 +408,7 @@
     - host_nvidia_gpu_install_cuda_toolkit
     - (host_nvidia_gpu_nvcc_path.rc | int) != 0
 
+# Purpose: Re-check nvcc availability after toolkit installation attempt.
 - name: Re-probe nvcc on host after toolkit install attempt
   ansible.builtin.command: command -v nvcc
   register: host_nvidia_gpu_nvcc_path_after
@@ -410,6 +416,7 @@
   failed_when: false
   when: host_nvidia_gpu_install_cuda_toolkit
 
+# Purpose: Enforce host nvcc availability when toolkit provisioning strict mode is enabled.
 - name: Assert nvcc is available when host toolkit provisioning is enabled
   ansible.builtin.assert:
     that:
@@ -427,6 +434,7 @@
     - host_nvidia_gpu_install_cuda_toolkit
     - host_nvidia_gpu_require_nvcc_when_toolkit_enabled
 
+# Purpose: Emit non-strict warning when host toolkit provisioning cannot provide nvcc.
 - name: Warn when host toolkit provisioning is enabled but nvcc is still unavailable and strict host check is disabled
   ansible.builtin.debug:
     msg: >-
