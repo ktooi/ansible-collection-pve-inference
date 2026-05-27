@@ -513,10 +513,27 @@
   when: host_nvidia_gpu_require_nvidia_devices
 
 - name: Ensure nvidia-persistenced service state
-  ansible.builtin.service:
-    name: nvidia-persistenced
-    enabled: true
-    state: started
+  block:
+    - name: Enable and start nvidia-persistenced service
+      ansible.builtin.service:
+        name: nvidia-persistenced
+        enabled: true
+        state: started
+  rescue:
+    - name: Fail when nvidia-persistenced start fails and strict mode is enabled
+      ansible.builtin.fail:
+        msg: >-
+          Failed to start nvidia-persistenced service. This can happen when NVIDIA device nodes are
+          not ready yet (for example before reboot after driver changes). Set
+          host_nvidia_gpu_fail_on_persistenced_start=false to continue with warning-only behavior.
+      when: host_nvidia_gpu_fail_on_persistenced_start
+
+    - name: Warn when nvidia-persistenced start fails but strict mode is disabled
+      ansible.builtin.debug:
+        msg: >-
+          Failed to start nvidia-persistenced service. Continuing because
+          host_nvidia_gpu_fail_on_persistenced_start=false. Ensure /dev/nvidia* exists and
+          reboot the host after driver changes if needed.
   when: host_nvidia_gpu_enable_persistenced
 
 - name: Deploy boot-time NVIDIA UVM device recreation service

@@ -26,6 +26,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_modules_standard` | Standard NVIDIA module names | `['nvidia','nvidia_uvm','nvidia_modeset','nvidia_drm']` | Module name list |
 | `host_nvidia_gpu_modules_current` | Debian alias-based NVIDIA module names | `['nvidia-current','nvidia-current-uvm','nvidia-current-modeset','nvidia-current-drm']` | Module name list |
 | `host_nvidia_gpu_enable_persistenced` | Enable/start `nvidia-persistenced` | `true` | `true` / `false` |
+| `host_nvidia_gpu_fail_on_persistenced_start` | Fail role if `nvidia-persistenced` cannot be started | `false` | `true` / `false` |
 | `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
 | `host_nvidia_gpu_uvm_device_service_name` | systemd unit name for UVM device recreation | `nvidia-uvm-devices.service` | Valid unit name |
 | `host_nvidia_gpu_uvm_device_service_after` | Units that should start before UVM device recreation | `[systemd-modules-load.service]` | List of systemd unit names |
@@ -64,6 +65,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - To enforce a CUDA 12.8-class host baseline in automation, set `host_nvidia_gpu_min_installed_driver_major: 570`.
 - If Debian official repositories do not provide a required driver major (for example 570+), set `host_nvidia_gpu_repository_source: nvidia` and `host_nvidia_gpu_manage_nvidia_cuda_repo: true` to let this role configure NVIDIA's official CUDA apt repository before package installation.
 - If `nvidia-driver` still resolves to older distro packages, enable `host_nvidia_gpu_use_cuda_drivers_meta: true` so this role installs NVIDIA's `cuda-drivers` meta package path from the configured CUDA repository.
+- `nvidia-persistenced` may fail to start immediately after driver replacement if `/dev/nvidia*` is not ready yet. By default this role warns and continues (`host_nvidia_gpu_fail_on_persistenced_start: false`); set it to `true` to enforce hard-fail behavior.
 
 ### Boot ordering for CT GPU passthrough
 
