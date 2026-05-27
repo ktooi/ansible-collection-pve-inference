@@ -106,7 +106,7 @@ flowchart TD
 | `ct_runtime_vllm_omp_num_threads` | OMP thread count | `""` | Empty or integer string |
 | `ct_runtime_vllm_ld_library_path` | Library search path | `/usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu` | PATH-like string |
 | `ct_runtime_vllm_cuda_home` | Explicit CUDA toolkit root exported as `CUDA_HOME` for runtime processes | `""` (auto-derive) | Empty or absolute path (e.g. `/usr/local/cuda`) |
-| `ct_runtime_vllm_require_nvcc` | Fail preflight when `CUDA_HOME`/`nvcc` cannot be resolved in CT | `false` | `true` / `false` |
+| `ct_runtime_vllm_require_nvcc` | Fail preflight when `CUDA_HOME`/`nvcc` cannot be resolved in CT | `true` | `true` / `false` |
 | `ct_runtime_vllm_auto_install_nvcc_toolkit` | Auto-install toolkit packages when `nvcc` is missing in CT | `true` | `true` / `false` |
 | `ct_runtime_vllm_nvcc_toolkit_packages` | Toolkit package list used for nvcc auto-remediation | distro-dependent | Package list |
 | `ct_runtime_vllm_auto_install_nvcc_pip_fallback` | Try pip-based nvcc fallback when apt candidates are unavailable | `true` | `true` / `false` |
@@ -122,7 +122,7 @@ flowchart TD
 
 > CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check. When `ct_runtime_vllm_torch_backend` or `ct_runtime_vllm_version` is set, preflight is automatically relaxed from `strict` to `count` to avoid false negatives caused by installer/backend mismatches before vLLM runtime initialization.
 >
-> NVCC/CUDA_HOME note: some vLLM/Triton combinations require `nvcc`/`CUDA_HOME` at runtime. This role derives `CUDA_HOME` from `ct_runtime_vllm_cuda_home`, `/usr/local/cuda`, `command -v nvcc`, pip fallback package resolution (including `venv/bin/nvcc` probe), or `/usr/local/nvidia` fallback (directory probe and libcuda path inference) when toolkit binaries are unavailable, and writes it into `vllm` environment. When resolved, it also prepends the derived nvcc `bin` path to `PATH` in the vLLM env file.
+> NVCC/CUDA_HOME note: some vLLM/Triton combinations require `nvcc`/`CUDA_HOME` at runtime. This role derives `CUDA_HOME` from `ct_runtime_vllm_cuda_home`, `/usr/local/cuda`, `command -v nvcc`, pip fallback package resolution (including `venv/bin/nvcc` probe), when toolkit binaries are unavailable, and writes it into `vllm` environment. The role intentionally does not treat `/usr/local/nvidia` alone as CUDA_HOME unless `nvcc` is actually resolvable, because some kernels (e.g. FlashInfer paths) invoke `${CUDA_HOME}/bin/nvcc` directly. When resolved, it also prepends the derived nvcc `bin` path to `PATH` in the vLLM env file.
 
 > Driver/torch alignment note: to align CT torch CUDA with host driver, set `ct_runtime_vllm_torch_package` (and optionally `ct_runtime_vllm_torch_extra_index_url`). This role installs vLLM first and then force-reinstalls torch in the same venv so the final torch wheel matches your specified CUDA line (for example cu124 on NVIDIA 550 / CUDA 12.4 hosts).
 

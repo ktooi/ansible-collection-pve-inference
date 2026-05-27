@@ -433,14 +433,7 @@
               else (
                 (ct_runtime_vllm_nvcc_pip_cuda_home.stdout | default('') | trim)
                 if (ct_runtime_vllm_nvcc_pip_cuda_home.stdout | default('') | trim | length > 0)
-                else (
-                  '/usr/local/nvidia'
-                  if (
-                    ((ct_runtime_vllm_cuda_home_nvidia_stat is defined) and (ct_runtime_vllm_cuda_home_nvidia_stat.stat is defined) and (ct_runtime_vllm_cuda_home_nvidia_stat.stat.exists | default(false)))
-                    or (ct_runtime_vllm_libcuda_available | default(false))
-                  )
-                  else ''
-                )
+                else ''
               )
             )
           )
