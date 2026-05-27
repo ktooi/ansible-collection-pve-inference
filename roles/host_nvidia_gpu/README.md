@@ -32,6 +32,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_persistenced_run_as_root` | Run `nvidia-persistenced` as root via systemd override (avoids service-user device permission issues) | `true` | `true` / `false` |
 | `host_nvidia_gpu_device_node_group` | Group ownership enforced for NVIDIA character devices under `/dev/nvidia*` | `video` | Existing local group |
 | `host_nvidia_gpu_device_node_mode` | File mode enforced for NVIDIA character devices under `/dev/nvidia*` | `0660` | Octal mode string |
+| `host_nvidia_gpu_allow_degraded_nvidia_smi_after_install` | Allow role to continue when pre-persistenced `nvidia-smi -L` probe fails (degraded mode) | `false` | `true` / `false` |
 | `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
 | `host_nvidia_gpu_uvm_device_service_name` | systemd unit name for UVM device recreation | `nvidia-uvm-devices.service` | Valid unit name |
 | `host_nvidia_gpu_uvm_device_service_after` | Units that should start before UVM device recreation | `[systemd-modules-load.service]` | List of systemd unit names |
@@ -75,6 +76,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - The role also normalizes ownership/permissions of discovered NVIDIA character devices to `root:{{ host_nvidia_gpu_device_node_group }}` with mode `{{ host_nvidia_gpu_device_node_mode }}` before starting `nvidia-persistenced`.
 - By default, this role installs a systemd override to run `nvidia-persistenced` as root (`host_nvidia_gpu_persistenced_run_as_root: true`) because some hosts fail device queries under the packaged unprivileged service user even when `/dev/nvidia*` exists and is group-readable/writable.
 - The role now probes `nvidia-smi -L` before attempting `nvidia-persistenced`; if this probe fails, the role fails early with guidance to fix driver runtime readiness (typically reboot-after-driver-update or resolving kernel/userspace mismatch) before service startup.
+- If you need one pass that configures packages/services before a planned reboot, set `host_nvidia_gpu_allow_degraded_nvidia_smi_after_install: true` to continue with a warning when the probe fails; rerun the role after reboot and return this setting to `false`.
 
 ### Boot ordering for CT GPU passthrough
 

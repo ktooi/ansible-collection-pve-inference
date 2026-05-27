@@ -563,16 +563,39 @@
   failed_when: false
   when: host_nvidia_gpu_enable_persistenced
 
+- name: Derive NVIDIA userspace readiness fact before persistenced startup
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_pre_persistenced_smi_ready: "{{ (host_nvidia_gpu_pre_persistenced_smi.rc | int) == 0 }}"
+  when: host_nvidia_gpu_enable_persistenced
+
+- name: Warn when NVIDIA userspace is degraded but degraded mode is allowed
+  ansible.builtin.debug:
+    msg: >-
+      nvidia-smi probe is degraded before nvidia-persistenced startup (rc={{ host_nvidia_gpu_pre_persistenced_smi.rc }}).
+      stdout={{ host_nvidia_gpu_pre_persistenced_smi.stdout | default('') }}.
+      stderr={{ host_nvidia_gpu_pre_persistenced_smi.stderr | default('') }}.
+      Continuing because host_nvidia_gpu_allow_degraded_nvidia_smi_after_install=true.
+      Reboot host and rerun this role to complete driver runtime activation.
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - not (host_nvidia_gpu_pre_persistenced_smi_ready | default(false))
+    - host_nvidia_gpu_allow_degraded_nvidia_smi_after_install
+
 - name: Assert NVIDIA userspace is ready before starting nvidia-persistenced
   ansible.builtin.assert:
     that:
-      - host_nvidia_gpu_pre_persistenced_smi.rc == 0
+      - host_nvidia_gpu_pre_persistenced_smi_ready | default(false)
     fail_msg: >-
       nvidia-smi probe failed before nvidia-persistenced startup (rc={{ host_nvidia_gpu_pre_persistenced_smi.rc }}).
+      stdout={{ host_nvidia_gpu_pre_persistenced_smi.stdout | default('') }}.
       stderr={{ host_nvidia_gpu_pre_persistenced_smi.stderr | default('') }}.
       This usually indicates host driver runtime is not ready yet (for example reboot is still required after driver update,
-      or kernel/userspace mismatch remains). Resolve nvidia-smi first, then rerun this role.
-  when: host_nvidia_gpu_enable_persistenced
+      or kernel/userspace mismatch remains). Reboot host and rerun this role.
+      If you intentionally want to continue in degraded mode, set
+      host_nvidia_gpu_allow_degraded_nvidia_smi_after_install=true.
+  when:
+    - host_nvidia_gpu_enable_persistenced
+    - not host_nvidia_gpu_allow_degraded_nvidia_smi_after_install
 
 - name: Ensure systemd override directory exists for nvidia-persistenced
   ansible.builtin.file:
