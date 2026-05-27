@@ -3,3 +3,5 @@ ct_runtime_vllm_os_family: ubuntu
 ct_runtime_vllm_cuda_packages_os:
   - libcuda1
   - libnvidia-ml1
+ct_runtime_vllm_nvcc_toolkit_packages_os:
+  - nvidia-cuda-toolkit

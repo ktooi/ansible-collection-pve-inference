@@ -257,6 +257,28 @@
   changed_when: false
   when: ct_runtime_vllm_device == "cuda"
 
+- name: Install CUDA toolkit packages when nvcc is missing (auto-remediation)
+  ansible.builtin.apt:
+    name: "{{ ct_runtime_vllm_nvcc_toolkit_packages }}"
+    state: present
+    update_cache: true
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+    - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
+
+- name: Re-probe nvcc path after auto-remediation
+  ansible.builtin.command: bash -lc 'command -v nvcc || true'
+  register: ct_runtime_vllm_nvcc_path
+  changed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_install_cuda_userspace
+    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
+
 - name: Derive effective CUDA_HOME for vLLM runtime
   ansible.builtin.set_fact:
     ct_runtime_vllm_cuda_home_effective: >-
