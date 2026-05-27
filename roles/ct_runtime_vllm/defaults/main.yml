@@ -65,6 +65,7 @@ ct_runtime_vllm_cuda_packages: "{{ ct_runtime_vllm_cuda_packages_os | default([]
 ct_runtime_vllm_install_build_tools: true
 ct_runtime_vllm_build_packages: "{{ ct_runtime_vllm_build_packages_os | default(['ninja-build']) }}"
 ct_runtime_vllm_auto_install_nvcc_toolkit: true
+ct_runtime_vllm_repository_source: debian
 ct_runtime_vllm_nvcc_toolkit_packages: "{{ ct_runtime_vllm_nvcc_toolkit_packages_os | default(['nvidia-cuda-toolkit']) }}"
 ct_runtime_vllm_manage_nvidia_cuda_repo: false
 ct_runtime_vllm_nvidia_cuda_repo_url: "https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/"

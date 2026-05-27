@@ -108,6 +108,7 @@ flowchart TD
 | `ct_runtime_vllm_cuda_home` | Explicit CUDA toolkit root exported as `CUDA_HOME` for runtime processes | `""` (auto-derive) | Empty or absolute path (e.g. `/usr/local/cuda`) |
 | `ct_runtime_vllm_require_nvcc` | Fail preflight when `CUDA_HOME`/`nvcc` cannot be resolved in CT | `true` | `true` / `false` |
 | `ct_runtime_vllm_auto_install_nvcc_toolkit` | Auto-install toolkit packages when `nvcc` is missing in CT | `true` | `true` / `false` |
+| `ct_runtime_vllm_repository_source` | CT-side CUDA package source selector for nvcc remediation | `debian` | `debian`, `nvidia` |
 | `ct_runtime_vllm_nvcc_toolkit_packages` | Toolkit package list used for nvcc auto-remediation | distro-dependent | Package list |
 | `ct_runtime_vllm_manage_nvidia_cuda_repo` | Configure NVIDIA official CUDA apt repository in CT before nvcc remediation (opt-in) | `false` | `true` / `false` |
 | `ct_runtime_vllm_nvidia_cuda_repo_url` | NVIDIA CUDA repository URL for CT | `https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/` | Valid apt repo URL |
@@ -129,6 +130,7 @@ flowchart TD
 >
 > NVCC/CUDA_HOME note: some vLLM/Triton combinations require `nvcc`/`CUDA_HOME` at runtime. This role derives `CUDA_HOME` from `ct_runtime_vllm_cuda_home`, `/usr/local/cuda`, `command -v nvcc`, pip fallback package resolution (including `venv/bin/nvcc` probe), when toolkit binaries are unavailable, and writes it into `vllm` environment. The role intentionally does not treat `/usr/local/nvidia` alone as CUDA_HOME unless `nvcc` is actually resolvable, because some kernels (e.g. FlashInfer paths) invoke `${CUDA_HOME}/bin/nvcc` directly. If `ct_runtime_vllm_cuda_home` is set but `<cuda_home>/bin/nvcc` is missing, the explicit value is ignored and auto-detection is used to avoid `/usr/local/nvidia/bin/nvcc: not found` runtime failures. When resolved, it also prepends the derived nvcc `bin` path to `PATH` in the vLLM env file.
 > By default `ct_runtime_vllm_require_nvcc=true`, so the role fails preflight instead of starting a broken service when nvcc/CUDA_HOME cannot be resolved.
+> When `ct_runtime_vllm_repository_source: nvidia` is used, nvcc auto-remediation dynamically selects the newest available `cuda-toolkit-<major>-<minor>` package from apt metadata (instead of Debian's `nvidia-cuda-toolkit` name) before retrying nvcc detection.
 
 > NVCC fallback caveat: pip fallback packages may be unavailable for some Python/CUDA combinations; when that occurs this role surfaces pip install stderr in the strict nvcc assertion message to speed remediation.
 > In some environments the pip package may be installed but still not provide an `nvcc` binary payload. In that case the strict assertion includes `pip show -f` output; configure `ct_runtime_vllm_cuda_home` to a real toolkit path (for example `/usr/local/cuda-12.x`) or install toolkit packages from a CUDA-enabled apt repository.

@@ -318,10 +318,34 @@
     - ct_runtime_vllm_install_cuda_userspace
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
 
+- name: Discover NVIDIA CUDA toolkit package candidates when using NVIDIA repository source
+  ansible.builtin.command: bash -lc "apt-cache search '^cuda-toolkit-[0-9-]+$' | awk '{print $1}' | sort -Vr"
+  register: ct_runtime_vllm_cuda_toolkit_nvidia_candidates
+  changed_when: false
+  failed_when: false
+  when:
+    - ct_runtime_vllm_device == "cuda"
+    - ct_runtime_vllm_repository_source == 'nvidia'
+    - ct_runtime_vllm_auto_install_nvcc_toolkit
+    - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
+
+- name: Build effective nvcc toolkit package list
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_nvcc_toolkit_packages_effective: >-
+      {{
+        (ct_runtime_vllm_cuda_toolkit_nvidia_candidates.stdout_lines[:1] | list)
+        if (
+          ct_runtime_vllm_repository_source == 'nvidia'
+          and (ct_runtime_vllm_cuda_toolkit_nvidia_candidates.stdout_lines | default([]) | length) > 0
+        )
+        else ct_runtime_vllm_nvcc_toolkit_packages
+      }}
+  when: ct_runtime_vllm_device == "cuda"
+
 # Purpose: Install CUDA toolkit packages when nvcc is missing (auto-remediation) を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Install CUDA toolkit packages when nvcc is missing (auto-remediation)
   ansible.builtin.apt:
-    name: "{{ ct_runtime_vllm_nvcc_toolkit_packages }}"
+    name: "{{ ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) }}"
     state: present
     update_cache: true
   register: ct_runtime_vllm_nvcc_toolkit_install
@@ -331,13 +355,13 @@
     - ct_runtime_vllm_install_cuda_userspace
     - ct_runtime_vllm_auto_install_nvcc_toolkit
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
-    - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
+    - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
 
 # Purpose: Warn when nvcc toolkit auto-remediation failed を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Warn when nvcc toolkit auto-remediation failed
   ansible.builtin.debug:
     msg: >-
-      Failed to auto-install nvcc toolkit packages {{ ct_runtime_vllm_nvcc_toolkit_packages }}.
+      Failed to auto-install nvcc toolkit packages {{ ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) }}.
       stdout={{ ct_runtime_vllm_nvcc_toolkit_install.stdout | default('') | trim }}
       stderr={{ ct_runtime_vllm_nvcc_toolkit_install.stderr | default('') | trim }}
       Continuing to re-probe nvcc; set ct_runtime_vllm_require_nvcc=true to fail hard when nvcc is mandatory.
@@ -346,7 +370,7 @@
     - ct_runtime_vllm_install_cuda_userspace
     - ct_runtime_vllm_auto_install_nvcc_toolkit
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
-    - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
+    - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
     - ct_runtime_vllm_nvcc_toolkit_install is failed
 
 # Purpose: Re-probe nvcc path after auto-remediation を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
@@ -508,14 +532,14 @@
 # Purpose: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Collect apt policy for configured nvcc toolkit packages when nvcc is still missing
   ansible.builtin.command: "apt-cache policy {{ item }}"
-  loop: "{{ ct_runtime_vllm_nvcc_toolkit_packages }}"
+  loop: "{{ ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) }}"
   register: ct_runtime_vllm_nvcc_toolkit_policy
   changed_when: false
   failed_when: false
   when:
     - ct_runtime_vllm_device == "cuda"
     - (ct_runtime_vllm_nvcc_path.stdout | default('') | trim | length) == 0
-    - ct_runtime_vllm_nvcc_toolkit_packages | length > 0
+    - (ct_runtime_vllm_nvcc_toolkit_packages_effective | default(ct_runtime_vllm_nvcc_toolkit_packages) | length) > 0
 
 # Purpose: Derive CUDA_HOME candidate from discovered nvcc file list in site-packages を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Derive CUDA_HOME candidate from discovered nvcc file list in site-packages
