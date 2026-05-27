@@ -44,6 +44,8 @@ host_nvidia_gpu_device_node_mode: "0660"
 host_nvidia_gpu_allow_degraded_nvidia_smi_after_install: false
 host_nvidia_gpu_auto_reboot_on_nvml_mismatch: false
 host_nvidia_gpu_post_reboot_delay: 20
+host_nvidia_gpu_manage_framebuffer_blacklist: true
+host_nvidia_gpu_reboot_after_framebuffer_blacklist: true
 host_nvidia_gpu_ensure_uvm_device_service: true
 host_nvidia_gpu_uvm_device_service_name: nvidia-uvm-devices.service
 host_nvidia_gpu_uvm_device_service_after:

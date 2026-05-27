@@ -348,6 +348,37 @@
     update_cache: true
     default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
 
+- name: Deploy modprobe blacklist for conflicting NVIDIA framebuffer drivers
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/host-nvidia-gpu-blacklist.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ktooi.pve_inference.host_nvidia_gpu
+      blacklist nouveau
+      blacklist nvidiafb
+      options nouveau modeset=0
+  register: host_nvidia_gpu_blacklist_conf
+  when: host_nvidia_gpu_manage_framebuffer_blacklist
+
+- name: Rebuild initramfs after blacklist update
+  ansible.builtin.command: update-initramfs -u
+  changed_when: true
+  when:
+    - host_nvidia_gpu_manage_framebuffer_blacklist
+    - host_nvidia_gpu_blacklist_conf is changed
+
+- name: Reboot host after framebuffer blacklist update when enabled
+  ansible.builtin.reboot:
+    reboot_timeout: 1800
+    post_reboot_delay: "{{ host_nvidia_gpu_post_reboot_delay }}"
+    msg: "Reboot triggered by host_nvidia_gpu to apply NVIDIA framebuffer blacklist changes."
+  when:
+    - host_nvidia_gpu_manage_framebuffer_blacklist
+    - host_nvidia_gpu_reboot_after_framebuffer_blacklist
+    - host_nvidia_gpu_blacklist_conf is changed
+
 - name: Build DKMS modules for running kernel
   ansible.builtin.command: "dkms autoinstall -k {{ ansible_kernel }}"
   register: host_nvidia_dkms_autoinstall
@@ -475,6 +506,15 @@
   changed_when: false
   failed_when: false
 
+- name: Derive framebuffer-conflict fact for NVIDIA module-load diagnostics
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_framebuffer_conflict_detected: >-
+      {{
+        (host_nvidia_dmesg.stdout | default('')) is search('GPU .* is already bound to nvidiafb')
+        or
+        (host_nvidia_dmesg.stdout | default('')) is search('obtained ownership of the NVIDIA device')
+      }}
+
 - name: Assert NVIDIA modules could be loaded
   ansible.builtin.assert:
     that:
@@ -483,10 +523,12 @@
       Failed to load NVIDIA modules for kernel {{ ansible_kernel }}.
       Found module files in /lib/modules: {{ host_nvidia_module_files.matched }}.
       DKMS status: {{ host_nvidia_dkms_status_after.stdout | default('n/a') }}.
-      Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
-      Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}
-      NVIDIA PCI inventory: {{ host_nvidia_lspci_nnk.stdout | default('n/a') | regex_findall('(?ms)^.*NVIDIA.*(?:\\n\\s+.*)*') }}
-      Recent NVIDIA kernel log lines: {{ (host_nvidia_dmesg.stdout | default('') | regex_findall('(?m)^.*(?:NVRM|nvidia|nouveau).*$') | list)[-40:] }}
+      Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}.
+      Fallback errors: {{ host_nvidia_modprobe_fallback.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}.
+      Framebuffer conflict detected: {{ host_nvidia_gpu_framebuffer_conflict_detected | default(false) }}.
+      NVIDIA PCI inventory: {{ host_nvidia_lspci_nnk.stdout | default('n/a') | regex_findall('(?ms)^.*NVIDIA.*(?:\\n\\s+.*)*') }}.
+      Recent NVIDIA kernel log lines: {{ (host_nvidia_dmesg.stdout | default('') | regex_findall('(?m)^.*(?:NVRM|nvidia|nouveau).*$'))[-40:] }}.
+      If framebuffer conflict is true, ensure nvidiafb/nouveau are blacklisted, run update-initramfs, reboot, and rerun this role.
 - name: Trigger NVIDIA device node creation after modules are loaded
   ansible.builtin.command: nvidia-modprobe -u -c=0
   changed_when: false
