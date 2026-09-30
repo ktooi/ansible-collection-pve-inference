@@ -39,6 +39,34 @@ ct_runtime_vllm_nccl_ignore_disabled_p2p: 1
 ct_runtime_vllm_ld_library_path: "/usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu"
 ```
 
+### Optional text-to-speech (vLLM-Omni)
+
+TTS is disabled by default. Enable it to install `vllm-omni` and run Qwen3-TTS
+on a separate OpenAI-compatible endpoint. By default the role stops the regular
+vLLM service while TTS is active, avoiding two models competing for GPU memory.
+
+```yaml
+ct_runtime_vllm_tts_enabled: true
+# Defaults shown for clarity:
+ct_runtime_vllm_tts_model: "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+ct_runtime_vllm_tts_port: 8091
+```
+
+Generate a WAV file after deployment:
+
+```bash
+curl -X POST http://CT_ADDRESS:8091/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -d '{"input":"Hello from vLLM-Omni.","voice":"vivian","language":"English"}' \
+  --output output.wav
+```
+
+Set `ct_runtime_vllm_tts_run_alongside_vllm: true` only when the CT has enough
+GPU memory for both models. Qwen3-TTS Base (voice cloning) and VoiceDesign can
+be selected with `ct_runtime_vllm_tts_model`; the checkpoint must match the
+requested task type. Pin matching `ct_runtime_vllm_version` and
+`ct_runtime_vllm_tts_version` release lines for reproducible deployments.
+
 ## Flow
 ```mermaid
 flowchart TD
@@ -105,6 +133,19 @@ flowchart TD
 | `ct_runtime_vllm_version` | Pin version (optional) | `""` | Empty or semantic version string |
 | `ct_runtime_vllm_torch_package` | Optional explicit torch package to install in venv before CUDA probe | `""` | Empty or pip requirement string (e.g. `torch==2.6.0`) |
 | `ct_runtime_vllm_torch_extra_index_url` | Optional extra index URL used with `ct_runtime_vllm_torch_package` | `""` | Empty or URL |
+| `ct_runtime_vllm_tts_enabled` | Install vLLM-Omni and enable its TTS service | `false` | `true` / `false` |
+| `ct_runtime_vllm_tts_run_alongside_vllm` | Keep the regular vLLM service running with TTS | `false` | `true` / `false` |
+| `ct_runtime_vllm_tts_service_name` | TTS systemd unit name | `vllm-tts.service` | Valid unit name |
+| `ct_runtime_vllm_tts_env_file` | TTS environment file | `/etc/default/vllm-tts` | Absolute path |
+| `ct_runtime_vllm_tts_bind_host` | TTS API bind host | regular vLLM bind host | IP/host string |
+| `ct_runtime_vllm_tts_port` | TTS API port | `8091` | Integer `1..65535` |
+| `ct_runtime_vllm_tts_model` | vLLM-Omni TTS checkpoint | `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` | Supported TTS model identifier |
+| `ct_runtime_vllm_tts_deploy_config` | vLLM-Omni deploy configuration | `vllm_omni/deploy/qwen3_tts.yaml` | Packaged name or path |
+| `ct_runtime_vllm_tts_version` | vLLM-Omni version pin; inherits the vLLM pin | `{{ ct_runtime_vllm_version }}` | Empty or matching release version |
+| `ct_runtime_vllm_tts_trust_remote_code` | Pass `--trust-remote-code` to TTS server | `true` | `true` / `false` |
+| `ct_runtime_vllm_tts_extra_args` | Additional vLLM-Omni CLI arguments | `""` | String |
+| `ct_runtime_vllm_tts_stdout_log` | TTS stdout log file | `/var/log/inference/vllm-tts.stdout.log` | Absolute path |
+| `ct_runtime_vllm_tts_stderr_log` | TTS stderr log file | `/var/log/inference/vllm-tts.stderr.log` | Absolute path |
 
 
 > CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check.
@@ -124,3 +165,11 @@ flowchart TD
 > Served-model-name note: if shared launcher vars accidentally provide a list (for example `['qwen3.5', None]`), this role normalizes it to the first non-empty string. Passing `--served-model-name` is disabled by default (`ct_runtime_vllm_pass_served_model_name=false`) because some vLLM versions reject/validate this path strictly.
 
 > Extra-args note: `ct_runtime_vllm_extra_args` is appended only when non-empty, preventing empty trailing CLI arguments and accidental line-concatenation artifacts in systemd `ExecStart` parsing.
+
+> TTS alternatives: upstream vLLM itself accepts audio input but does not expose
+> general speech synthesis for the supported TTS checkpoints. vLLM-Omni is the
+> closest operational fit because it adds the OpenAI-compatible
+> `/v1/audio/speech` API while retaining vLLM's serving stack. A dedicated TTS
+> server such as Piper is a lighter alternative when throughput, voice cloning,
+> and a shared OpenAI-compatible API are not requirements; it should be deployed
+> as a separate runtime rather than mixed into this role.

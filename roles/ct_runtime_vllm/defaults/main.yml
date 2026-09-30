@@ -54,6 +54,23 @@ ct_runtime_vllm_version: ""
 ct_runtime_vllm_torch_package: ""
 ct_runtime_vllm_torch_extra_index_url: ""
 
+# Optional vLLM-Omni TTS service. This is intentionally opt-in and uses a
+# separate port so simultaneous serving can be enabled explicitly.
+ct_runtime_vllm_tts_enabled: false
+# Avoid loading two GPU-heavy models unless simultaneous serving is explicit.
+ct_runtime_vllm_tts_run_alongside_vllm: false
+ct_runtime_vllm_tts_service_name: vllm-tts.service
+ct_runtime_vllm_tts_env_file: /etc/default/vllm-tts
+ct_runtime_vllm_tts_bind_host: "{{ ct_runtime_vllm_bind_host }}"
+ct_runtime_vllm_tts_port: 8091
+ct_runtime_vllm_tts_model: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
+ct_runtime_vllm_tts_deploy_config: vllm_omni/deploy/qwen3_tts.yaml
+ct_runtime_vllm_tts_version: "{{ ct_runtime_vllm_version }}"
+ct_runtime_vllm_tts_trust_remote_code: true
+ct_runtime_vllm_tts_extra_args: ""
+ct_runtime_vllm_tts_stdout_log: /var/log/inference/vllm-tts.stdout.log
+ct_runtime_vllm_tts_stderr_log: /var/log/inference/vllm-tts.stderr.log
+
 ct_runtime_vllm_install_cuda_userspace: true
 ct_runtime_vllm_cuda_packages: "{{ ct_runtime_vllm_cuda_packages_os | default([]) }}"
 ct_runtime_vllm_require_libcuda: true

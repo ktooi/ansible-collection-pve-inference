@@ -7,3 +7,10 @@
   ansible.builtin.service:
     name: "{{ ct_runtime_vllm_service_name }}"
     state: restarted
+  when: not (ct_runtime_vllm_tts_enabled and not ct_runtime_vllm_tts_run_alongside_vllm)
+
+- name: Restart vllm tts
+  ansible.builtin.service:
+    name: "{{ ct_runtime_vllm_tts_service_name }}"
+    state: restarted
+  when: ct_runtime_vllm_tts_enabled

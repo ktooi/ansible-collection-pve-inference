@@ -3,6 +3,7 @@
 | PVE | Vendor  | Runtime | Status    | Notes |
 |-----|---------|---------|-----------|-------|
 | 8.x | NVIDIA  | vLLM    | Supported | Initial production path |
+| 8.x | NVIDIA  | vLLM-Omni TTS | Beta | Opt-in Qwen3-TTS service; disabled by default |
 | 9.x | NVIDIA  | vLLM    | Beta      | Needs additional validation |
 | 8.x | NVIDIA  | SGLang  | Planned   | Role skeleton only |
 | 8.x | NVIDIA  | TGI     | Planned   | Role skeleton only |

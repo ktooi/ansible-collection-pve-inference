@@ -235,6 +235,17 @@
     name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
     virtualenv: "{{ ct_runtime_vllm_venv }}"
 
+- name: Install vLLM-Omni package for TTS
+  ansible.builtin.pip:
+    name: >-
+      {{
+        ('vllm-omni==' ~ ct_runtime_vllm_tts_version)
+        if ct_runtime_vllm_tts_version | length > 0
+        else 'vllm-omni'
+      }}
+    virtualenv: "{{ ct_runtime_vllm_venv }}"
+  when: ct_runtime_vllm_tts_enabled
+
 - name: Probe NVIDIA driver runtime with nvidia-smi
   ansible.builtin.command:
     argv:
@@ -345,6 +356,42 @@
     - "{{ ct_runtime_vllm_stderr_log }}"
   when: ct_runtime_vllm_systemd_log_to_files
 
+- name: Ensure vLLM-Omni TTS log files exist when enabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: touch
+    owner: "{{ ct_runtime_vllm_user }}"
+    group: "{{ ct_runtime_vllm_group }}"
+    mode: "0644"
+  loop:
+    - "{{ ct_runtime_vllm_tts_stdout_log }}"
+    - "{{ ct_runtime_vllm_tts_stderr_log }}"
+  when:
+    - ct_runtime_vllm_tts_enabled
+    - ct_runtime_vllm_systemd_log_to_files
+
+- name: Render vLLM-Omni TTS environment file
+  ansible.builtin.template:
+    src: vllm-tts.env.j2
+    dest: "{{ ct_runtime_vllm_tts_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart vllm tts
+  when: ct_runtime_vllm_tts_enabled
+
+- name: Render vLLM-Omni TTS systemd service unit
+  ansible.builtin.template:
+    src: vllm-tts.service.j2
+    dest: "/etc/systemd/system/{{ ct_runtime_vllm_tts_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart vllm tts
+  when: ct_runtime_vllm_tts_enabled
+
 - name: Render vLLM systemd service unit
   ansible.builtin.template:
     src: vllm.service.j2
@@ -356,8 +403,35 @@
     - Reload systemd
     - Restart vllm
 
-- name: Enable and start vLLM service
+- name: Check for an existing vLLM-Omni TTS service unit
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ ct_runtime_vllm_tts_service_name }}"
+  register: ct_runtime_vllm_tts_service_unit
+  when: not ct_runtime_vllm_tts_enabled
+
+- name: Disable and stop vLLM-Omni TTS service
+  ansible.builtin.service:
+    name: "{{ ct_runtime_vllm_tts_service_name }}"
+    enabled: false
+    state: stopped
+  when:
+    - not ct_runtime_vllm_tts_enabled
+    - ct_runtime_vllm_tts_service_unit.stat.exists
+
+- name: Set regular vLLM service state
   ansible.builtin.service:
     name: "{{ ct_runtime_vllm_service_name }}"
+    enabled: "{{ not (ct_runtime_vllm_tts_enabled and not ct_runtime_vllm_tts_run_alongside_vllm) }}"
+    state: >-
+      {{
+        'stopped'
+        if (ct_runtime_vllm_tts_enabled and not ct_runtime_vllm_tts_run_alongside_vllm)
+        else 'started'
+      }}
+
+- name: Enable and start vLLM-Omni TTS service
+  ansible.builtin.service:
+    name: "{{ ct_runtime_vllm_tts_service_name }}"
     enabled: true
     state: started
+  when: ct_runtime_vllm_tts_enabled

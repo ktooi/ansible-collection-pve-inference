@@ -1,0 +1,18 @@
+[Unit]
+Description=vLLM-Omni OpenAI-compatible TTS API server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ ct_runtime_vllm_user }}
+Group={{ ct_runtime_vllm_group }}
+WorkingDirectory={{ ct_runtime_vllm_workdir }}
+EnvironmentFile={{ ct_runtime_vllm_tts_env_file }}
+ExecStart=/bin/bash -lc 'set -o pipefail; exec {{ ct_runtime_vllm_venv }}/bin/vllm serve ${INFER_VLLM_TTS_MODEL} --omni --deploy-config ${INFER_VLLM_TTS_DEPLOY_CONFIG} --host ${INFER_VLLM_TTS_BIND_HOST} --port ${INFER_VLLM_TTS_PORT}{% if ct_runtime_vllm_tts_trust_remote_code %} --trust-remote-code{% endif %}{{ (' ${INFER_VLLM_TTS_EXTRA_ARGS}') if (ct_runtime_vllm_tts_extra_args | length > 0) else '' }}{% if ct_runtime_vllm_systemd_log_to_files %} 2> >(tee -a {{ ct_runtime_vllm_tts_stderr_log }} >&2) | tee -a {{ ct_runtime_vllm_tts_stdout_log }}{% endif %}'
+Restart={{ ct_runtime_vllm_systemd_restart }}
+RestartSec={{ ct_runtime_vllm_systemd_restart_sec }}
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
