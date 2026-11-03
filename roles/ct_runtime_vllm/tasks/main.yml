@@ -2,6 +2,15 @@
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
+- name: Validate vLLM installation settings
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_backend in ['core', 'omni']
+      - ct_runtime_vllm_pip_state in ['present', 'latest']
+      - ct_runtime_vllm_additional_packages is sequence
+      - ct_runtime_vllm_additional_packages is not string
+    fail_msg: "Select backend core/omni and pip_state present/latest; additional_packages must be a list."
+
 - name: Normalize served model name for vLLM CLI
   ansible.builtin.set_fact:
     ct_runtime_vllm_served_model_name_effective: >-
@@ -230,10 +239,20 @@
       }}
   when: ct_runtime_vllm_torch_package | length > 0
 
-- name: Install vLLM package
+- name: Install vLLM and optional modality dependencies together
   ansible.builtin.pip:
-    name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
+    name: >-
+      {{
+        [('vllm[audio]' if ct_runtime_vllm_audio else 'vllm') ~
+         (('==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else '')]
+        + ([('vllm-omni' ~ (('==' ~ ct_runtime_vllm_omni_version)
+             if ct_runtime_vllm_omni_version | length > 0 else ''))]
+           if ct_runtime_vllm_backend == 'omni' else [])
+        + ct_runtime_vllm_additional_packages
+      }}
+    state: "{{ ct_runtime_vllm_pip_state }}"
     virtualenv: "{{ ct_runtime_vllm_venv }}"
+  notify: Restart vllm
 
 - name: Probe NVIDIA driver runtime with nvidia-smi
   ansible.builtin.command:
