@@ -473,5 +473,5 @@ MIT
 
 `ct_runtime_vllm` は通常の vLLM による文字起こし・対応モデルでの話者分離付き文字起こし、
 vLLM-Omni による画像/動画生成を選択できます。最新版の更新設定、モデル別の変数と API 利用例は
-[Role README](roles/ct_runtime_vllm/README.md#音声画像動画モデルのデプロイ) を参照してください。
+[Role README](roles/ct_runtime_vllm/README.md#deploying-audio-image-and-video-models) を参照してください。
 画像/動画生成には Omni と対応する GPU・Python・CUDA 環境が必要です。

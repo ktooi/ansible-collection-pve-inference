@@ -125,27 +125,30 @@ flowchart TD
 
 > Extra-args note: `ct_runtime_vllm_extra_args` is appended only when non-empty, preventing empty trailing CLI arguments and accidental line-concatenation artifacts in systemd `ExecStart` parsing.
 
-## 音声・画像・動画モデルのデプロイ
+## Deploying audio, image, and video models
 
-2026-11-03 に公式 main の資料を確認。対応モデル・API はインストールするリリースに依存します。
-main に記載された新機能が過去の安定版で使えるとは限りません。
+The official main-branch documentation was reviewed on 2026-11-03. Supported models
+and APIs depend on the installed release. New features documented on main may be
+unavailable in earlier stable releases.
 
-| 機能 | バックエンド | モデル例 / API |
+| Capability | Backend | Example model / API |
 |---|---|---|
-| STT（文字起こし） | core | `openai/whisper-large-v3-turbo` / `/v1/audio/transcriptions` |
-| 話者分離付き文字起こし | core | `OpenMOSS-Team/MOSS-Transcribe-Diarize` / 同 API の `diarized_json` |
-| 画像生成 | omni（vLLM-Omni が必要） | `Qwen/Qwen-Image` / `/v1/images/generations` |
-| 動画生成 | omni（vLLM-Omni が必要） | `Wan-AI/Wan2.2-T2V-A14B-Diffusers` / `/v1/videos` |
+| STT (transcription) | core | `openai/whisper-large-v3-turbo` / `/v1/audio/transcriptions` |
+| Transcription with speaker diarization | core | `OpenMOSS-Team/MOSS-Transcribe-Diarize` / `diarized_json` on the same API |
+| Image generation | omni (requires vLLM-Omni) | `Qwen/Qwen-Image` / `/v1/images/generations` |
+| Video generation | omni (requires vLLM-Omni) | `Wan-AI/Wan2.2-T2V-A14B-Diffusers` / `/v1/videos` |
 
-Whisper 自体は話者分離モデルではありません。`diarized_json` は対応モデル専用です。
-ここでの話者分離は話者ラベル・時間区間付き文字起こしであり、話者ごとの音声ファイルへの音源分離ではありません。
-通常の vLLM の画像・動画「入力」対応と、Omni の画像・動画「生成」対応は異なります。
+Whisper itself does not perform speaker diarization. `diarized_json` requires a
+model that supports it. Diarization here produces transcription segments with
+speaker labels and timestamps; it does not separate speakers into audio files.
+Core vLLM's image/video input support differs from Omni's image/video generation.
 
-### 共通の実行方法
+### Common deployment steps
 
-GPU パススルー済み CT と、`ct_targets` を含む inventory を用意し、下記のいずれかを
-`group_vars/ct_targets.yml` に設定します。1 サービスで 1 モデルを配置します。
-複数機能を同時提供する場合は CT ごとにモデルを分け、GPU メモリの割り当てを設計してください。
+Prepare a CT with GPU passthrough and an inventory containing `ct_targets`. Add one
+of the configurations below to `group_vars/ct_targets.yml`. Each service deploys one
+model. To serve multiple capabilities concurrently, use separate CTs for the models
+and plan GPU memory allocation.
 
 ```bash
 ansible-playbook -i inventory.ini playbooks/runtime_vllm.yml
@@ -167,7 +170,7 @@ curl --fail http://CT_HOST:8000/v1/audio/transcriptions \
   -F language=ja -F response_format=json
 ```
 
-### 話者分離付き STT
+### STT with speaker diarization
 
 ```yaml
 ct_runtime_vllm_backend: core
@@ -182,27 +185,29 @@ curl --fail http://CT_HOST:8000/v1/audio/transcriptions \
   -F response_format=diarized_json
 ```
 
-応答の `segments` に `speaker`、`start`、`end`、`text` が含まれます。
-採用リリースの対応モデル一覧に MOSS があることを確認してください。古い vLLM では更新が必要です。
+The response's `segments` contain `speaker`, `start`, `end`, and `text`.
+Check that MOSS appears in the selected release's supported model list. Older
+vLLM releases require an upgrade.
 
-### 画像生成 / 動画生成
+### Image generation / video generation
 
 ```yaml
 ct_runtime_vllm_backend: omni
 ct_runtime_vllm_model: Qwen/Qwen-Image
-# 動画生成では上記を次に置き換える:
+# For video generation, replace the model above with:
 # ct_runtime_vllm_model: Wan-AI/Wan2.2-T2V-A14B-Diffusers
 ct_runtime_vllm_version: '0.32.0'
 ct_runtime_vllm_omni_version: '0.32.0'
 ```
 
-0.32.0 の組み合わせは確認時の Omni 公式インストール手順に基づきます。
-公式のテスト環境は Python 3.12 / PyTorch 2.13 / CUDA 13.0 です。
-互換性のある NVIDIA ドライバと十分な VRAM が必要です。CT の OS 対応だけでは
-wheel・Python・CUDA の互換性を保証しません。新しい専用 venv を推奨します。
-`ct_runtime_common` とこの Role の venv 設定を同じパスに合わせてください。
-Omni では通常の LLM 用メモリ・KV cache・tool parser・並列化引数を自動追加しません。
-モデル固有の並列化や offload は公式手順に従い `ct_runtime_vllm_extra_args` で指定します。
+The 0.32.0 pairing follows the official Omni installation instructions reviewed
+above. The upstream test environment uses Python 3.12, PyTorch 2.13, and CUDA 13.0.
+A compatible NVIDIA driver and sufficient VRAM are required. CT OS support alone
+does not guarantee wheel, Python, or CUDA compatibility. Use a fresh dedicated venv
+and configure `ct_runtime_common` and this role to use the same venv path.
+For Omni, the role does not automatically add LLM memory, KV cache, tool parser,
+or parallelism arguments. Set model-specific parallelism and offloading options
+through `ct_runtime_vllm_extra_args`, following the official model instructions.
 
 ```bash
 curl --fail http://CT_HOST:8000/v1/images/generations \
@@ -214,35 +219,40 @@ curl --fail http://CT_HOST:8000/v1/videos \
   -F prompt='A cat walking through a garden'
 ```
 
-動画 API は非同期です。返された `id` を使い `GET /v1/videos/{id}` で完了を確認し、
-`GET /v1/videos/{id}/content` から保存します。解像度・フレーム数等はモデル固有です。
+The video API is asynchronous. Use the returned `id` to check completion with
+`GET /v1/videos/{id}`, then download the result from `GET /v1/videos/{id}/content`.
+Resolution, frame count, and other generation settings depend on the model.
 
-### 最新版への更新とバージョン管理
+### Upgrades and version management
 
-| 変数 | 既定値 | 用途 |
+| Variable | Default | Purpose |
 |---|---|---|
-| `ct_runtime_vllm_backend` | `core` | `core` または `omni` |
-| `ct_runtime_vllm_audio` | `false` | `vllm[audio]` の音声依存を追加 |
-| `ct_runtime_vllm_pip_state` | `present` | `latest` で Role 再実行時に更新 |
-| `ct_runtime_vllm_version` | 空文字 | vLLM のバージョン固定。空なら固定しない |
-| `ct_runtime_vllm_omni_version` | 空文字 | Omni のバージョン固定 |
-| `ct_runtime_vllm_additional_packages` | `[]` | モデル固有の追加 pip 要件 |
+| `ct_runtime_vllm_backend` | `core` | `core` or `omni` |
+| `ct_runtime_vllm_audio` | `false` | Add audio dependencies through `vllm[audio]` |
+| `ct_runtime_vllm_pip_state` | `present` | Set to `latest` to upgrade when rerunning the role |
+| `ct_runtime_vllm_version` | Empty string | Pin vLLM; leave empty for no version pin |
+| `ct_runtime_vllm_omni_version` | Empty string | Pin Omni; leave empty for no version pin |
+| `ct_runtime_vllm_additional_packages` | `[]` | Additional model-specific pip requirements |
 
-最新版を追従するにはバージョン固定を空にし `ct_runtime_vllm_pip_state: latest` を指定します。
-vLLM と Omni は同一 pip 呼び出しで依存解決し、更新時にサービス再起動を通知します。
-Omni の互換性制約によって選ばれる vLLM は、単独の vLLM 最新版とは異なる場合があります。
-本番環境では公式互換表に従って両方を固定し、更新前に専用 CT で実際の音声・生成リクエストを検証してください。
-任意の将来バージョンの動作を保証するものではありません。
-追加の CLI オプションは `ct_runtime_vllm_extra_args` で指定できます（管理者が信頼する値のみ）。
-モデル取得用のネットワーク接続と、必要に応じて Vault 管理の `ct_runtime_vllm_hf_token` を用意します。
-API は内部ネットワークや認証付きプロキシの背後で公開してください。
+To follow the latest releases, clear the version pins and set
+`ct_runtime_vllm_pip_state: latest`. vLLM and Omni dependencies are resolved in a
+single pip invocation, and package changes notify a service restart. Omni's
+compatibility constraints may select a different vLLM version from the latest
+standalone release. In production, pin both versions according to the upstream
+compatibility guidance and test actual audio or generation requests in a dedicated
+CT before upgrading. Compatibility with arbitrary future releases is not guaranteed.
+Pass additional CLI options through `ct_runtime_vllm_extra_args` using only values
+trusted by the administrator. Provide network access for model downloads and, when
+needed, a Vault-managed `ct_runtime_vllm_hf_token`. Expose the API on an internal
+network or behind an authenticated proxy.
 
-### 公式資料・検証範囲
+### Official references and validation scope
 
-- [vLLM 対応モデル](https://github.com/vllm-project/vllm/blob/9226d6e59cd12ddd9a80b7d5ed37b16e186d29c6/docs/models/supported_models.md)
+- [vLLM supported models](https://github.com/vllm-project/vllm/blob/9226d6e59cd12ddd9a80b7d5ed37b16e186d29c6/docs/models/supported_models.md)
 - [STT / diarized_json](https://github.com/vllm-project/vllm/blob/9226d6e59cd12ddd9a80b7d5ed37b16e186d29c6/docs/serving/online_serving/speech_to_text.md)
-- [Omni インストール](https://github.com/vllm-project/vllm-omni/blob/c4b31f0c56ab1f4e33f286c5d1c72268b8cf35a5/docs/getting_started/installation/gpu/cuda.inc.md)
-- [Omni 動画 API](https://github.com/vllm-project/vllm-omni/blob/c4b31f0c56ab1f4e33f286c5d1c72268b8cf35a5/docs/user_guide/examples/online_serving/text_to_video.md)
+- [Omni installation](https://github.com/vllm-project/vllm-omni/blob/c4b31f0c56ab1f4e33f286c5d1c72268b8cf35a5/docs/getting_started/installation/gpu/cuda.inc.md)
+- [Omni video API](https://github.com/vllm-project/vllm-omni/blob/c4b31f0c56ab1f4e33f286c5d1c72268b8cf35a5/docs/user_guide/examples/online_serving/text_to_video.md)
 
-この変更のローカル検証は設定・テンプレート・Ansible 構文までです。
-GPU でのモデルロード、認識精度、画像・動画生成の実機検証は未実施です。
+Local validation covers configuration, templates, and Ansible syntax. GPU model
+loading, recognition accuracy, and image/video generation have not been tested
+on deployment hardware.
