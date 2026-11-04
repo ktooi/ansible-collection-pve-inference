@@ -124,3 +124,135 @@ flowchart TD
 > Served-model-name note: if shared launcher vars accidentally provide a list (for example `['qwen3.5', None]`), this role normalizes it to the first non-empty string. Passing `--served-model-name` is disabled by default (`ct_runtime_vllm_pass_served_model_name=false`) because some vLLM versions reject/validate this path strictly.
 
 > Extra-args note: `ct_runtime_vllm_extra_args` is appended only when non-empty, preventing empty trailing CLI arguments and accidental line-concatenation artifacts in systemd `ExecStart` parsing.
+
+## Deploying audio, image, and video models
+
+The official main-branch documentation was reviewed on 2026-11-03. Supported models
+and APIs depend on the installed release. New features documented on main may be
+unavailable in earlier stable releases.
+
+| Capability | Backend | Example model / API |
+|---|---|---|
+| STT (transcription) | core | `openai/whisper-large-v3-turbo` / `/v1/audio/transcriptions` |
+| Transcription with speaker diarization | core | `OpenMOSS-Team/MOSS-Transcribe-Diarize` / `diarized_json` on the same API |
+| Image generation | omni (requires vLLM-Omni) | `Qwen/Qwen-Image` / `/v1/images/generations` |
+| Video generation | omni (requires vLLM-Omni) | `Wan-AI/Wan2.2-T2V-A14B-Diffusers` / `/v1/videos` |
+
+Whisper itself does not perform speaker diarization. `diarized_json` requires a
+model that supports it. Diarization here produces transcription segments with
+speaker labels and timestamps; it does not separate speakers into audio files.
+Core vLLM's image/video input support differs from Omni's image/video generation.
+
+### Common deployment steps
+
+Prepare a CT with GPU passthrough and an inventory containing `ct_targets`. Add one
+of the configurations below to `group_vars/ct_targets.yml`. Each service deploys one
+model. To serve multiple capabilities concurrently, use separate CTs for the models
+and plan GPU memory allocation.
+
+```bash
+ansible-playbook -i inventory.ini playbooks/runtime_vllm.yml
+```
+
+### STT
+
+```yaml
+ct_runtime_vllm_backend: core
+ct_runtime_vllm_audio: true
+ct_runtime_vllm_model: openai/whisper-large-v3-turbo
+ct_runtime_vllm_max_model_len: 448
+ct_runtime_vllm_max_num_batched_tokens: 4096
+```
+
+```bash
+curl --fail http://CT_HOST:8000/v1/audio/transcriptions \
+  -F model=openai/whisper-large-v3-turbo -F file=@speech.wav \
+  -F language=ja -F response_format=json
+```
+
+### STT with speaker diarization
+
+```yaml
+ct_runtime_vllm_backend: core
+ct_runtime_vllm_audio: true
+ct_runtime_vllm_model: OpenMOSS-Team/MOSS-Transcribe-Diarize
+ct_runtime_vllm_max_model_len: 8192
+```
+
+```bash
+curl --fail http://CT_HOST:8000/v1/audio/transcriptions \
+  -F model=OpenMOSS-Team/MOSS-Transcribe-Diarize -F file=@meeting.wav \
+  -F response_format=diarized_json
+```
+
+The response's `segments` contain `speaker`, `start`, `end`, and `text`.
+Check that MOSS appears in the selected release's supported model list. Older
+vLLM releases require an upgrade.
+
+### Image generation / video generation
+
+```yaml
+ct_runtime_vllm_backend: omni
+ct_runtime_vllm_model: Qwen/Qwen-Image
+# For video generation, replace the model above with:
+# ct_runtime_vllm_model: Wan-AI/Wan2.2-T2V-A14B-Diffusers
+ct_runtime_vllm_version: '0.32.0'
+ct_runtime_vllm_omni_version: '0.32.0'
+```
+
+The 0.32.0 pairing follows the official Omni installation instructions reviewed
+above. The upstream test environment uses Python 3.12, PyTorch 2.13, and CUDA 13.0.
+A compatible NVIDIA driver and sufficient VRAM are required. CT OS support alone
+does not guarantee wheel, Python, or CUDA compatibility. Use a fresh dedicated venv
+and configure `ct_runtime_common` and this role to use the same venv path.
+For Omni, the role does not automatically add LLM memory, KV cache, tool parser,
+or parallelism arguments. Set model-specific parallelism and offloading options
+through `ct_runtime_vllm_extra_args`, following the official model instructions.
+
+```bash
+curl --fail http://CT_HOST:8000/v1/images/generations \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen/Qwen-Image","prompt":"A cat in a garden","size":"1024x1024"}'
+
+curl --fail http://CT_HOST:8000/v1/videos \
+  -F model=Wan-AI/Wan2.2-T2V-A14B-Diffusers \
+  -F prompt='A cat walking through a garden'
+```
+
+The video API is asynchronous. Use the returned `id` to check completion with
+`GET /v1/videos/{id}`, then download the result from `GET /v1/videos/{id}/content`.
+Resolution, frame count, and other generation settings depend on the model.
+
+### Upgrades and version management
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ct_runtime_vllm_backend` | `core` | `core` or `omni` |
+| `ct_runtime_vllm_audio` | `false` | Add audio dependencies through `vllm[audio]` |
+| `ct_runtime_vllm_pip_state` | `present` | Set to `latest` to upgrade when rerunning the role |
+| `ct_runtime_vllm_version` | Empty string | Pin vLLM; leave empty for no version pin |
+| `ct_runtime_vllm_omni_version` | Empty string | Pin Omni; leave empty for no version pin |
+| `ct_runtime_vllm_additional_packages` | `[]` | Additional model-specific pip requirements |
+
+To follow the latest releases, clear the version pins and set
+`ct_runtime_vllm_pip_state: latest`. vLLM and Omni dependencies are resolved in a
+single pip invocation, and package changes notify a service restart. Omni's
+compatibility constraints may select a different vLLM version from the latest
+standalone release. In production, pin both versions according to the upstream
+compatibility guidance and test actual audio or generation requests in a dedicated
+CT before upgrading. Compatibility with arbitrary future releases is not guaranteed.
+Pass additional CLI options through `ct_runtime_vllm_extra_args` using only values
+trusted by the administrator. Provide network access for model downloads and, when
+needed, a Vault-managed `ct_runtime_vllm_hf_token`. Expose the API on an internal
+network or behind an authenticated proxy.
+
+### Official references and validation scope
+
+- [vLLM supported models](https://github.com/vllm-project/vllm/blob/9226d6e59cd12ddd9a80b7d5ed37b16e186d29c6/docs/models/supported_models.md)
+- [STT / diarized_json](https://github.com/vllm-project/vllm/blob/9226d6e59cd12ddd9a80b7d5ed37b16e186d29c6/docs/serving/online_serving/speech_to_text.md)
+- [Omni installation](https://github.com/vllm-project/vllm-omni/blob/c4b31f0c56ab1f4e33f286c5d1c72268b8cf35a5/docs/getting_started/installation/gpu/cuda.inc.md)
+- [Omni video API](https://github.com/vllm-project/vllm-omni/blob/c4b31f0c56ab1f4e33f286c5d1c72268b8cf35a5/docs/user_guide/examples/online_serving/text_to_video.md)
+
+Local validation covers configuration, templates, and Ansible syntax. GPU model
+loading, recognition accuracy, and image/video generation have not been tested
+on deployment hardware.
