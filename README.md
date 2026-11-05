@@ -385,12 +385,19 @@ If both `ct_instance_password` and `ct_instance_pubkey` are set, you can use eit
 
 ### Troubleshooting: `CT <vmid> already exists on node`
 
-If `ct_create.yml` fails with `CT <vmid> already exists`, re-run behavior should be idempotent.
-This collection now treats existing-CT errors as acceptable reruns (the module path is create-only for `state: present`) and continues with post-create steps.
+For `state: present`, the role accepts an existing-CT error only after
+`pct status <vmid>` verifies a local LXC CT on the SSH target.
+VMIDs are shared by QEMU VMs and CTs across the cluster, so an API message that
+`VM <vmid> already exists` may refer to a different resource.
 
 If you still see this error, verify that:
 
 - `ct_instance_vmid` points to the intended existing CT.
+- For a new CT, its VMID is unused across all VMs and CTs; inspect allocations
+  with `pvesh get /cluster/resources --type vm` on PVE. Obtain an unused candidate
+  with `pvesh get /cluster/nextid` (this does not reserve the ID).
+- The API destination, `ct_instance_node`, and inventory SSH destination refer
+  to the same PVE node and cluster when configuring host-side passthrough.
 - the role/task version in your execution environment is the latest one.
 
 ### Troubleshooting: /dev/nvidia* missing in CT

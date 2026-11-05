@@ -33,7 +33,10 @@ if the module reports an import failure.
    requires a suitable device/user/group mapping instead of assuming this setup.
 3. Adapt the example VMIDs, IPs, subnet, gateway, and bridge in `ct-stt.yml` and
    `ct-image.yml` to your site. Both CTs must reside on the GPU host whose device
-   nodes are being selected.
+   nodes are being selected. VMIDs 120 and 121 are examples, not reserved IDs:
+   choose unused IDs across all VMs and CTs in the cluster. On PVE,
+   `pvesh get /cluster/nextid` returns an unused candidate without reserving it.
+   `ct_instance_node` must match the PVE node reached by the inventory SSH host.
 4. Use the complete `host_vars/ct-stt.yml` and `host_vars/ct-image.yml` as the
    matching files under your inventory, adapting their CT addresses and SSH key
    paths. They include runtime foundation, venv/service paths, package versions,

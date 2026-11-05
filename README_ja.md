@@ -366,12 +366,14 @@ ct_runtime_vllm_hf_token: "{{ vault_hf_token }}"
 
 ### トラブルシューティング: `CT <vmid> already exists on node`
 
-`ct_create.yml` で `CT <vmid> already exists` が出る場合、再実行時の冪等性が崩れています。
-本 Collection は再実行時に Proxmox から既存 CT エラーを受けた場合、`state: present` の作成専用制約を考慮して許容し、後続設定へ進むよう改善しました。
+`state: present` の既存 CT エラーは、SSH 接続先の `pct status <vmid>` でローカルの LXC CT の存在を確認できた場合のみ許容します。
+VMID はクラスタ全体の QEMU VM と CT で共有されるため、API の `VM <vmid> already exists` は別のリソースを指す場合があります。
 
 継続して失敗する場合は次を確認してください。
 
 - `ct_instance_vmid` が意図した既存 CT と一致しているか
+- 新規 CT の VMID が、クラスタ内のすべての VM／CT に対して未使用か。PVE 上の `pvesh get /cluster/resources --type vm` で割り当てを確認できます。`pvesh get /cluster/nextid` は未使用候補を返しますが、ID は予約しません。
+- ホスト側パススルーを設定する場合、API 接続先、`ct_instance_node`、inventory の SSH 接続先が同じ PVE ノード・クラスタを指しているか
 - 実行環境の Role が最新版か
 
 ### トラブルシューティング: CT 内で /dev/nvidia* が見えない

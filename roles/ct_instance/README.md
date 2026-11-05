@@ -83,7 +83,7 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 > For vLLM on CUDA inside CT, enabling `ct_instance_enable_nvidia_passthrough` is typically required.
 
 
-> If CT already exists, the role treats the existing-CT error as an acceptable rerun and continues with post-create tasks to keep reruns idempotent.
+> An existing-CT error is accepted only after `pct status <vmid>` verifies a local LXC CT on the SSH target. A message that a VMID already exists is not sufficient: VMIDs are shared by QEMU VMs and CTs across the cluster.
 
 
 > When create waits hit timeout but CT is already present, the role can continue (`ct_instance_treat_timeout_as_existing_ct: true`).
@@ -93,6 +93,31 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 
 
 > Host-CUDA recommendation: for CT runtimes that require `${CUDA_HOME}/bin/nvcc`, set `ct_instance_nvidia_mount_host_cuda_toolkit=true` and `ct_instance_host_cuda_toolkit_path` to a real host toolkit path. In this mode, consider `ct_instance_nvidia_bind_driver_libraries=false` to avoid file-level bind mounts that can conflict with CT-side apt package management.
+
+## VMID conflicts and target-node checks
+
+With NVIDIA passthrough enabled, the role checks `/etc/pve/local` before lifecycle
+changes and requires its node name to match `ct_instance_node`. It rejects a
+local QEMU configuration at `/etc/pve/qemu-server/<vmid>.conf` before calling the
+API. Before writing passthrough settings, it also requires an existing local
+LXC configuration at `/etc/pve/lxc/<vmid>.conf`.
+
+For example, an API error saying `VM 121 already exists` together with a missing
+`/etc/pve/lxc/121.conf` can mean VMID 121 belongs to a QEMU VM.
+
+On the PVE host, inspect the allocation and obtain an unused ID candidate:
+
+```bash
+pvesh get /cluster/resources --type vm
+pvesh get /cluster/nextid
+```
+
+Set `ct_instance_vmid` in the CT's creation file to an unused cluster-wide ID
+before creating a new CT. The candidate is not reserved by querying it.
+When managing an existing CT, use its actual VMID and align the API destination,
+`ct_instance_node`, and inventory SSH destination with that CT's node and cluster.
+Fallback state is reset for each role invocation so one CT's recovery cannot
+suppress another CT's lifecycle failure.
 
 ## Select or share NVIDIA GPUs
 
