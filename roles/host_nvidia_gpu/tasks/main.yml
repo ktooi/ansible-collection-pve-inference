@@ -22,6 +22,9 @@
       host_nvidia_gpu_repository_source must be either 'debian' or 'nvidia'.
       Current value: {{ host_nvidia_gpu_repository_source }}.
 
+- name: Configure optional IPv4-only APT transport before refreshing repositories
+  ansible.builtin.import_tasks: apt_transport.yml
+
 - name: Configure NVIDIA CUDA apt repository via shared role
   ansible.builtin.include_role:
     name: ktooi.pve_inference.nvidia_cuda_repo_common

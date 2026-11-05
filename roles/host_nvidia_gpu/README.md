@@ -20,6 +20,8 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_packages` | NVIDIA driver stack packages | `['nvidia-driver','nvidia-kernel-dkms','nvidia-smi','nvidia-persistenced','nvidia-modprobe']` | Package list |
 | `host_nvidia_gpu_apt_default_release` | APT target release (`-t`) for NVIDIA-related installs | `""` | Empty or apt suite (e.g. `trixie-backports`) |
 | `host_nvidia_gpu_require_apt_default_release` | Fail if configured target release is unavailable in apt sources | `false` | `true` / `false` |
+| `host_nvidia_gpu_apt_force_ipv4` | Manage an IPv4-only transport override for all APT operations on this host | `false` | `true` / `false` |
+| `host_nvidia_gpu_apt_force_ipv4_config_path` | Role-owned APT override file, removed when the option is disabled | `/etc/apt/apt.conf.d/99-pve-inference-ipv4` | Absolute path in an existing APT configuration directory |
 | `host_nvidia_gpu_auto_select_open_kernel_module` | Prefer `nvidia-open-kernel-dkms` when available | `true` | `true` / `false` |
 | `host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus` | Minimum accepted `nvidia-driver` major for kernel `>=6.12` | `550` | Integer |
 | `host_nvidia_gpu_min_installed_driver_major` | Enforce minimum installed driver major after install (`0` disables) | `0` | Integer |
@@ -66,6 +68,12 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - All enabled APT sources must refresh successfully before NVIDIA installation.
   A third-party source failure (for example Zabbix `NOSPLIT`) requires repairing
   that source first; see [APT troubleshooting](../../docs/troubleshooting-apt.md).
+- If a one-off `apt-get -o Acquire::ForceIPv4=true --error-on=any update` succeeds
+  after normal updates fail, set `host_nvidia_gpu_apt_force_ipv4: true` in this
+  host's inventory to apply the workaround before CUDA repository bootstrap.
+  This affects all APT operations on the host, keeps TLS/signature verification,
+  and does not disable host or guest IPv6. Set it back to `false` and rerun the
+  role to remove only the role-owned file; other APT overrides are preserved.
 - This role validates implicit prerequisites (Debian family host, Proxmox kernel, exact headers, NVIDIA device nodes) and fails early if they are not met.
 - The role simulates apt install and aborts when the plan would remove `proxmox-ve`.
 - When `host_nvidia_gpu_apt_default_release` is set but unavailable in apt sources, the role warns and falls back to normal apt behavior unless strict mode is enabled.

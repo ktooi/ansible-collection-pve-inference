@@ -26,92 +26,89 @@ The logged source therefore also needs a distribution check. A stale suite and a
 invalid HTTP response are separate issues; the log does not prove which upstream
 network component returned the invalid response.
 
-## Follow-up results from the affected environment
+## Confirmed observations and mitigation
 
-The host reported `debian 13 (trixie)`. A HEAD request to the logged HTTP URL
-returned `404 Not Found` with `Content-Type: text/html`, which is not repository
-metadata and is consistent with the APT parsing failure. A HEAD request to the
-HTTPS `trixie` URL failed with curl error 7: TCP port 443 could not be reached.
+The follow-up checks established:
 
-These results identify two blockers: an invalid HTTP response and unavailable
-HTTPS connectivity from the tested host. Changing the source to HTTPS alone will
-not resolve both. Curl error 7 occurs before an HTTP response or TLS certificate
-verification, so it does not establish whether the HTTPS repository path exists
-or whether a signing key is valid. The available results do not identify which
-DNS server, proxy, firewall, route, or remote endpoint caused the failure.
+| Check | Result |
+|---|---|
+| Host distribution | Debian 13 (`trixie`) |
+| Configured Zabbix source | `/etc/apt/sources.list.d/zabbix.sources`, HTTP, `bookworm` |
+| Initial HTTP HEAD request | HTTP 404 with `Content-Type: text/html` |
+| Initial HTTPS request | Connection failed before TLS/HTTP |
+| IPv4 HTTPS requests to Zabbix and Debian | HTTP 200, including Zabbix's `trixie/InRelease` |
+| `apt-get -o Acquire::ForceIPv4=true --error-on=any update` | Successful refresh of all enabled sources, including signed Zabbix `bookworm` metadata |
 
-The original inventory target was `pve-01-nas`, while the follow-up shell prompt
-showed `pve-01`. Confirm these refer to the same machine before applying the
-follow-up diagnosis to the original run.
+IPv4-only APT is therefore a demonstrated mitigation for the reported failure.
+The earlier invalid response is consistent with `NOSPLIT`; it does not establish
+that the upstream repository is unsigned. The old `bookworm` source is a separate
+configuration issue: it refreshed successfully with IPv4 but is still the wrong
+base distribution for this host.
 
-## Repair the affected host
+One NSS lookup expanded the hostname with the site's search suffix and returned
+a different IP from curl. Later IPv4 lookups of the bare name, the absolute name,
+and a `ndots:1` override all agreed. This suggests a resolver/dual-stack or transient
+DNS issue, but the exact fault is not established. There is no evidence supporting
+a permanent `ndots` change or a permanent block of all HTTPS traffic. Do not
+hardcode the working IP or disable host IPv6 based on these results.
 
-Run the following checks on the PVE host named in the failure, not on the Ansible
-controller or an inference CT.
+### Apply the opt-in workaround with the host role
 
-1. Confirm the base distribution and locate the Zabbix entries:
+First retry a normal `apt-get --error-on=any update`. If it now succeeds, leave
+the option disabled: a transient failure does not require a permanent transport
+override. If the normal refresh still fails while IPv4-only succeeds, set this
+only for the affected host in inventory:
 
-   ```bash
-   . /etc/os-release
-   printf '%s %s (%s)\n' "$ID" "$VERSION_ID" "$VERSION_CODENAME"
-   pveversion
-   sudo grep -RnsE --include='*.list' --include='*.sources' \
-     'repo[.]zabbix[.]com' /etc/apt
-   ```
+```yaml
+host_nvidia_gpu_apt_force_ipv4: true
+```
 
-2. Establish HTTPS reachability before changing the source. Compare Zabbix with
-   Debian using IPv4 and report only connection status, without credentials:
+The updated `host_nvidia_gpu` role writes
+`/etc/apt/apt.conf.d/99-pve-inference-ipv4` before invoking the shared CUDA repository
+role. Its directive is:
 
-   ```bash
-   getent ahosts repo.zabbix.com
-   curl -4 -sS -I -o /dev/null --connect-timeout 5 --max-time 15 \
-     -w 'Zabbix: ip=%{remote_ip} http=%{http_code} connect=%{http_connect}\n' \
-     https://repo.zabbix.com/zabbix/7.4/stable/debian/dists/trixie/InRelease
-   curl -4 -sS -I -o /dev/null --connect-timeout 5 --max-time 15 \
-     -w 'Debian: ip=%{remote_ip} http=%{http_code} connect=%{http_connect}\n' \
-     https://deb.debian.org/debian/dists/trixie/InRelease
-   ```
+```text
+Acquire::ForceIPv4 "true";
+```
 
-   If both HTTPS destinations fail, investigate host-wide HTTPS egress, routing,
-   or the configured proxy. If only Zabbix fails, investigate its resolved address,
-   destination-specific policy, and endpoint availability. If IPv4 succeeds while
-   the original request fails, compare IPv6 reachability before changing address
-   selection. A nonzero `connect` status can indicate a proxy CONNECT response;
-   a zero value alone does not establish that no proxy is configured.
+This selects IPv4 for all APT operations on that host, including Ansible's APT
+module, while preserving TLS and package-signature verification. It does not
+disable host/guest IPv6. The default is `false`; rerunning the role with `false`
+removes only its owned override file. Other APT configuration is preserved.
+The file path is configurable with `host_nvidia_gpu_apt_force_ipv4_config_path`.
 
-   Use the site's intended proxy and network path. Keep TLS verification enabled
-   and do not hardcode an unverified repository IP. These probes narrow the scope;
-   they do not establish the exact network fault by themselves.
+## Repair the affected Zabbix source and rerun
 
-3. Back up and edit the specific file found above. This example assumes the
-   conventional `zabbix.list` filename; use the actual filename on your host.
+Run host-side commands on the original failing PVE host. The inventory alias was
+`pve-01-nas`; confirm it refers to the same machine as the diagnostic shell.
+
+1. Back up the confirmed source file and edit only the Zabbix stanza:
 
    ```bash
-   apt_repair_source=/etc/apt/sources.list.d/zabbix.list
+   apt_repair_source=/etc/apt/sources.list.d/zabbix.sources
    sudo cp -a -- "$apt_repair_source" \
      "${apt_repair_source}.$(date +%Y%m%d%H%M%S).bak"
    sudoedit "$apt_repair_source"
    ```
 
-   For the reported Zabbix 7.4 / Debian 13 host, check these values against the
-   [Zabbix package installation instructions](https://www.zabbix.com/documentation/7.4/en/manual/installation/install_from_packages/debian_ubuntu):
+   For Zabbix 7.4 on the confirmed Debian 13 host, set these two fields:
 
-   | Setting | Logged value | Value for the reported Debian 13 host |
-   |---|---|---|
-   | Repository URI | `http://repo.zabbix.com/zabbix/7.4/stable/debian` | `https://repo.zabbix.com/zabbix/7.4/stable/debian` |
-   | Distribution suite | `bookworm` | `trixie` |
+   ```text
+   URIs: https://repo.zabbix.com/zabbix/7.4/stable/debian
+   Suites: trixie
+   ```
 
-   Preserve the existing architecture, components, and `signed-by` keyring.
-   For deb822 `.sources` files, the corresponding fields are `URIs` and `Suites`.
-   Use the vendor's Debian 13 release configuration if its required keyring or
-   package layout differs. Do not replace `bookworm` across all APT sources or
-   change the installed Zabbix major version as a workaround.
+   Preserve `Types`, `Components`, the existing `Signed-By` keyring, and any
+   architecture settings. This is a stanza edit, not a replacement of the whole
+   file. Consult the [Zabbix installation instructions](https://www.zabbix.com/documentation/7.4/en/manual/installation/install_from_packages/debian_ubuntu)
+   if the release configuration or keyring needs updating. Do not replace
+   `bookworm` across all system sources or change the Zabbix major version.
 
-4. Once HTTPS connects, inspect the metadata response without installing it:
+2. If needed, inspect the metadata response over the working IPv4 HTTPS path:
 
    ```bash
    apt_repair_metadata=$(mktemp)
-   curl --fail --location --proto '=https' --proto-redir '=https' \
+   curl -4 --fail --location --proto '=https' --proto-redir '=https' \
      --output "$apt_repair_metadata" \
      https://repo.zabbix.com/zabbix/7.4/stable/debian/dists/trixie/InRelease
    head -n 1 "$apt_repair_metadata"
@@ -119,31 +116,34 @@ controller or an inference CT.
    ```
 
    A valid InRelease starts with `-----BEGIN PGP SIGNED MESSAGE-----`. This is a
-   format check, not signature verification. A redirect to a login page, HTML, or
-   an HTTP error needs to be fixed at the repository/proxy/network layer. Keep TLS
-   verification enabled. APT and curl may have different proxy configuration, so
-   a successful curl request alone is insufficient.
+   format check, not signature verification. APT and curl can have different
+   resolver or proxy behavior, so a successful curl request alone is insufficient.
 
-5. Require a successful, authenticated refresh of all enabled sources:
+3. Require a successful authenticated refresh after the source edit:
 
    ```bash
-   sudo apt-get --error-on=any update
+   sudo apt-get -o Acquire::ForceIPv4=true --error-on=any update
    ```
 
-   If Zabbix is no longer used, an alternative is to disable only its affected
-   entry: comment out that `deb` line in a `.list` file, or set `Enabled: no` on
-   that Zabbix stanza in a `.sources` file. This stops package updates from that
-   repository; do it only when that is intended. Preserve other sources, including
-   Debian and Proxmox, and require the same successful APT refresh afterward.
+   The successful reported run used the old `bookworm` source. The new `trixie`
+   source must pass this check independently. If an error names another source,
+   repair that source too rather than ignoring it or using stale metadata.
 
-6. Rerun the original playbook from the controller:
+4. Install/apply the updated Collection, set the per-host variable above, and
+   rerun from the controller:
 
    ```bash
    ansible-playbook -i inventory/ host_nvidia_gpu.yml -D -l pve-01-nas
    ```
 
-Do not skip the cache update to continue with stale metadata. The GPU role does
-not manage Zabbix or silently disable third-party sources.
+If Zabbix is no longer used, another option is to set `Enabled: no` on only its
+stanza. That stops package updates from that repository and should be intentional.
+The GPU role does not silently edit or disable Zabbix sources.
+
+After resolving the underlying network issue, set the IPv4 option back to `false`,
+rerun the role, and verify a normal `apt-get --error-on=any update`. Do not change
+networking or restart network services on the PVE host merely to remove this APT
+workaround.
 
 ## Warnings that did not stop this run
 
@@ -156,7 +156,8 @@ establish NVIDIA driver, CUDA, or vLLM compatibility on the target.
 ## Validation scope
 
 The malformed-InRelease failure can be reproduced with isolated local APT state.
-Regression tests exercise the role's failure reporting and ensure it stops before
-CUDA keyring/repository changes. These checks do not establish the condition of
-the remote Zabbix endpoint or the user's PVE host. Apply the source repair and
-verify `apt-get --error-on=any update` on that host before rerunning deployment.
+Regression tests exercise failure reporting, stop-before-CUDA behavior, and the
+IPv4 override's creation, idempotency, removal, and native APT syntax. The user
+verified that a one-off IPv4 APT refresh succeeded on the host. The new role's
+full deployment and the corrected `trixie` Zabbix source remain to be verified
+on that host.
