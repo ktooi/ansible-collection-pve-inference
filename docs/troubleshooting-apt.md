@@ -26,6 +26,24 @@ The logged source therefore also needs a distribution check. A stale suite and a
 invalid HTTP response are separate issues; the log does not prove which upstream
 network component returned the invalid response.
 
+## Follow-up results from the affected environment
+
+The host reported `debian 13 (trixie)`. A HEAD request to the logged HTTP URL
+returned `404 Not Found` with `Content-Type: text/html`, which is not repository
+metadata and is consistent with the APT parsing failure. A HEAD request to the
+HTTPS `trixie` URL failed with curl error 7: TCP port 443 could not be reached.
+
+These results identify two blockers: an invalid HTTP response and unavailable
+HTTPS connectivity from the tested host. Changing the source to HTTPS alone will
+not resolve both. Curl error 7 occurs before an HTTP response or TLS certificate
+verification, so it does not establish whether the HTTPS repository path exists
+or whether a signing key is valid. The available results do not identify which
+DNS server, proxy, firewall, route, or remote endpoint caused the failure.
+
+The original inventory target was `pve-01-nas`, while the follow-up shell prompt
+showed `pve-01`. Confirm these refer to the same machine before applying the
+follow-up diagnosis to the original run.
+
 ## Repair the affected host
 
 Run the following checks on the PVE host named in the failure, not on the Ansible
@@ -41,7 +59,31 @@ controller or an inference CT.
      'repo[.]zabbix[.]com' /etc/apt
    ```
 
-2. Back up and edit the specific file found above. This example assumes the
+2. Establish HTTPS reachability before changing the source. Compare Zabbix with
+   Debian using IPv4 and report only connection status, without credentials:
+
+   ```bash
+   getent ahosts repo.zabbix.com
+   curl -4 -sS -I -o /dev/null --connect-timeout 5 --max-time 15 \
+     -w 'Zabbix: ip=%{remote_ip} http=%{http_code} connect=%{http_connect}\n' \
+     https://repo.zabbix.com/zabbix/7.4/stable/debian/dists/trixie/InRelease
+   curl -4 -sS -I -o /dev/null --connect-timeout 5 --max-time 15 \
+     -w 'Debian: ip=%{remote_ip} http=%{http_code} connect=%{http_connect}\n' \
+     https://deb.debian.org/debian/dists/trixie/InRelease
+   ```
+
+   If both HTTPS destinations fail, investigate host-wide HTTPS egress, routing,
+   or the configured proxy. If only Zabbix fails, investigate its resolved address,
+   destination-specific policy, and endpoint availability. If IPv4 succeeds while
+   the original request fails, compare IPv6 reachability before changing address
+   selection. A nonzero `connect` status can indicate a proxy CONNECT response;
+   a zero value alone does not establish that no proxy is configured.
+
+   Use the site's intended proxy and network path. Keep TLS verification enabled
+   and do not hardcode an unverified repository IP. These probes narrow the scope;
+   they do not establish the exact network fault by themselves.
+
+3. Back up and edit the specific file found above. This example assumes the
    conventional `zabbix.list` filename; use the actual filename on your host.
 
    ```bash
@@ -65,7 +107,7 @@ controller or an inference CT.
    package layout differs. Do not replace `bookworm` across all APT sources or
    change the installed Zabbix major version as a workaround.
 
-3. If downloads still fail, inspect the HTTPS response without installing it:
+4. Once HTTPS connects, inspect the metadata response without installing it:
 
    ```bash
    apt_repair_metadata=$(mktemp)
@@ -82,7 +124,7 @@ controller or an inference CT.
    verification enabled. APT and curl may have different proxy configuration, so
    a successful curl request alone is insufficient.
 
-4. Require a successful, authenticated refresh of all enabled sources:
+5. Require a successful, authenticated refresh of all enabled sources:
 
    ```bash
    sudo apt-get --error-on=any update
@@ -94,7 +136,7 @@ controller or an inference CT.
    repository; do it only when that is intended. Preserve other sources, including
    Debian and Proxmox, and require the same successful APT refresh afterward.
 
-5. Rerun the original playbook from the controller:
+6. Rerun the original playbook from the controller:
 
    ```bash
    ansible-playbook -i inventory/ host_nvidia_gpu.yml -D -l pve-01-nas
