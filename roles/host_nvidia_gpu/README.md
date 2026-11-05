@@ -20,6 +20,8 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_packages` | NVIDIA driver stack packages | `['nvidia-driver','nvidia-kernel-dkms','nvidia-smi','nvidia-persistenced','nvidia-modprobe']` | Package list |
 | `host_nvidia_gpu_apt_default_release` | APT target release (`-t`) for NVIDIA-related installs | `""` | Empty or apt suite (e.g. `trixie-backports`) |
 | `host_nvidia_gpu_require_apt_default_release` | Fail if configured target release is unavailable in apt sources | `false` | `true` / `false` |
+| `host_nvidia_gpu_apt_force_ipv4` | Manage an IPv4-only transport override for all APT operations on this host | `false` | `true` / `false` |
+| `host_nvidia_gpu_apt_force_ipv4_config_path` | Role-owned APT override file, removed when the option is disabled | `/etc/apt/apt.conf.d/99-pve-inference-ipv4` | Absolute path in an existing APT configuration directory |
 | `host_nvidia_gpu_auto_select_open_kernel_module` | Prefer `nvidia-open-kernel-dkms` when available | `true` | `true` / `false` |
 | `host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus` | Minimum accepted `nvidia-driver` major for kernel `>=6.12` | `550` | Integer |
 | `host_nvidia_gpu_min_installed_driver_major` | Enforce minimum installed driver major after install (`0` disables) | `0` | Integer |
@@ -37,7 +39,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_manage_framebuffer_blacklist` | Manage `/etc/modprobe.d/host-nvidia-gpu-blacklist.conf` to blacklist `nouveau`/`nvidiafb` conflicts | `true` | `true` / `false` |
 | `host_nvidia_gpu_reboot_after_framebuffer_blacklist` | Reboot automatically when framebuffer blacklist changed | `true` | `true` / `false` |
 | `host_nvidia_gpu_post_reboot_delay` | Seconds to wait after automatic reboot before continuing tasks | `20` | Integer `>=0` |
-| `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
+| `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that creates core and UVM device nodes | `true` | `true` / `false` |
 | `host_nvidia_gpu_uvm_device_service_name` | systemd unit name for UVM device recreation | `nvidia-uvm-devices.service` | Valid unit name |
 | `host_nvidia_gpu_uvm_device_service_after` | Units that should start before UVM device recreation | `[systemd-modules-load.service]` | List of systemd unit names |
 | `host_nvidia_gpu_uvm_device_service_before` | Units that should wait for UVM device recreation | `[pve-guests.service]` | List of systemd unit names |
@@ -48,6 +50,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_power_limit_script_path` | Path to generated host power-limit helper script | `/usr/local/sbin/host-apply-nvidia-power-limit.sh` | Absolute path |
 | `host_nvidia_gpu_require_pve_kernel` | Enforce running `*-pve` kernel precondition | `true` | `true` / `false` |
 | `host_nvidia_gpu_require_nvidia_devices` | Enforce `/dev/nvidia*` existence check | `true` | `true` / `false` |
+| `host_nvidia_gpu_expected_gpu_count` | Require exactly this many GPUs in `nvidia-smi -L`; `0` disables the count check | `0` | Non-negative integer |
 | `host_nvidia_gpu_block_proxmox_removal` | Abort if apt plan would remove `proxmox-ve` | `true` | `true` / `false` |
 | `host_nvidia_gpu_require_exact_headers` | Require exact running-kernel headers | `true` | `true` / `false` |
 | `host_nvidia_gpu_repository_source` | NVIDIA package source selector | `debian` | `debian`, `nvidia` |
@@ -57,8 +60,34 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_nvidia_cuda_repo_keyring_path` | Installed keyring path used for signed-by | `/usr/share/keyrings/cuda-archive-keyring.gpg` | Absolute path |
 | `host_nvidia_gpu_nvidia_cuda_repo_list_filename` | apt sources list filename for NVIDIA repo | `nvidia-cuda` | filename without extension |
 | `host_nvidia_gpu_use_cuda_drivers_meta` | Use NVIDIA repo `cuda-drivers` meta package instead of distro `nvidia-driver`/`nvidia-kernel-dkms` entries | `false` | `true` / `false` |
+| `host_nvidia_gpu_install_cuda_toolkit` | Optionally install host CUDA toolkit (nvcc) for CT mount use-cases | `false` | `true` / `false` |
+| `host_nvidia_gpu_cuda_toolkit_packages` | Toolkit packages used when `host_nvidia_gpu_install_cuda_toolkit=true` | `['nvidia-cuda-toolkit']` | Package list |
+| `host_nvidia_gpu_cuda_home_hint` | Hint path used in warnings/assertions for host toolkit mount target | `/usr/local/cuda` | Absolute path |
+| `host_nvidia_gpu_require_nvcc_when_toolkit_enabled` | Fail when toolkit provisioning is enabled but nvcc is still unavailable | `true` | `true` / `false` |
 
 ## Notes
+- All enabled APT sources must refresh successfully before NVIDIA installation.
+  A third-party source failure (for example Zabbix `NOSPLIT`) requires repairing
+  that source first; see [APT troubleshooting](../../docs/troubleshooting-apt.md).
+- If Ansible becomes `UNREACHABLE` while creating its remote temporary directory
+  with `No space left on device`, check both free bytes and inodes on the affected
+  filesystem. See [host storage recovery](../../docs/troubleshooting-host-storage.md).
+- Core and UVM device nodes are requested separately. The role explicitly creates
+  `/dev/nvidiactl` (minor 255) as well as `/dev/nvidia0` and UVM nodes, and includes
+  helper exit codes in missing-node failures. See [device-node troubleshooting](../../docs/troubleshooting-nvidia-nodes.md).
+- If the install simulation reports unmet NVIDIA/CUDA dependencies, inspect
+  installed/candidate versions, holds, and a no-removal repair simulation before
+  changing packages. See [NVIDIA package recovery](../../docs/troubleshooting-nvidia-packages.md).
+- The role checks `dpkg --audit` before NVIDIA repository/package operations and
+  stops on unfinished package state. Package repair remains an explicit host
+  administration step; the role does not automatically upgrade or remove drivers
+  to recover from an interrupted installation.
+- If a one-off `apt-get -o Acquire::ForceIPv4=true --error-on=any update` succeeds
+  after normal updates fail, set `host_nvidia_gpu_apt_force_ipv4: true` in this
+  host's inventory to apply the workaround before CUDA repository bootstrap.
+  This affects all APT operations on the host, keeps TLS/signature verification,
+  and does not disable host or guest IPv6. Set it back to `false` and rerun the
+  role to remove only the role-owned file; other APT overrides are preserved.
 - This role validates implicit prerequisites (Debian family host, Proxmox kernel, exact headers, NVIDIA device nodes) and fails early if they are not met.
 - The role simulates apt install and aborts when the plan would remove `proxmox-ve`.
 - When `host_nvidia_gpu_apt_default_release` is set but unavailable in apt sources, the role warns and falls back to normal apt behavior unless strict mode is enabled.
@@ -75,6 +104,13 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - To enforce a CUDA 12.8-class host baseline in automation, set `host_nvidia_gpu_min_installed_driver_major: 570`.
 - If Debian official repositories do not provide a required driver major (for example 570+), set `host_nvidia_gpu_repository_source: nvidia` and `host_nvidia_gpu_manage_nvidia_cuda_repo: true` to let this role configure NVIDIA's official CUDA apt repository before package installation.
 - If `nvidia-driver` still resolves to older distro packages, enable `host_nvidia_gpu_use_cuda_drivers_meta: true` so this role installs NVIDIA's `cuda-drivers` meta package path from the configured CUDA repository.
+- If you plan to run CTs in host-CUDA mode and need `${CUDA_HOME}/bin/nvcc`, enable `host_nvidia_gpu_install_cuda_toolkit: true` so this role also provisions host-side toolkit binaries.
+- PATH-based `nvcc` discovery uses a POSIX shell builtin and reports actual
+  presence/absence before deciding whether optional toolkit installation is needed.
+- A toolkit APT failure stops the role immediately and retains the original error.
+  `host_nvidia_gpu_require_nvcc_when_toolkit_enabled: false` relaxes only the final
+  compiler-availability check; it does not allow a failed package installation.
+- When `host_nvidia_gpu_repository_source: nvidia` is selected and toolkit provisioning is enabled, this role auto-discovers the newest available `cuda-toolkit-<major>-<minor>` package from apt metadata and prefers it over Debian `nvidia-cuda-toolkit` naming.
 - `nvidia-persistenced` start failure is treated as an error by default (`host_nvidia_gpu_fail_on_persistenced_start: true`) and the role includes `systemctl status` + `journalctl` output in the failure message for diagnosis. You can explicitly opt into warning-only continuation by setting `host_nvidia_gpu_fail_on_persistenced_start: false`.
 - Before starting `nvidia-persistenced`, this role ensures the service user is present and appended to `host_nvidia_gpu_persistenced_device_groups` (default `video`) so it can open `/dev/nvidia*` nodes.
 - The role also normalizes ownership/permissions of discovered NVIDIA character devices to `root:{{ host_nvidia_gpu_device_node_group }}` with mode `{{ host_nvidia_gpu_device_node_mode }}` before starting `nvidia-persistenced`.
@@ -82,10 +118,18 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - The role now probes `nvidia-smi -L` before attempting `nvidia-persistenced`; if this probe fails, the role fails early with guidance to fix driver runtime readiness (typically reboot-after-driver-update or resolving kernel/userspace mismatch) before service startup.
 - If you need one pass that configures packages/services before a planned reboot, set `host_nvidia_gpu_allow_degraded_nvidia_smi_after_install: true` to continue with a warning when the probe fails; rerun the role after reboot and return this setting to `false`.
 - If `nvidia-smi` reports `Driver/library version mismatch`, you can set `host_nvidia_gpu_auto_reboot_on_nvml_mismatch: true` to let this role reboot host automatically, re-probe, and continue in a single run. After reboot, the role also retries `nvidia-modprobe`/`modprobe` + `nvidia-smi -L` to absorb short post-boot driver bring-up lag.
+- NVML mismatch detection examines both stdout and stderr. Automatic reboot
+  remains controlled by the existing explicit setting; inspect the loaded and
+  on-disk module versions and DKMS state before enabling it.
+- For a four-GPU host, set `host_nvidia_gpu_expected_gpu_count: 4` to require four
+  GPUs in the final userspace inventory. This validates recognition; it does not
+  rebind GPUs assigned to another driver or create driver registrations. See
+  [multi-GPU troubleshooting](../../docs/troubleshooting-multi-gpu.md) for comparing
+  PCI visibility, driver binding, NVML versions, and library context.
 - By default, the role blacklists `nouveau` and `nvidiafb` via `/etc/modprobe.d/host-nvidia-gpu-blacklist.conf` and runs `update-initramfs -u`. This addresses failures where logs show `GPU ... is already bound to nvidiafb`. A reboot is then triggered by default (`host_nvidia_gpu_reboot_after_framebuffer_blacklist: true`) so blacklist changes are actually applied.
 
 ### Boot ordering for CT GPU passthrough
 
 If a GPU CT starts before the PVE host has recreated `/dev/nvidia-uvm*`, LXC can bind-mount placeholder regular files into the CT. Inside the CT this commonly appears as mode `----------` for `/dev/nvidia-uvm` and `/dev/nvidia-uvm-tools`, and CUDA runtimes such as vLLM may fail until the CT is restarted.
 
-Keep `host_nvidia_gpu_ensure_uvm_device_service: true` on GPU CT hosts. The generated `nvidia-uvm-devices.service` runs `nvidia-modprobe -u -c=0`, waits for `/dev/nvidiactl` and `/dev/nvidia-uvm` to become character devices, and starts before `pve-guests.service` by default. If your site starts GPU CTs through another host-side unit, add that unit name to `host_nvidia_gpu_uvm_device_service_before`.
+Keep `host_nvidia_gpu_ensure_uvm_device_service: true` on GPU CT hosts. The generated `nvidia-uvm-devices.service` runs `nvidia-modprobe -c=0 -c=255` and then `nvidia-modprobe -u -c=0`, waits for `/dev/nvidiactl` and `/dev/nvidia-uvm` to become character devices, and starts before `pve-guests.service` by default. If your site starts GPU CTs through another host-side unit, add that unit name to `host_nvidia_gpu_uvm_device_service_before`.

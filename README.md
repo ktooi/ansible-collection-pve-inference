@@ -486,3 +486,11 @@ Detailed role docs:
 ## License
 
 MIT
+
+## vLLM: STT, speaker diarization, and image/video generation
+
+`ct_runtime_vllm` supports transcription and speaker-labeled transcription with supported
+models through core vLLM, and image/video generation through vLLM-Omni. See the
+[role README](roles/ct_runtime_vllm/README.md#deploying-audio-image-and-video-models)
+for upgrade settings, model-specific variables, and API examples.
+Image/video generation requires Omni and a compatible GPU, Python, and CUDA environment.

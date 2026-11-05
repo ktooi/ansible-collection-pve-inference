@@ -1,0 +1,24 @@
+---
+- name: Inspect unfinished dpkg transactions before NVIDIA package operations
+  ansible.builtin.command:
+    argv:
+      - dpkg
+      - --audit
+  register: host_nvidia_gpu_dpkg_audit
+  changed_when: false
+  environment:
+    LANG: C
+    LC_ALL: C
+
+- name: Require a consistent dpkg state before NVIDIA package operations
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_dpkg_audit.stdout | trim | length == 0
+    fail_msg: >-
+      dpkg reports unfinished or inconsistent package state. Complete a reviewed
+      repair before rerunning GPU preparation. Free disk space alone does not
+      configure packages left unpacked by an interrupted installation. Inspect
+      apt-mark showhold, apt-cache policy, and apt-get -s --no-remove --fix-broken
+      install; check storage requirements before applying the proposed repair.
+      See docs/troubleshooting-nvidia-packages.md.
+      dpkg audit: {{ host_nvidia_gpu_dpkg_audit.stdout }}

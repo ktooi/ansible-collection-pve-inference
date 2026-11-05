@@ -1,0 +1,16 @@
+---
+- name: Enable IPv4-only APT transport when explicitly requested
+  ansible.builtin.copy:
+    dest: "{{ host_nvidia_gpu_apt_force_ipv4_config_path }}"
+    content: |
+      Acquire::ForceIPv4 "true";
+    owner: root
+    group: root
+    mode: "0644"
+  when: host_nvidia_gpu_apt_force_ipv4 | bool
+
+- name: Remove this role's IPv4 APT override when disabled
+  ansible.builtin.file:
+    path: "{{ host_nvidia_gpu_apt_force_ipv4_config_path }}"
+    state: absent
+  when: not (host_nvidia_gpu_apt_force_ipv4 | bool)
