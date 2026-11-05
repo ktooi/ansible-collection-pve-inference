@@ -63,6 +63,9 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_require_nvcc_when_toolkit_enabled` | Fail when toolkit provisioning is enabled but nvcc is still unavailable | `true` | `true` / `false` |
 
 ## Notes
+- All enabled APT sources must refresh successfully before NVIDIA installation.
+  A third-party source failure (for example Zabbix `NOSPLIT`) requires repairing
+  that source first; see [APT troubleshooting](../../docs/troubleshooting-apt.md).
 - This role validates implicit prerequisites (Debian family host, Proxmox kernel, exact headers, NVIDIA device nodes) and fails early if they are not met.
 - The role simulates apt install and aborts when the plan would remove `proxmox-ve`.
 - When `host_nvidia_gpu_apt_default_release` is set but unavailable in apt sources, the role warns and falls back to normal apt behavior unless strict mode is enabled.
