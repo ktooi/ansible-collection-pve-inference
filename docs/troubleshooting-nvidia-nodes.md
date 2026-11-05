@@ -83,10 +83,12 @@ persistenced startup, updated boot-time unit, and final `nvidia-smi` checks all
 completed. This verifies the configured host-role checks on the running system;
 it does not establish cold-boot behavior or CT/vLLM inference.
 
-The manual GPU inventory shown during troubleshooting contained one RTX 3090.
-The user subsequently reported that four cards should be connected. Recognition
-of all four remains a separate open validation item: PCI enumeration, NVIDIA
-driver registration, device minors, and userspace inventory must be compared
-before attributing it to device-node creation or recommending a reboot.
-See [multi-GPU troubleshooting](troubleshooting-multi-gpu.md) for the subsequent
-PCI/driver inventory, NVML mismatch diagnosis, and expected-count policy.
+The initial manual inventory showed one RTX 3090 although four were connected.
+Follow-up diagnostics found a loaded/on-disk driver mismatch and PCI BAR
+allocation failures for the other three cards. After preparing and rebooting to
+`7.0.14-28-pve` with NVIDIA `620.70.06`, the user reported all four GPUs in
+`nvidia-smi`, all four bound to `nvidia`, and no preceding BAR/probe failures in
+the filtered current-boot log. See
+[multi-GPU troubleshooting](troubleshooting-multi-gpu.md#confirmed-recovery) for
+the recovery evidence and expected-count policy. Post-reboot service/node
+assertions and CT inference are not established by the GPU inventory alone.

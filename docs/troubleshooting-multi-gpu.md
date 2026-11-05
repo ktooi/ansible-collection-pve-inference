@@ -1,5 +1,31 @@
 # Four PCI GPUs but an incomplete NVIDIA userspace inventory
 
+## Confirmed recovery
+
+The operator reported all four RTX 3090 cards after preparing the updated kernel
+and rebooting on 2026-11-05:
+
+| Check | Reported result |
+|---|---|
+| Running kernel | `7.0.14-28-pve` |
+| Loaded NVIDIA module | `620.70.06` |
+| `nvidia-smi` inventory | Four RTX 3090 cards, indices `0` through `3`, all reporting driver `620.70.06` |
+| PCI driver binding | All four display functions at `05:00.0`, `06:00.0`, `09:00.0`, and `0a:00.0` use `nvidia` |
+| Filtered current-boot log | No preceding BAR allocation failures, NVIDIA probe failures, or NVML API mismatch |
+
+This confirms host recognition of all four cards on the reported updated-kernel
+boot. The recovery followed the capacity expansion, exact target-header/module
+installation, initramfs update, and planned reboot described below. It does not
+isolate a particular kernel patch or establish a kernel regression as the cause
+of the earlier BAR allocation failure.
+
+The current boot still logged `module verification failed: signature and/or
+required key missing - tainting kernel`. This indicates that the kernel could
+not verify the module signature with a trusted key; the module was accepted and
+all four GPUs initialized in this boot. GPU recognition does not establish
+trusted module-signing readiness. Do not disable signature enforcement as a
+workaround for this warning.
+
 ## Observed state
 
 The reported host-role run completed its configured checks with one visible RTX
@@ -34,10 +60,11 @@ Further diagnostics established two independent faults:
 | Clean library-search `nvidia-smi` | Still fails with NVML library `620.70` mismatch |
 | GPUs at `06:00.0`, `09:00.0`, `0a:00.0` | BAR allocation failed; NVIDIA reported `BAR0 is 0M @ 0x0` and probe failure |
 
-The old module remains loaded while newer modules/libraries are installed. A
-planned reboot can load the built 620 module and resolve that version mismatch.
-The kernel explicitly reports PCI resource assignment failures for the other
-three cards, so a reboot alone is not a demonstrated four-GPU fix.
+At that point, the old module remained loaded while newer modules/libraries were
+installed. The kernel also explicitly reported PCI resource assignment failures
+for the other three cards. Those diagnostics required checking the target
+kernel's module readiness before a planned reboot; they did not establish that
+rebooting the existing configuration alone would restore all four cards.
 
 `BAR ... can't assign; no space` refers to PCI MMIO address allocation, not disk
 blocks or free RAM. Repeating APT cache cleanup does not repair it. Firmware's
@@ -200,7 +227,8 @@ journalctl -k -b --no-pager | grep -Ei 'NVRM|nvidia.*(error|fail)|BAR.*(no space
 
 Require the `-28` kernel, loaded NVIDIA `620.70.06`, four physical GPUs, and no
 corresponding BAR/probe failures in the current boot. A successful module build
-does not establish those runtime results; reboot validation is still pending.
+does not establish those runtime results. The operator's post-reboot output
+confirmed these results; see [confirmed recovery](#confirmed-recovery).
 
 Past kernel behavior can sometimes be compared without booting old software by
 reading archived logs, if retained:
@@ -221,10 +249,6 @@ References:
 - [Linux PCI kernel parameters](https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/kernel-parameters.txt) (`realloc` / `realloc=on`)
 - [Proxmox system booting and kernel command line](https://github.com/proxmox/pve-docs/blob/master/system-booting.adoc)
 
-After the planned reboot, check the loaded module version, `nvidia-smi -L`, all
-four NVIDIA PCI driver bindings, and fresh BAR/NVRM errors. Require four GPUs in
-the role before considering the multi-GPU recovery complete.
-
 ## Require the intended inventory
 
 For a host intended to expose all four cards through the NVIDIA driver, set:
@@ -238,11 +262,20 @@ fails if the count differs. `0` is the compatible default and disables this coun
 policy. MIG child lines are excluded. This validates recognition; it does not
 change PCI bindings or load a GPU the kernel has not registered.
 
+After updating the installed Collection, rerun the operator's original host
+playbook from its controller directory with the count requirement:
+
+```bash
+ansible-playbook -i inventory/ -e host_nvidia_gpu_apt_force_ipv4=true \
+  -e host_nvidia_gpu_expected_gpu_count=4 host_nvidia_gpu.yml -D -l pve-01-nas
+```
+
 NVML mismatch detection now checks both stdout and stderr. The existing
 `host_nvidia_gpu_auto_reboot_on_nvml_mismatch` option remains explicit and defaults
 to `false`. Check module readiness and guest impact before enabling it. Local
 tests exercise stream detection and count policy without calling reboot.
 
-Four-GPU readiness and a reboot recovery have not yet been demonstrated by the
-reported data. The earlier successful playbook establishes only its configured
-checks on the running system with one visible GPU.
+The reported reboot confirms four-GPU recognition. The earlier successful
+playbook establishes its configured checks with one visible GPU; a subsequent
+playbook result with the four-GPU requirement has not yet been reported. These
+host checks do not establish CT/vLLM inference or behavior after a full power-off.
