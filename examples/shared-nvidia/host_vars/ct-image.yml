@@ -1,0 +1,7 @@
+---
+ct_runtime_vllm_backend: omni
+ct_runtime_vllm_model: stabilityai/stable-diffusion-xl-base-1.0
+ct_runtime_vllm_version: '0.32.0'
+ct_runtime_vllm_omni_version: '0.32.0'
+# Add only options supported by the selected Omni model/release.
+ct_runtime_vllm_extra_args: ''

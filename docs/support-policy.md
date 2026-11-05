@@ -1,8 +1,9 @@
 # Support Policy
 
 ## Proxmox VE versions
-- PVE 8.x: **Supported**
-- PVE 9.x: **Beta**
+- PVE 9.1.x: **Supported (Main)**
+- PVE 8.x: **Supported (Compatibility path)**
+- PVE 9.0.x / other 9.x minors: **Best-effort**
 
 ## Scope notes
 - Primary virtualization target: LXC Container (CT).
@@ -13,5 +14,6 @@
 - Additional runtime/vendor support is added incrementally and tracked in matrix documents.
 
 ## Stability guidance
-- Use PVE 8.x for production-critical deployments.
-- Use PVE 9.x when you can tolerate compatibility drift.
+- Prefer PVE 9.1.x for production-critical deployments.
+- Use PVE 8.x as a compatibility path when migration is pending.
+- Treat non-9.1 9.x minors as best-effort and verify before production rollout.

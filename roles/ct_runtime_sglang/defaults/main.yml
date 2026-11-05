@@ -11,5 +11,7 @@ ct_runtime_sglang_model: "{{ ct_runtime_launcher_model | default('Qwen/Qwen2.5-7
 ct_runtime_sglang_tensor_parallel_size: "{{ ct_runtime_launcher_tensor_parallel_size | default(1) }}"
 ct_runtime_sglang_context_length: "{{ ct_runtime_launcher_context_length | default(8192) }}"
 ct_runtime_sglang_dtype: "{{ ct_runtime_launcher_dtype | default('auto') }}"
+ct_runtime_sglang_enable_mtp: false
+ct_runtime_sglang_mtp_num_draft_tokens: 3
 ct_runtime_sglang_extra_args: "{{ ct_runtime_launcher_extra_args | default('') }}"
 ct_runtime_sglang_version: ""

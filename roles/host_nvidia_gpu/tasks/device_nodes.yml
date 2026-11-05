@@ -1,0 +1,12 @@
+---
+# -u selects UVM instead of the core device family. Request both separately;
+# minor 255 explicitly creates nvidiactl even if its udev event was missed.
+- name: Request NVIDIA core and UVM character device nodes
+  ansible.builtin.command:
+    argv: "{{ item }}"
+  loop:
+    - [nvidia-modprobe, '-c=0', '-c=255']
+    - [nvidia-modprobe, '-u', '-c=0']
+  register: host_nvidia_device_node_creation
+  changed_when: false
+  failed_when: false

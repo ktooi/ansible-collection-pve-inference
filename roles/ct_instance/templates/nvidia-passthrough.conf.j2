@@ -1,0 +1,19 @@
+{% for device in ct_instance_nvidia_devices.cgroup_devices %}
+lxc.cgroup2.devices.allow: c {{ device.major }}:{{ device.minor }} rwm
+{% endfor %}
+{% for device in ct_instance_nvidia_devices.device_nodes %}
+lxc.mount.entry: {{ device.path }} dev/{{ device.name }} none bind,optional,create=file
+{% endfor %}
+{% if ct_instance_nvidia_devices.caps_directory %}
+lxc.mount.entry: {{ ct_instance_nvidia_devices.caps_directory }} dev/nvidia-caps none bind,optional,create=dir
+{% endif %}
+{% if ct_instance_nvidia_bind_driver_libraries | bool %}
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libcuda.so.1 usr/lib/x86_64-linux-gnu/libcuda.so.1 none bind,optional,create=file
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 none bind,optional,create=file
+{% endif %}
+{% if ct_instance_nvidia_mount_host_cuda_toolkit | bool %}
+lxc.mount.entry: {{ ct_instance_host_cuda_toolkit_path }} {{ ct_instance_host_cuda_toolkit_path | regex_replace('^/', '') }} none bind,optional,create=dir
+{% if ct_instance_nvidia_mount_host_cuda_toolkit_into_nvidia_prefix | bool %}
+lxc.mount.entry: {{ ct_instance_host_cuda_toolkit_path }} usr/local/nvidia none bind,optional,create=dir
+{% endif %}
+{% endif %}

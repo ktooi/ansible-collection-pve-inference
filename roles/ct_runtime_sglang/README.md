@@ -31,5 +31,7 @@ Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaL
 | `ct_runtime_sglang_tensor_parallel_size` | Tensor parallel size | `{{ ct_runtime_launcher_tensor_parallel_size | default(1) }}` | Integer `>=1` |
 | `ct_runtime_sglang_context_length` | Context length | `{{ ct_runtime_launcher_context_length | default(8192) }}` | Integer `>=1` |
 | `ct_runtime_sglang_dtype` | Dtype | `{{ ct_runtime_launcher_dtype | default('auto') }}` | Runtime-supported dtype |
+| `ct_runtime_sglang_enable_mtp` | Enable SGLang MTP-style speculative decoding (EAGLE settings for DeepSeek-style MTP) | `false` | `true` / `false` |
+| `ct_runtime_sglang_mtp_num_draft_tokens` | Draft tokens used with MTP/EAGLE flags when enabled | `3` | Integer `>=1` |
 | `ct_runtime_sglang_extra_args` | Extra launcher args | `{{ ct_runtime_launcher_extra_args | default('') }}` | String |
 | `ct_runtime_sglang_version` | Optional pinned package version | `""` | Empty or version string |

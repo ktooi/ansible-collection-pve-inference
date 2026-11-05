@@ -49,7 +49,12 @@ flowchart TD
 | `ct_instance_treat_timeout_as_existing_ct` | On create-time timeout, continue when CT exists (`pct status <vmid>` succeeds) | `true` | `true` / `false` |
 | `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA device passthrough entries in `/etc/pve/lxc/<vmid>.conf` | `false` | `true` / `false` |
 | `ct_instance_restart_on_nvidia_passthrough_change` | Restart CT when passthrough block changes | `true` | `true` / `false` |
-| `ct_instance_nvidia_passthrough_block` | Raw LXC config block for NVIDIA passthrough | built-in default block | Multiline LXC config text |
+| `ct_instance_nvidia_gpus` | Host GPU device nodes exposed to this CT | `null` | `all`, non-empty list of unique non-negative integers, or `null` |
+| `ct_instance_nvidia_passthrough_block` | Complete raw override; non-empty values bypass automatic device discovery and feature flags | `""` (automatic generation) | Multiline LXC config text |
+| `ct_instance_nvidia_bind_driver_libraries` | Include file-level binds for `libcuda.so.1`/`libnvidia-ml.so.1` in managed NVIDIA passthrough block | `true` | `true` / `false` |
+| `ct_instance_nvidia_mount_host_cuda_toolkit` | Bind-mount host CUDA toolkit directory into CT in managed NVIDIA passthrough block | `false` | `true` / `false` |
+| `ct_instance_host_cuda_toolkit_path` | Host toolkit path used when `ct_instance_nvidia_mount_host_cuda_toolkit=true` | `/usr/local/cuda` | Absolute path |
+| `ct_instance_nvidia_mount_host_cuda_toolkit_into_nvidia_prefix` | Also bind-mount host CUDA toolkit into CT `/usr/local/nvidia` path to satisfy runtimes that resolve nvcc/toolkit under that prefix | `true` | `true` / `false` |
 | `ct_instance_state` | Desired CT state | `present` | `present` / `absent` / module-supported states |
 
 
@@ -67,4 +72,47 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 > When create waits hit timeout but CT is already present, the role can continue (`ct_instance_treat_timeout_as_existing_ct: true`).
 > Also, passthrough restart logic tolerates `pct stop` returning `CT <vmid> not running`.
 
-> NVIDIA UVM majors can vary by host/driver (for example `/dev/nvidia-uvm` major `503` on newer stacks). The built-in passthrough block includes common UVM/caps majors, and you can still override `ct_instance_nvidia_passthrough_block` if your host uses a different major.
+> Automatic passthrough inspects actual character-device major/minor numbers, including UVM and capability devices. Rerun this role after driver updates, device changes, or a reboot that changes those numbers. If the managed block changes, the existing CT restart option applies.
+
+
+> Host-CUDA recommendation: for CT runtimes that require `${CUDA_HOME}/bin/nvcc`, set `ct_instance_nvidia_mount_host_cuda_toolkit=true` and `ct_instance_host_cuda_toolkit_path` to a real host toolkit path. In this mode, consider `ct_instance_nvidia_bind_driver_libraries=false` to avoid file-level bind mounts that can conflict with CT-side apt package management.
+
+## Select or share NVIDIA GPUs
+
+To expose every available GPU to a CT:
+
+```yaml
+ct_instance_enable_nvidia_passthrough: true
+ct_instance_nvidia_gpus: all
+```
+
+Set the same selection for multiple CTs to share those GPUs. For example, STT and
+image-generation CTs can both use `all`. For a subset, use `[0, 2]`. Numbers refer
+to host device names (`/dev/nvidia0`, `/dev/nvidia2`), not container-local CUDA
+ordinals. They do not set `CUDA_VISIBLE_DEVICES` or model parallelism.
+
+The default `null` preserves the legacy GPU 0/1 selection, including only those
+nodes that exist as character devices. It does not automatically expose additional
+GPUs. Explicit lists must contain valid, available device numbers; missing GPUs,
+empty/duplicate lists, negative numbers, booleans, and numeric strings fail before
+CT lifecycle changes. `all` requires at least one available GPU.
+
+The role also requires `/dev/nvidiactl` and `/dev/nvidia-uvm`, includes existing
+modeset/UVM-tools/capability devices, and generates exact cgroup major/minor rules
+without GPU-major wildcards. Prepare the host driver and device nodes first with
+`host_nvidia_gpu`. The read-only discovery module supports check mode.
+
+Automatic generation retains the driver-library and host-toolkit flags above.
+For a complete custom configuration, set `ct_instance_nvidia_passthrough_block`
+to a non-empty string. That block is used directly: GPU selection, discovery,
+and automatic library/toolkit entries are skipped. Restore an empty string to
+return to automatic generation.
+
+Only the marked `ANSIBLE MANAGED NVIDIA PASSTHROUGH` block is replaced. Existing
+unmanaged GPU mounts or wildcard permissions can still expose other devices.
+Disabling passthrough skips management; it does not remove an existing block.
+
+Sharing does not reserve GPUs, impose CT VRAM quotas, or schedule inference.
+Keep per-model memory budgets and parallelism in the runtime configuration.
+See [the shared STT/image example](../../examples/shared-nvidia/README.md) for
+separate CT definitions and runtime host variables.

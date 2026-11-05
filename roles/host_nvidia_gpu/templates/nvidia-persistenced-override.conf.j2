@@ -1,0 +1,7 @@
+[Service]
+{% if host_nvidia_gpu_persistenced_run_as_root %}
+User=root
+Group=root
+ExecStart=
+ExecStart=/usr/bin/nvidia-persistenced
+{% endif %}

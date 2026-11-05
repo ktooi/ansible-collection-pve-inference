@@ -1,4 +1,7 @@
 ---
+- name: Prepare NVIDIA passthrough before CT lifecycle changes
+  ansible.builtin.import_tasks: nvidia_passthrough.yml
+
 - name: Normalize Proxmox feature flags for module input
   ansible.builtin.set_fact:
     ct_instance_features_effective: >-
@@ -115,19 +118,49 @@
       ansible.builtin.fail:
         msg: "{{ ct_instance_manage_result.msg | default('CT lifecycle failed') }}"
 
+# Purpose: Warn operators about dpkg cross-device-link risks when binding individual NVIDIA library files.
+- name: Warn when CT NVIDIA file-level library binds are enabled
+  ansible.builtin.debug:
+    msg: >-
+      ct_instance_nvidia_bind_driver_libraries=true mounts individual NVIDIA library files into CT.
+      If CT also manages NVIDIA/CUDA packages with apt, dpkg cross-device link errors can occur.
+      For host-CUDA workflows, prefer ct_instance_nvidia_bind_driver_libraries=false and mount a full toolkit path.
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_state != 'absent'
+    - ct_instance_nvidia_passthrough_block | trim | length == 0
+    - ct_instance_nvidia_bind_driver_libraries | bool
 
+# Purpose: Inform operators that host toolkit mount mode requires aligned CT runtime CUDA settings.
+- name: Warn when host CUDA toolkit mount is enabled
+  ansible.builtin.debug:
+    msg: >-
+      ct_instance_nvidia_mount_host_cuda_toolkit=true will bind-mount {{ ct_instance_host_cuda_toolkit_path }} into CT.
+      Align ct_runtime_vllm_cuda_home with this path and disable CT-side CUDA package remediation.
+      {% if ct_instance_nvidia_mount_host_cuda_toolkit_into_nvidia_prefix %}
+      Also mounting {{ ct_instance_host_cuda_toolkit_path }} into /usr/local/nvidia so FlashInfer/vLLM paths that resolve /usr/local/nvidia/bin/nvcc
+      can access the full toolkit layout (including include/cuda_runtime.h) instead of only an nvcc binary symlink.
+      {% endif %}
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_state != 'absent'
+    - ct_instance_nvidia_passthrough_block | trim | length == 0
+    - ct_instance_nvidia_mount_host_cuda_toolkit | bool
+
+# Purpose: Persist managed NVIDIA passthrough entries into the CT's LXC configuration file.
 - name: Configure NVIDIA device passthrough in LXC config
   become: true
   ansible.builtin.blockinfile:
     path: "/etc/pve/lxc/{{ ct_instance_vmid }}.conf"
     marker: "# {mark} ANSIBLE MANAGED NVIDIA PASSTHROUGH"
-    block: "{{ ct_instance_nvidia_passthrough_block }}"
+    block: "{{ ct_instance_nvidia_passthrough_block_effective }}"
     insertafter: EOF
   when:
     - ct_instance_enable_nvidia_passthrough | bool
     - ct_instance_state != 'absent'
   register: ct_instance_nvidia_passthrough_result
 
+# Purpose: Restart container lifecycle (stop) when passthrough configuration changed and restart is enabled.
 - name: Stop CT to apply NVIDIA passthrough config changes
   become: true
   ansible.builtin.command: "pct stop {{ ct_instance_vmid }}"
@@ -144,6 +177,7 @@
     - ct_instance_nvidia_passthrough_result is changed
     - ct_instance_state != 'absent'
 
+# Purpose: Restart container lifecycle (start) after passthrough configuration changes are applied.
 - name: Start CT after NVIDIA passthrough config change
   become: true
   ansible.builtin.command: "pct start {{ ct_instance_vmid }}"

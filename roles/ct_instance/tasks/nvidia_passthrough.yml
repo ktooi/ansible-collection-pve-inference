@@ -1,0 +1,30 @@
+---
+- name: Prepare enabled NVIDIA passthrough
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_state != 'absent'
+  block:
+    - name: Validate the NVIDIA passthrough override
+      ansible.builtin.assert:
+        that:
+          - ct_instance_nvidia_passthrough_block is string
+        fail_msg: "ct_instance_nvidia_passthrough_block must be a string; use an empty string for automatic generation."
+
+    - name: Honor an explicit NVIDIA passthrough block
+      ansible.builtin.set_fact:
+        ct_instance_nvidia_passthrough_block_effective: "{{ ct_instance_nvidia_passthrough_block }}"
+      when: ct_instance_nvidia_passthrough_block | trim | length > 0
+
+    - name: Generate NVIDIA passthrough from the selected host devices
+      when: ct_instance_nvidia_passthrough_block | trim | length == 0
+      block:
+        - name: Inspect selected NVIDIA GPU and common character devices
+          become: true
+          ktooi.pve_inference.nvidia_device_info:
+            gpus: "{{ ct_instance_nvidia_gpus if ct_instance_nvidia_gpus is not none else omit }}"
+          register: ct_instance_nvidia_devices
+
+        - name: Build the NVIDIA passthrough block from actual device numbers
+          ansible.builtin.set_fact:
+            ct_instance_nvidia_passthrough_block_effective: >-
+              {{ lookup('ansible.builtin.template', role_path ~ '/templates/nvidia-passthrough.conf.j2') }}
