@@ -392,8 +392,9 @@
     - (host_nvidia_gpu_cuda_toolkit_pkg_candidates.stdout_lines | default([]) | reject('equalto', '') | list | length) == 0
 
 # Purpose: Detect whether nvcc is already present on host before optional toolkit provisioning.
+# command -v is a POSIX shell builtin, not an executable for the command module.
 - name: Probe nvcc on host
-  ansible.builtin.command: command -v nvcc
+  ansible.builtin.shell: command -v nvcc
   register: host_nvidia_gpu_nvcc_path
   changed_when: false
   failed_when: false
@@ -413,7 +414,7 @@
 
 # Purpose: Re-check nvcc availability after toolkit installation attempt.
 - name: Re-probe nvcc on host after toolkit install attempt
-  ansible.builtin.command: command -v nvcc
+  ansible.builtin.shell: command -v nvcc
   register: host_nvidia_gpu_nvcc_path_after
   changed_when: false
   failed_when: false

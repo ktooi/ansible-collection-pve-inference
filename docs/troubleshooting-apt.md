@@ -164,5 +164,8 @@ The malformed-InRelease failure can be reproduced with isolated local APT state.
 Regression tests exercise failure reporting, stop-before-CUDA behavior, and the
 IPv4 override's creation, idempotency, removal, and native APT syntax. The user
 verified that an IPv4 APT refresh succeeded on the host and that a subsequent
-normal refresh reproduced the failure. The new role's full deployment and the
-corrected `trixie` Zabbix source remain to be verified on that host.
+normal refresh reproduced the failure. A later deployment confirmed that the
+role-created IPv4 override, APT bootstrap, CUDA repository setup, and matching PVE
+header installation completed. The run then stopped on a remote temporary-directory
+space error; see [host storage recovery](troubleshooting-host-storage.md).
+Full GPU readiness and the corrected `trixie` Zabbix source remain to be verified.
