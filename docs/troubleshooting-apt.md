@@ -38,8 +38,11 @@ The follow-up checks established:
 | Initial HTTPS request | Connection failed before TLS/HTTP |
 | IPv4 HTTPS requests to Zabbix and Debian | HTTP 200, including Zabbix's `trixie/InRelease` |
 | `apt-get -o Acquire::ForceIPv4=true --error-on=any update` | Successful refresh of all enabled sources, including signed Zabbix `bookworm` metadata |
+| Subsequent normal `apt-get --error-on=any update` | The same Zabbix `NOSPLIT` failure recurred |
 
-IPv4-only APT is therefore a demonstrated mitigation for the reported failure.
+The normal-versus-IPv4 APT comparison reproduces the transport-dependent failure;
+IPv4-only APT is a verified mitigation for this host, not merely an untested
+suggestion after a single failed request.
 The earlier invalid response is consistent with `NOSPLIT`; it does not establish
 that the upstream repository is unsigned. The old `bookworm` source is a separate
 configuration issue: it refreshed successfully with IPv4 but is still the wrong
@@ -47,9 +50,10 @@ base distribution for this host.
 
 One NSS lookup expanded the hostname with the site's search suffix and returned
 a different IP from curl. Later IPv4 lookups of the bare name, the absolute name,
-and a `ndots:1` override all agreed. This suggests a resolver/dual-stack or transient
-DNS issue, but the exact fault is not established. There is no evidence supporting
-a permanent `ndots` change or a permanent block of all HTTPS traffic. Do not
+and a `ndots:1` override all agreed. The default resolver/dual-stack retrieval path
+remains implicated, but the exact DNS or network fault is not established. There
+is no evidence supporting a permanent `ndots` change or a permanent block of all
+HTTPS traffic. Do not
 hardcode the working IP or disable host IPv6 based on these results.
 
 ### Apply the opt-in workaround with the host role
@@ -57,7 +61,8 @@ hardcode the working IP or disable host IPv6 based on these results.
 First retry a normal `apt-get --error-on=any update`. If it now succeeds, leave
 the option disabled: a transient failure does not require a permanent transport
 override. If the normal refresh still fails while IPv4-only succeeds, set this
-only for the affected host in inventory:
+only for the affected host in inventory. This comparison was completed on the
+reported host and the normal refresh failed again, so the override applies there:
 
 ```yaml
 host_nvidia_gpu_apt_force_ipv4: true
@@ -158,6 +163,6 @@ establish NVIDIA driver, CUDA, or vLLM compatibility on the target.
 The malformed-InRelease failure can be reproduced with isolated local APT state.
 Regression tests exercise failure reporting, stop-before-CUDA behavior, and the
 IPv4 override's creation, idempotency, removal, and native APT syntax. The user
-verified that a one-off IPv4 APT refresh succeeded on the host. The new role's
-full deployment and the corrected `trixie` Zabbix source remain to be verified
-on that host.
+verified that an IPv4 APT refresh succeeded on the host and that a subsequent
+normal refresh reproduced the failure. The new role's full deployment and the
+corrected `trixie` Zabbix source remain to be verified on that host.
