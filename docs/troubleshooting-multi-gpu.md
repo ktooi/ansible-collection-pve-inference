@@ -170,7 +170,37 @@ header package hooks can invoke other registered DKMS modules too. Before a
 planned reboot, require NVIDIA `620.70.06` installed for `-28`, a clean dpkg audit,
 and adequate remaining disk space. The old loaded module remains in memory until
 replaced; an on-disk `modinfo` check does not establish runtime consistency.
-Execution of this preparation and four-GPU recognition remain unverified.
+The operator executed this preparation successfully. The root LV grew to 84.19
+GiB, with 8.6 GB available in the filesystem. The exact `-28` headers installed,
+`modinfo` returned `620.70.06`, and DKMS reported that version installed for
+`7.0.14-28-pve`. The dpkg audit produced no output and the target initramfs was
+regenerated. `No /etc/kernel/proxmox-boot-uuids found, skipping ESP sync` is
+consistent with this host's GRUB setup; it was not an initramfs-generation
+failure. Do not repeat the root extension when proceeding to the boot test.
+
+With guests stopped or migrated and console access available, select the
+prepared updated kernel for the next boot only:
+
+```bash
+proxmox-boot-tool kernel pin 7.0.14-28-pve --next-boot && systemctl reboot
+```
+
+Proxmox documents this selection for GRUB systems without managed ESP sync too.
+Use the one-boot selection rather than a permanent pin that could prevent future
+security updates from becoming the boot default. Existing PCI/IOMMU arguments
+remain the baseline for this test. After reconnecting, inspect:
+
+```bash
+uname -r
+cat /proc/driver/nvidia/version
+nvidia-smi --query-gpu=index,pci.bus_id,name,driver_version --format=csv,noheader
+lspci -Dnnk -d 10de:
+journalctl -k -b --no-pager | grep -Ei 'NVRM|nvidia.*(error|fail)|BAR.*(no space|failed|can.t assign)'
+```
+
+Require the `-28` kernel, loaded NVIDIA `620.70.06`, four physical GPUs, and no
+corresponding BAR/probe failures in the current boot. A successful module build
+does not establish those runtime results; reboot validation is still pending.
 
 Past kernel behavior can sometimes be compared without booting old software by
 reading archived logs, if retained:
