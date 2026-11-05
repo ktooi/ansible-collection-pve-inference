@@ -92,3 +92,10 @@ ct_runtime_vllm_force_device_arg: false
 ct_runtime_vllm_logging_level: INFO
 
 ct_runtime_vllm_torch_cuda_probe_mode: strict
+
+# Core serves text/ASR; Omni adds diffusion image/video generation.
+ct_runtime_vllm_backend: core
+ct_runtime_vllm_pip_state: present
+ct_runtime_vllm_omni_version: ""
+ct_runtime_vllm_audio: false
+ct_runtime_vllm_additional_packages: []

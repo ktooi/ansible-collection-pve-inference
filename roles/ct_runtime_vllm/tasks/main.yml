@@ -3,6 +3,15 @@
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
+- name: Validate vLLM installation settings
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_backend in ['core', 'omni']
+      - ct_runtime_vllm_pip_state in ['present', 'latest']
+      - ct_runtime_vllm_additional_packages is sequence
+      - ct_runtime_vllm_additional_packages is not string
+    fail_msg: "Select backend core/omni and pip_state present/latest; additional_packages must be a list."
+
 # Purpose: Normalize served model name for vLLM CLI を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Normalize served model name for vLLM CLI
   ansible.builtin.set_fact:
@@ -343,7 +352,8 @@
 - name: Warn when strict probe is relaxed to count due to torch backend override
   ansible.builtin.debug:
     msg: >-
-      ct_runtime_vllm_torch_backend='{{ ct_runtime_vllm_torch_backend }}' is set, so torch preflight mode is
+      ct_runtime_vllm_torch_backend='{{ ct_runtime_vllm_torch_backend | default('') }}' or
+      ct_runtime_vllm_version='{{ ct_runtime_vllm_version }}' is set, so torch preflight mode is
       relaxed from strict to count. This checks device enumeration only. Runtime CUDA initialization is validated
       by vLLM process startup.
   when:
@@ -778,11 +788,21 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_nvcc
 
-# Purpose: Install vLLM package を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
-- name: Install vLLM package
+# Resolve core/audio/Omni dependencies together before applying an explicit torch pin.
+- name: Install vLLM and optional modality dependencies together
   ansible.builtin.pip:
-    name: "{{ ('vllm==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else 'vllm' }}"
+    name: >-
+      {{
+        [('vllm[audio]' if ct_runtime_vllm_audio else 'vllm') ~
+         (('==' ~ ct_runtime_vllm_version) if ct_runtime_vllm_version | length > 0 else '')]
+        + ([('vllm-omni' ~ (('==' ~ ct_runtime_vllm_omni_version)
+             if ct_runtime_vllm_omni_version | length > 0 else ''))]
+           if ct_runtime_vllm_backend == 'omni' else [])
+        + ct_runtime_vllm_additional_packages
+      }}
+    state: "{{ ct_runtime_vllm_pip_state }}"
     virtualenv: "{{ ct_runtime_vllm_venv }}"
+  notify: Restart vllm
 
 # Purpose: Reinstall pinned torch package after vLLM install (optional) を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Reinstall pinned torch package after vLLM install (optional)
@@ -904,7 +924,7 @@
 - name: Warn when torch backend override does not change installed torch CUDA wheel tag
   ansible.builtin.debug:
     msg: >-
-      ct_runtime_vllm_torch_backend='{{ ct_runtime_vllm_torch_backend }}' is a runtime backend selector for vLLM
+      ct_runtime_vllm_torch_backend='{{ ct_runtime_vllm_torch_backend }}' is an informational compatibility hint
       and does not reinstall torch wheels. Installed torch in venv is currently
       {{ ct_runtime_vllm_torch_version_info.torch_version | default('unknown') }}
       (cuda={{ ct_runtime_vllm_torch_version_info.torch_cuda | default('unknown') }}).
