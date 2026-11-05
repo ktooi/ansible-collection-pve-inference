@@ -70,6 +70,7 @@ flowchart TD
 ### Requirements
 - Ansible Core `>=2.16`
 - `community.proxmox >=1.6.0`
+- Controller Python packages: `proxmoxer >=2.0` and `requests` for CT lifecycle management.
 
 Example `requirements.yml`:
 
@@ -84,6 +85,21 @@ Install:
 ```bash
 ansible-galaxy collection install -r requirements.yml
 ```
+
+From the Collection checkout, install the Python dependencies in the same venv
+used to run `ansible-playbook`:
+
+```bash
+python -m pip install -r requirements-controller.txt
+python -c 'import sys, proxmoxer, requests; print(sys.executable); print("Proxmox dependencies OK")'
+```
+
+`ct_instance` delegates Proxmox API operations to `localhost`. These packages
+must be importable by that task's Python interpreter on the Ansible controller;
+installing them on PVE or inside a CT does not satisfy this requirement.
+`ansible-galaxy` installs Collections, not their Python package dependencies.
+If an import error reports a different interpreter, use that explicit Python
+path with `-m pip` and the import check above.
 
 ---
 

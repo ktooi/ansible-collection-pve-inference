@@ -3,6 +3,23 @@
 ## Purpose
 Declaratively manage Proxmox CT lifecycle (create/update/delete).
 
+## Controller prerequisites
+
+The Proxmox API task runs on `localhost` through delegation. Install
+`proxmoxer >=2.0` and `requests` in the controller Python environment used by
+that task, normally the venv running `ansible-playbook`:
+
+```bash
+python -m pip install 'proxmoxer>=2.0' requests
+python -c 'import sys, proxmoxer, requests; print(sys.executable); print("Proxmox dependencies OK")'
+```
+
+The Collection also provides [requirements-controller.txt](../../requirements-controller.txt).
+Collection installation does not install these Python packages. If the module
+reports an import failure, use the interpreter path shown in that error with
+`-m pip`; installing packages on PVE or inside a CT will not fix a controller
+import failure. NVIDIA discovery and `pct` commands still run on the PVE host.
+
 ## Usage
 ```yaml
 - hosts: pve_hosts

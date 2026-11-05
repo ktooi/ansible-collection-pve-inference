@@ -7,6 +7,19 @@ distribute a model across those GPUs.
 
 ## Prepare the host and inventory
 
+From the Collection checkout, install the Proxmox API dependencies in the
+controller venv used to run `ansible-playbook`:
+
+```bash
+python -m pip install -r requirements-controller.txt
+python -c 'import sys, proxmoxer, requests; print(sys.executable); print("Proxmox dependencies OK")'
+```
+
+The API task is delegated to `localhost`; these packages belong on the Ansible
+controller, not the PVE host or model CTs. See the
+[CT role prerequisites](../../roles/ct_instance/README.md#controller-prerequisites)
+if the module reports an import failure.
+
 1. Prepare the GPU host with `playbooks/host_nvidia_gpu.yml`. Verify the expected
    physical GPU inventory and core/UVM character devices before CT creation.
 2. Use your existing `pve_hosts` inventory, API credentials, node, storage, SSH

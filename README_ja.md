@@ -70,6 +70,7 @@ flowchart TD
 ### 要件
 - Ansible Core `>=2.16`
 - `community.proxmox >=1.6.0`
+- CT ライフサイクル管理用のコントローラー側 Python パッケージ: `proxmoxer >=2.0`、`requests`
 
 `requirements.yml` 例:
 
@@ -84,6 +85,19 @@ collections:
 ```bash
 ansible-galaxy collection install -r requirements.yml
 ```
+
+Collection のチェックアウト先で、`ansible-playbook` を実行する venv に Python 依存関係をインストールします。
+
+```bash
+python -m pip install -r requirements-controller.txt
+python -c 'import sys, proxmoxer, requests; print(sys.executable); print("Proxmox dependencies OK")'
+```
+
+`ct_instance` は Proxmox API 操作を `localhost` に委譲します。
+これらのパッケージは、Ansible コントローラー上で当該タスクが使用する Python から読み込める必要があります。
+PVE ホストや CT にインストールしても、この要件は満たせません。
+`ansible-galaxy` は Collection をインストールしますが、Python パッケージの依存関係はインストールしません。
+import エラーに別の Python パスが表示される場合は、そのパスを指定して `-m pip` と上記の import 確認を実行してください。
 
 ---
 
