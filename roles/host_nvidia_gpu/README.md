@@ -71,6 +71,13 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - If Ansible becomes `UNREACHABLE` while creating its remote temporary directory
   with `No space left on device`, check both free bytes and inodes on the affected
   filesystem. See [host storage recovery](../../docs/troubleshooting-host-storage.md).
+- If the install simulation reports unmet NVIDIA/CUDA dependencies, inspect
+  installed/candidate versions, holds, and a no-removal repair simulation before
+  changing packages. See [NVIDIA package recovery](../../docs/troubleshooting-nvidia-packages.md).
+- The role checks `dpkg --audit` before NVIDIA repository/package operations and
+  stops on unfinished package state. Package repair remains an explicit host
+  administration step; the role does not automatically upgrade or remove drivers
+  to recover from an interrupted installation.
 - If a one-off `apt-get -o Acquire::ForceIPv4=true --error-on=any update` succeeds
   after normal updates fail, set `host_nvidia_gpu_apt_force_ipv4: true` in this
   host's inventory to apply the workaround before CUDA repository bootstrap.
@@ -96,6 +103,9 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - If you plan to run CTs in host-CUDA mode and need `${CUDA_HOME}/bin/nvcc`, enable `host_nvidia_gpu_install_cuda_toolkit: true` so this role also provisions host-side toolkit binaries.
 - PATH-based `nvcc` discovery uses a POSIX shell builtin and reports actual
   presence/absence before deciding whether optional toolkit installation is needed.
+- A toolkit APT failure stops the role immediately and retains the original error.
+  `host_nvidia_gpu_require_nvcc_when_toolkit_enabled: false` relaxes only the final
+  compiler-availability check; it does not allow a failed package installation.
 - When `host_nvidia_gpu_repository_source: nvidia` is selected and toolkit provisioning is enabled, this role auto-discovers the newest available `cuda-toolkit-<major>-<minor>` package from apt metadata and prefers it over Debian `nvidia-cuda-toolkit` naming.
 - `nvidia-persistenced` start failure is treated as an error by default (`host_nvidia_gpu_fail_on_persistenced_start: true`) and the role includes `systemctl status` + `journalctl` output in the failure message for diagnosis. You can explicitly opt into warning-only continuation by setting `host_nvidia_gpu_fail_on_persistenced_start: false`.
 - Before starting `nvidia-persistenced`, this role ensures the service user is present and appended to `host_nvidia_gpu_persistenced_device_groups` (default `video`) so it can open `/dev/nvidia*` nodes.

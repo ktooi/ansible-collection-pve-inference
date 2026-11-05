@@ -25,6 +25,9 @@
 - name: Configure optional IPv4-only APT transport before refreshing repositories
   ansible.builtin.import_tasks: apt_transport.yml
 
+- name: Check package consistency before preparing the NVIDIA repository
+  ansible.builtin.import_tasks: package_preflight.yml
+
 - name: Configure NVIDIA CUDA apt repository via shared role
   ansible.builtin.include_role:
     name: ktooi.pve_inference.nvidia_cuda_repo_common
@@ -407,7 +410,6 @@
     update_cache: true
     default_release: "{{ host_nvidia_gpu_apt_default_release if (host_nvidia_gpu_apt_default_release | length > 0 and host_nvidia_gpu_apt_default_release_available | default(false)) else omit }}"
   register: host_nvidia_gpu_cuda_toolkit_install
-  failed_when: false
   when:
     - host_nvidia_gpu_install_cuda_toolkit
     - (host_nvidia_gpu_nvcc_path.rc | int) != 0
