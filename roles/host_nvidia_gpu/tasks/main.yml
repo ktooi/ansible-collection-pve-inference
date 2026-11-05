@@ -22,6 +22,12 @@
       host_nvidia_gpu_repository_source must be either 'debian' or 'nvidia'.
       Current value: {{ host_nvidia_gpu_repository_source }}.
 
+- name: Validate expected NVIDIA GPU count setting
+  ansible.builtin.assert:
+    that:
+      - host_nvidia_gpu_expected_gpu_count | string is match('^(0|[1-9][0-9]*)$')
+    fail_msg: "host_nvidia_gpu_expected_gpu_count must be a non-negative integer (0 disables the count check)."
+
 - name: Configure optional IPv4-only APT transport before refreshing repositories
   ansible.builtin.import_tasks: apt_transport.yml
 
@@ -769,7 +775,11 @@
         (host_nvidia_gpu_pre_persistenced_smi.rc | int) != 0
         and (
           'Driver/library version mismatch'
-          in (host_nvidia_gpu_pre_persistenced_smi.stdout | default(''))
+          in (
+            (host_nvidia_gpu_pre_persistenced_smi.stdout | default(''))
+            ~ '\n'
+            ~ (host_nvidia_gpu_pre_persistenced_smi.stderr | default(''))
+          )
         )
       }}
   when: host_nvidia_gpu_enable_persistenced
@@ -955,6 +965,23 @@
   ansible.builtin.command: nvidia-smi -L
   register: nvidia_smi_devices
   changed_when: false
+
+- name: Count GPUs enumerated by nvidia-smi
+  ansible.builtin.set_fact:
+    host_nvidia_gpu_visible_gpu_count: >-
+      {{ nvidia_smi_devices.stdout_lines | default([]) | select('match', '^GPU [0-9]+:') | list | length }}
+
+- name: Require the configured NVIDIA GPU count
+  ansible.builtin.assert:
+    that:
+      - (host_nvidia_gpu_visible_gpu_count | int) == (host_nvidia_gpu_expected_gpu_count | int)
+    fail_msg: >-
+      Expected {{ host_nvidia_gpu_expected_gpu_count }} NVIDIA GPUs, but nvidia-smi
+      enumerated {{ host_nvidia_gpu_visible_gpu_count }}. Compare PCI inventory,
+      kernel driver bindings, and /proc/driver/nvidia/gpus before changing device
+      nodes or rebooting. PCI presence alone does not establish NVIDIA driver readiness.
+      nvidia-smi output: {{ nvidia_smi_devices.stdout | default('') }}
+  when: (host_nvidia_gpu_expected_gpu_count | int) > 0
 
 - name: Deploy host NVIDIA power-limit helper script
   ansible.builtin.template:

@@ -88,3 +88,5 @@ The user subsequently reported that four cards should be connected. Recognition
 of all four remains a separate open validation item: PCI enumeration, NVIDIA
 driver registration, device minors, and userspace inventory must be compared
 before attributing it to device-node creation or recommending a reboot.
+See [multi-GPU troubleshooting](troubleshooting-multi-gpu.md) for the subsequent
+PCI/driver inventory, NVML mismatch diagnosis, and expected-count policy.

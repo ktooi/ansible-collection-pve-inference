@@ -50,6 +50,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_power_limit_script_path` | Path to generated host power-limit helper script | `/usr/local/sbin/host-apply-nvidia-power-limit.sh` | Absolute path |
 | `host_nvidia_gpu_require_pve_kernel` | Enforce running `*-pve` kernel precondition | `true` | `true` / `false` |
 | `host_nvidia_gpu_require_nvidia_devices` | Enforce `/dev/nvidia*` existence check | `true` | `true` / `false` |
+| `host_nvidia_gpu_expected_gpu_count` | Require exactly this many GPUs in `nvidia-smi -L`; `0` disables the count check | `0` | Non-negative integer |
 | `host_nvidia_gpu_block_proxmox_removal` | Abort if apt plan would remove `proxmox-ve` | `true` | `true` / `false` |
 | `host_nvidia_gpu_require_exact_headers` | Require exact running-kernel headers | `true` | `true` / `false` |
 | `host_nvidia_gpu_repository_source` | NVIDIA package source selector | `debian` | `debian`, `nvidia` |
@@ -117,6 +118,14 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - The role now probes `nvidia-smi -L` before attempting `nvidia-persistenced`; if this probe fails, the role fails early with guidance to fix driver runtime readiness (typically reboot-after-driver-update or resolving kernel/userspace mismatch) before service startup.
 - If you need one pass that configures packages/services before a planned reboot, set `host_nvidia_gpu_allow_degraded_nvidia_smi_after_install: true` to continue with a warning when the probe fails; rerun the role after reboot and return this setting to `false`.
 - If `nvidia-smi` reports `Driver/library version mismatch`, you can set `host_nvidia_gpu_auto_reboot_on_nvml_mismatch: true` to let this role reboot host automatically, re-probe, and continue in a single run. After reboot, the role also retries `nvidia-modprobe`/`modprobe` + `nvidia-smi -L` to absorb short post-boot driver bring-up lag.
+- NVML mismatch detection examines both stdout and stderr. Automatic reboot
+  remains controlled by the existing explicit setting; inspect the loaded and
+  on-disk module versions and DKMS state before enabling it.
+- For a four-GPU host, set `host_nvidia_gpu_expected_gpu_count: 4` to require four
+  GPUs in the final userspace inventory. This validates recognition; it does not
+  rebind GPUs assigned to another driver or create driver registrations. See
+  [multi-GPU troubleshooting](../../docs/troubleshooting-multi-gpu.md) for comparing
+  PCI visibility, driver binding, NVML versions, and library context.
 - By default, the role blacklists `nouveau` and `nvidiafb` via `/etc/modprobe.d/host-nvidia-gpu-blacklist.conf` and runs `update-initramfs -u`. This addresses failures where logs show `GPU ... is already bound to nvidiafb`. A reboot is then triggered by default (`host_nvidia_gpu_reboot_after_framebuffer_blacklist: true`) so blacklist changes are actually applied.
 
 ### Boot ordering for CT GPU passthrough
