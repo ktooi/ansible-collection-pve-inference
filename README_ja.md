@@ -371,7 +371,7 @@ ct_instance_enable_nvidia_passthrough: true
 ```
 
 その後 `playbooks/ct_create.yml` を再実行してください。
-デフォルトのパススルーブロックには `/dev/nvidia*` に加えて `libcuda.so.1` / `libnvidia-ml.so.1` の bind-mount も含まれます。
+自動生成では実際のデバイス番号を検出し、標準で `libcuda.so.1` / `libnvidia-ml.so.1` も bind-mount します。全 GPU を公開する場合は `ct_instance_nvidia_gpus: all`、一部だけなら `[0, 2]` のように指定します。既定の `null` は、従来の GPU 0・1 のうち存在するデバイスを公開します。
 パススルーブロックが変更された場合は、`ct_instance_restart_on_nvidia_passthrough_change: true` で CT を自動再起動できます。
 
 ### トラブルシューティング: CT 内 torch の `CUDA unknown error`
@@ -432,6 +432,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_storage` | rootfs 配置ストレージ | `local-lvm` | 既存ストレージ ID |
 | `ct_instance_timeout` | Proxmox タスク待機タイムアウト（秒） | `600` | `30` 以上の整数 |
 | `ct_instance_enable_nvidia_passthrough` | CT 設定へ NVIDIA パススルーブロックを管理 | `false` | `true` / `false` |
+| `ct_instance_nvidia_gpus` | CT に公開するホスト GPU を選択（CT 間の重複指定可） | `null` | `all`、空でない整数リスト、`null` |
 | `ct_instance_ostemplate` | CT OS テンプレート | Debian 12 template path | 既存 `vztmpl` パス |
 | `ct_runtime_vllm_model` | vLLM 配信モデル ID | `mistralai/Mistral-7B-Instruct-v0.3` | 有効な HF/ローカルモデル識別子 |
 | `ct_runtime_vllm_hf_token` | vLLM ダウンロード時に使う任意の Hugging Face Token（`HF_TOKEN`） | `""` | 空文字または Token 文字列（vault 推奨） |
@@ -476,3 +477,6 @@ MIT
 vLLM-Omni による画像/動画生成を選択できます。最新版の更新設定、モデル別の変数と API 利用例は
 [Role README](roles/ct_runtime_vllm/README.md#deploying-audio-image-and-video-models) を参照してください。
 画像/動画生成には Omni と対応する GPU・Python・CUDA 環境が必要です。
+
+STT 用と画像生成用の CT で同じホスト GPU を共有する構成は、
+[共有 GPU のデプロイ例](examples/shared-nvidia/README.md)を参照してください。

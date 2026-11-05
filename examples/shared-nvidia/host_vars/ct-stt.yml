@@ -1,0 +1,16 @@
+---
+ct_runtime_vllm_backend: core
+ct_runtime_vllm_audio: true
+ct_runtime_vllm_model: openai/whisper-large-v3-turbo
+ct_runtime_vllm_version: '0.32.0'
+ct_runtime_vllm_tensor_parallel_size: 1
+ct_runtime_vllm_max_model_len: 448
+ct_runtime_vllm_max_num_batched_tokens: 4096
+ct_runtime_vllm_max_num_seqs: 4
+# Illustrative core-vLLM budget; tune against measured concurrent peak memory.
+ct_runtime_vllm_gpu_memory_utilization: 0.25
+ct_runtime_vllm_tool_call_parser: ''
+ct_runtime_vllm_reasoning_parser: ''
+ct_runtime_vllm_enable_mtp: false
+ct_runtime_vllm_language_model_only: false
+ct_runtime_vllm_extra_args: ''

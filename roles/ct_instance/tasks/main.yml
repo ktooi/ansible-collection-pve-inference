@@ -1,4 +1,7 @@
 ---
+- name: Prepare NVIDIA passthrough before CT lifecycle changes
+  ansible.builtin.import_tasks: nvidia_passthrough.yml
+
 - name: Normalize Proxmox feature flags for module input
   ansible.builtin.set_fact:
     ct_instance_features_effective: >-
@@ -115,36 +118,6 @@
       ansible.builtin.fail:
         msg: "{{ ct_instance_manage_result.msg | default('CT lifecycle failed') }}"
 
-# Purpose: Build managed NVIDIA passthrough block from feature flags to avoid manual raw block edits.
-- name: Build effective NVIDIA passthrough block
-  ansible.builtin.set_fact:
-    ct_instance_nvidia_passthrough_block_effective: |-
-      lxc.cgroup2.devices.allow: c 195:* rwm
-      lxc.cgroup2.devices.allow: c 234:* rwm
-      lxc.cgroup2.devices.allow: c 235:* rwm
-      lxc.cgroup2.devices.allow: c 503:* rwm
-      lxc.cgroup2.devices.allow: c 508:* rwm
-      lxc.cgroup2.devices.allow: c 509:* rwm
-      lxc.cgroup2.devices.allow: c 510:* rwm
-      lxc.cgroup2.devices.allow: c 511:* rwm
-      lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file
-      lxc.mount.entry: /dev/nvidia1 dev/nvidia1 none bind,optional,create=file
-      lxc.mount.entry: /dev/nvidiactl dev/nvidiactl none bind,optional,create=file
-      lxc.mount.entry: /dev/nvidia-modeset dev/nvidia-modeset none bind,optional,create=file
-      lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
-      lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
-      lxc.mount.entry: /dev/nvidia-caps dev/nvidia-caps none bind,optional,create=dir
-      {% if ct_instance_nvidia_bind_driver_libraries %}
-      lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libcuda.so.1 usr/lib/x86_64-linux-gnu/libcuda.so.1 none bind,optional,create=file
-      lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 none bind,optional,create=file
-      {% endif %}
-      {% if ct_instance_nvidia_mount_host_cuda_toolkit %}
-      lxc.mount.entry: {{ ct_instance_host_cuda_toolkit_path }} {{ ct_instance_host_cuda_toolkit_path | regex_replace('^/', '') }} none bind,optional,create=dir
-      {% if ct_instance_nvidia_mount_host_cuda_toolkit_into_nvidia_prefix %}
-      lxc.mount.entry: {{ ct_instance_host_cuda_toolkit_path }} usr/local/nvidia none bind,optional,create=dir
-      {% endif %}
-      {% endif %}
-
 # Purpose: Warn operators about dpkg cross-device-link risks when binding individual NVIDIA library files.
 - name: Warn when CT NVIDIA file-level library binds are enabled
   ansible.builtin.debug:
@@ -154,6 +127,8 @@
       For host-CUDA workflows, prefer ct_instance_nvidia_bind_driver_libraries=false and mount a full toolkit path.
   when:
     - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_state != 'absent'
+    - ct_instance_nvidia_passthrough_block | trim | length == 0
     - ct_instance_nvidia_bind_driver_libraries | bool
 
 # Purpose: Inform operators that host toolkit mount mode requires aligned CT runtime CUDA settings.
@@ -168,6 +143,8 @@
       {% endif %}
   when:
     - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_state != 'absent'
+    - ct_instance_nvidia_passthrough_block | trim | length == 0
     - ct_instance_nvidia_mount_host_cuda_toolkit | bool
 
 # Purpose: Persist managed NVIDIA passthrough entries into the CT's LXC configuration file.
@@ -176,7 +153,7 @@
   ansible.builtin.blockinfile:
     path: "/etc/pve/lxc/{{ ct_instance_vmid }}.conf"
     marker: "# {mark} ANSIBLE MANAGED NVIDIA PASSTHROUGH"
-    block: "{{ ct_instance_nvidia_passthrough_block_effective | default(ct_instance_nvidia_passthrough_block) }}"
+    block: "{{ ct_instance_nvidia_passthrough_block_effective }}"
     insertafter: EOF
   when:
     - ct_instance_enable_nvidia_passthrough | bool

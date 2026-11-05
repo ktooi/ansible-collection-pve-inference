@@ -388,7 +388,7 @@ ct_instance_enable_nvidia_passthrough: true
 ```
 
 Then re-run `playbooks/ct_create.yml` so the role writes passthrough entries to `/etc/pve/lxc/<vmid>.conf`.
-The default passthrough block includes `/dev/nvidia*` plus `libcuda.so.1` / `libnvidia-ml.so.1` bind-mount entries.
+Automatic passthrough discovers actual device numbers and includes `libcuda.so.1` / `libnvidia-ml.so.1` binds by default. Set `ct_instance_nvidia_gpus: all` to expose every available GPU, or use a list such as `[0, 2]`. The default `null` keeps available legacy GPU 0/1 nodes.
 If the passthrough block changes, the role can restart CT automatically (`ct_instance_restart_on_nvidia_passthrough_change: true`).
 
 ### Troubleshooting: torch reports `CUDA unknown error` in CT
@@ -449,6 +449,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_storage` | Storage for rootfs | `local-lvm` | Existing PVE storage ID |
 | `ct_instance_timeout` | Proxmox task wait timeout (seconds) | `600` | Integer `>=30` |
 | `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA passthrough block in CT config | `false` | `true` / `false` |
+| `ct_instance_nvidia_gpus` | Select host GPU device nodes; selections may overlap between CTs | `null` | `all`, non-empty integer list, or `null` |
 | `ct_instance_ostemplate` | CT OS template | Debian 12 template path | Existing `vztmpl` path |
 | `ct_runtime_vllm_model` | Model ID served by vLLM | `mistralai/Mistral-7B-Instruct-v0.3` | Valid Hugging Face/local model identifier |
 | `ct_runtime_vllm_hf_token` | Optional Hugging Face token used by vLLM downloads (`HF_TOKEN`) | `""` | Empty or token string (prefer vault) |
@@ -494,3 +495,6 @@ models through core vLLM, and image/video generation through vLLM-Omni. See the
 [role README](roles/ct_runtime_vllm/README.md#deploying-audio-image-and-video-models)
 for upgrade settings, model-specific variables, and API examples.
 Image/video generation requires Omni and a compatible GPU, Python, and CUDA environment.
+
+For separate STT and image CTs sharing the same host GPUs, see
+[the shared-GPU deployment example](examples/shared-nvidia/README.md).

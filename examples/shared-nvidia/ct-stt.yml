@@ -1,0 +1,7 @@
+---
+ct_instance_vmid: 120
+ct_instance_hostname: ct-stt
+ct_instance_netif:
+  net0: name=eth0,bridge=vmbr0,ip=192.0.2.120/24,gw=192.0.2.1
+ct_instance_enable_nvidia_passthrough: true
+ct_instance_nvidia_gpus: all
