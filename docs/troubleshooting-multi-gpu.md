@@ -93,6 +93,12 @@ documentation; the reported 256 MB BAR requests do not establish that large
 Resizable BAR was enabled. Do not disable CSM on an existing Legacy installation
 without preparing a compatible UEFI boot path.
 
+For this host, the user reported that all four cards worked under PVE 8. Firmware
+capability has a known working baseline; do not assume Above 4G Decoding is
+disabled or change BIOS settings solely because of the new log. The current
+command line already contains `pci=realloc` and `pci=assign-busses` plus the site's
+IOMMU/graphics arguments. Adding those parameters again is not a new remedy.
+
 If bridge windows remain insufficient, the documented Linux `pci=realloc` option
 enables reallocation of PCI bridge resources whose BIOS allocations are too
 small. Prefer a controlled one-boot test before making it persistent. Preserve
@@ -104,6 +110,81 @@ For a verified persistent change, use the configuration mechanism of the actual
 bootloader: GRUB uses `GRUB_CMDLINE_LINUX_DEFAULT` and `update-grub`; systemd-boot
 uses `/etc/kernel/cmdline` and `proxmox-boot-tool refresh`. UEFI boot alone does
 not identify which bootloader is active. Do not apply both mechanisms blindly.
+
+### Current-kernel security requirement and boot readiness
+
+This host is confirmed to use UEFI with its active entry pointing to
+`\EFI\proxmox\shimx64.efi` and a populated GRUB configuration. Its root is
+ext4/LVM. The absent `/etc/kernel/proxmox-boot-uuids` file means no ESP sync list
+is configured for `proxmox-boot-tool`; it does not establish a broken GRUB
+installation. Do not initialize ESP configuration to address this GPU error.
+
+The operator requires retaining the current kernel series for security and has
+ruled out booting older builds. Do not use the available 6.17/6.8 entries for a
+rollback test. Package policy confirmed `7.0.14-28-pve` as installed and current
+candidate, while the running kernel was `7.0.14-26-pve`. The `-28` kernel and
+initramfs files exist, but `modinfo -k 7.0.14-28-pve -F version nvidia` failed:
+there was no NVIDIA module for that target kernel. The previously reported DKMS
+readiness for `-26` does not cover `-28`.
+
+Root free space had also fallen to 1.3 GB. Prepare sufficient capacity, the exact
+target kernel's headers, and the matching NVIDIA 620 module before rebooting to
+`-28`. Do not assume an installed kernel menu entry is GPU-ready. Keep existing
+PCI/IOMMU arguments for the first test on the prepared, updated kernel; booting a
+newer build is a recovery candidate, not proof that BAR allocation is fixed.
+
+Resource and header availability checks are read-only:
+
+```bash
+du -xsh /var/cache/apt/archives /var/lib/dkms /usr/lib/modules /var/log
+vgs pve --units g -o vg_name,vg_size,vg_free
+lvs pve/root --units g -o vg_name,lv_name,lv_size,lv_attr
+apt-cache policy proxmox-headers-7.0.14-28-pve
+```
+
+Use the observed capacity to choose cache cleanup or a reviewed storage
+allocation. Do not shrink the guest thin pool or remove guest disks to make room.
+
+The follow-up check found only 1.2 GB of APT archives, 16 GiB unallocated in VG
+`pve`, and an active 76.19 GiB root LV. The exact `-28` headers were available but
+not installed. For this host, the proposed preparation allocates 8 GiB of that
+unallocated space to root and builds only the target NVIDIA module:
+
+```bash
+# Run this extension once; do not repeat it when retrying a later failed step.
+lvextend --resizefs --size +8G /dev/pve/root &&
+apt-get --no-remove install proxmox-headers-7.0.14-28-pve &&
+dkms install -m nvidia -v 620.70.06 -k 7.0.14-28-pve &&
+depmod -a 7.0.14-28-pve &&
+update-initramfs -u -k 7.0.14-28-pve
+
+modinfo -k 7.0.14-28-pve -F version nvidia
+dkms status -m nvidia -v 620.70.06 -k 7.0.14-28-pve
+dpkg --audit
+df -hT / /boot
+```
+
+This is a host-specific storage change, not an automatic Collection action. The
+extension leaves 8 GiB unallocated in `pve`. Stop if any preparation step fails;
+header package hooks can invoke other registered DKMS modules too. Before a
+planned reboot, require NVIDIA `620.70.06` installed for `-28`, a clean dpkg audit,
+and adequate remaining disk space. The old loaded module remains in memory until
+replaced; an on-disk `modinfo` check does not establish runtime consistency.
+Execution of this preparation and four-GPU recognition remain unverified.
+
+Past kernel behavior can sometimes be compared without booting old software by
+reading archived logs, if retained:
+
+```bash
+journalctl --list-boots
+# Replace this value with the known prior boot's ID from the list.
+gpu_diag_boot_id=REPLACE_WITH_BOOT_ID
+journalctl -k -b "$gpu_diag_boot_id" --no-pager | grep -E 'Linux version|Command line|root bus resource|BAR|NVRM'
+```
+
+Missing historical logs do not prove a kernel regression. If BAR failures persist
+on the prepared current kernel, inspect PCI bridge/root windows and available
+historical evidence before changing further resource-allocation settings.
 
 References:
 
