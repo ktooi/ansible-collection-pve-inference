@@ -10,6 +10,7 @@ Before={{ host_nvidia_gpu_uvm_device_service_before | join(' ') }}
 
 [Service]
 Type=oneshot
+ExecStart=/usr/bin/nvidia-modprobe -c=0 -c=255
 ExecStart=/usr/bin/nvidia-modprobe -u -c=0
 ExecStart=/bin/sh -c 'for _ in $(seq 1 {{ host_nvidia_gpu_uvm_device_wait_timeout | int }}); do [ -c /dev/nvidiactl ] && [ -c /dev/nvidia-uvm ] && exit 0; sleep 1; done; echo "NVIDIA device nodes were not ready before timeout" >&2; exit 1'
 RemainAfterExit=yes

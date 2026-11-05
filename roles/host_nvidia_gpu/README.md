@@ -39,7 +39,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | `host_nvidia_gpu_manage_framebuffer_blacklist` | Manage `/etc/modprobe.d/host-nvidia-gpu-blacklist.conf` to blacklist `nouveau`/`nvidiafb` conflicts | `true` | `true` / `false` |
 | `host_nvidia_gpu_reboot_after_framebuffer_blacklist` | Reboot automatically when framebuffer blacklist changed | `true` | `true` / `false` |
 | `host_nvidia_gpu_post_reboot_delay` | Seconds to wait after automatic reboot before continuing tasks | `20` | Integer `>=0` |
-| `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that runs `nvidia-modprobe -u -c=0` | `true` | `true` / `false` |
+| `host_nvidia_gpu_ensure_uvm_device_service` | Deploy/enable a boot-time oneshot service that creates core and UVM device nodes | `true` | `true` / `false` |
 | `host_nvidia_gpu_uvm_device_service_name` | systemd unit name for UVM device recreation | `nvidia-uvm-devices.service` | Valid unit name |
 | `host_nvidia_gpu_uvm_device_service_after` | Units that should start before UVM device recreation | `[systemd-modules-load.service]` | List of systemd unit names |
 | `host_nvidia_gpu_uvm_device_service_before` | Units that should wait for UVM device recreation | `[pve-guests.service]` | List of systemd unit names |
@@ -71,6 +71,9 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - If Ansible becomes `UNREACHABLE` while creating its remote temporary directory
   with `No space left on device`, check both free bytes and inodes on the affected
   filesystem. See [host storage recovery](../../docs/troubleshooting-host-storage.md).
+- Core and UVM device nodes are requested separately. The role explicitly creates
+  `/dev/nvidiactl` (minor 255) as well as `/dev/nvidia0` and UVM nodes, and includes
+  helper exit codes in missing-node failures. See [device-node troubleshooting](../../docs/troubleshooting-nvidia-nodes.md).
 - If the install simulation reports unmet NVIDIA/CUDA dependencies, inspect
   installed/candidate versions, holds, and a no-removal repair simulation before
   changing packages. See [NVIDIA package recovery](../../docs/troubleshooting-nvidia-packages.md).
@@ -120,4 +123,4 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 
 If a GPU CT starts before the PVE host has recreated `/dev/nvidia-uvm*`, LXC can bind-mount placeholder regular files into the CT. Inside the CT this commonly appears as mode `----------` for `/dev/nvidia-uvm` and `/dev/nvidia-uvm-tools`, and CUDA runtimes such as vLLM may fail until the CT is restarted.
 
-Keep `host_nvidia_gpu_ensure_uvm_device_service: true` on GPU CT hosts. The generated `nvidia-uvm-devices.service` runs `nvidia-modprobe -u -c=0`, waits for `/dev/nvidiactl` and `/dev/nvidia-uvm` to become character devices, and starts before `pve-guests.service` by default. If your site starts GPU CTs through another host-side unit, add that unit name to `host_nvidia_gpu_uvm_device_service_before`.
+Keep `host_nvidia_gpu_ensure_uvm_device_service: true` on GPU CT hosts. The generated `nvidia-uvm-devices.service` runs `nvidia-modprobe -c=0 -c=255` and then `nvidia-modprobe -u -c=0`, waits for `/dev/nvidiactl` and `/dev/nvidia-uvm` to become character devices, and starts before `pve-guests.service` by default. If your site starts GPU CTs through another host-side unit, add that unit name to `host_nvidia_gpu_uvm_device_service_before`.
