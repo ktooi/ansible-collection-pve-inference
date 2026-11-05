@@ -1,7 +1,98 @@
 ---
+# Ubuntu 24.04 / Python 3.12; adjust the CT address and controller SSH key.
+ansible_host: 192.0.2.121
+ansible_user: root
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+ansible_python_interpreter: /usr/bin/python3
+
+# Runtime foundation. The same paths in another CT refer to a separate filesystem.
+ct_runtime_common_user: infer
+ct_runtime_common_group: infer
+ct_runtime_common_home: /opt/inference
+ct_runtime_common_venv: /opt/inference/venv
+ct_runtime_common_apt_cache_valid_time: 3600
+ct_runtime_common_packages:
+  - python3
+  - python3-venv
+  - python3-pip
+  - ca-certificates
+  - curl
+  - git
+  - build-essential
+ct_runtime_common_directories:
+  - /opt/inference
+  - /opt/inference/bin
+  - /var/log/inference
+  - /var/cache/inference
+  - /var/cache/inference/huggingface
+
+# The CT video GID must match the host GPU device group in this example.
+ct_runtime_vllm_user: "{{ ct_runtime_common_user }}"
+ct_runtime_vllm_group: video
+ct_runtime_vllm_venv: "{{ ct_runtime_common_venv }}"
+ct_runtime_vllm_workdir: "{{ ct_runtime_common_home }}"
+ct_runtime_vllm_service_name: vllm.service
+ct_runtime_vllm_env_file: /etc/default/vllm
+ct_runtime_vllm_bind_host: 0.0.0.0
+ct_runtime_vllm_port: 8000
+ct_runtime_vllm_device: cuda
+ct_runtime_vllm_force_device_arg: false
+
+# Model and package versions; let Omni/vLLM resolve their torch dependency.
 ct_runtime_vllm_backend: omni
 ct_runtime_vllm_model: stabilityai/stable-diffusion-xl-base-1.0
 ct_runtime_vllm_version: '0.32.0'
 ct_runtime_vllm_omni_version: '0.32.0'
-# Add only options supported by the selected Omni model/release.
+ct_runtime_vllm_audio: false
+ct_runtime_vllm_pip_state: present
+ct_runtime_vllm_additional_packages: []
+ct_runtime_vllm_torch_package: ''
+ct_runtime_vllm_torch_extra_index_url: ''
+ct_runtime_vllm_torch_backend: ''
+ct_runtime_vllm_served_model_name: ''
+ct_runtime_vllm_pass_served_model_name: false
+
+# Omni uses model-specific defaults. Core LLM memory/parallelism variables are
+# not passed to Omni; add only supported model/release options here.
 ct_runtime_vllm_extra_args: ''
+ct_runtime_vllm_tool_call_parser: ''
+ct_runtime_vllm_reasoning_parser: ''
+ct_runtime_vllm_enable_auto_tool_choice: false
+ct_runtime_vllm_enable_mtp: false
+ct_runtime_vllm_language_model_only: false
+
+# Requires the host toolkit mounted at the same path by the CT creation vars.
+ct_runtime_vllm_use_host_cuda_stack: true
+ct_runtime_vllm_cuda_home: /usr/local/cuda
+ct_runtime_vllm_host_cuda_toolkit_mount_hint: /usr/local/cuda
+ct_runtime_vllm_install_cuda_userspace: false
+ct_runtime_vllm_manage_nvidia_cuda_repo: false
+ct_runtime_vllm_auto_install_nvcc_toolkit: false
+ct_runtime_vllm_auto_install_nvcc_pip_fallback: false
+# Keep toolkit runtime libraries out of the driver's library search path.
+ct_runtime_vllm_ld_library_path: /usr/lib/x86_64-linux-gnu
+ct_runtime_vllm_install_build_tools: true
+ct_runtime_vllm_build_packages:
+  - ninja-build
+
+# Host-compatible driver userspace and nvidia-smi must already be present.
+ct_runtime_vllm_require_nvcc: true
+ct_runtime_vllm_require_libcuda: true
+ct_runtime_vllm_require_nvidia_device_nodes: true
+ct_runtime_vllm_require_nvidia_smi: true
+ct_runtime_vllm_fail_on_nvidia_smi_probe: true
+ct_runtime_vllm_require_torch_cuda_available: true
+# The role's documented version-pin relaxation policy still applies.
+ct_runtime_vllm_torch_cuda_probe_mode: strict
+
+ct_runtime_vllm_hf_cache_dir: /var/cache/inference/huggingface
+# Public-model example; use a Vault reference if authentication is required.
+ct_runtime_vllm_hf_token: ''
+ct_runtime_vllm_omp_num_threads: 4
+ct_runtime_vllm_logging_level: INFO
+ct_runtime_vllm_systemd_log_to_files: true
+ct_runtime_vllm_systemd_dump_runtime_env: false
+ct_runtime_vllm_stdout_log: /var/log/inference/vllm.stdout.log
+ct_runtime_vllm_stderr_log: /var/log/inference/vllm.stderr.log
+ct_runtime_vllm_systemd_restart: on-failure
+ct_runtime_vllm_systemd_restart_sec: 3
