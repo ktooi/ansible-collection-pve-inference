@@ -69,3 +69,22 @@ IPv4 option. Verify persistenced, the boot-time node service, and final
 semantics, unit command rendering/order, and failure diagnostics using a helper
 fixture; they do not load NVIDIA modules or create real device nodes. Cold-boot
 validation remains a separate check on the actual PVE host.
+
+## Reported deployment result
+
+The user reran the host playbook with the node fix and reported:
+
+```text
+pve-01-nas : ok=81 changed=5 unreachable=0 failed=0 skipped=30 rescued=0 ignored=0
+```
+
+The dpkg precondition, DKMS/module checks, core/UVM character-device assertions,
+persistenced startup, updated boot-time unit, and final `nvidia-smi` checks all
+completed. This verifies the configured host-role checks on the running system;
+it does not establish cold-boot behavior or CT/vLLM inference.
+
+The manual GPU inventory shown during troubleshooting contained one RTX 3090.
+The user subsequently reported that four cards should be connected. Recognition
+of all four remains a separate open validation item: PCI enumeration, NVIDIA
+driver registration, device minors, and userspace inventory must be compared
+before attributing it to device-node creation or recommending a reboot.

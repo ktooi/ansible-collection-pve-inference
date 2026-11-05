@@ -45,7 +45,8 @@ APT refresh uses the already-applied IPv4 override.
 On the reported host, this recovery reduced used space from 75 GB to 65 GB and
 restored 5.8 GB of user-available space (92% usage). A subsequent normal
 `apt-get --error-on=any update` succeeded. This confirms recovery from the
-observed storage and APT blockers; the remaining GPU role still needs to finish.
+observed storage and APT blockers. The host role subsequently finished its
+configured checks; see the [reported deployment result](troubleshooting-nvidia-nodes.md#reported-deployment-result).
 
 The run reported only two changed tasks: the APT override and kernel headers.
 The toolkit package task returned `ok`, so the log does not establish that a new

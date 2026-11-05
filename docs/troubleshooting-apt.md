@@ -168,4 +168,7 @@ normal refresh reproduced the failure. A later deployment confirmed that the
 role-created IPv4 override, APT bootstrap, CUDA repository setup, and matching PVE
 header installation completed. The run then stopped on a remote temporary-directory
 space error; see [host storage recovery](troubleshooting-host-storage.md).
-Full GPU readiness and the corrected `trixie` Zabbix source remain to be verified.
+The host role subsequently completed its configured GPU checks; see the
+[reported deployment result](troubleshooting-nvidia-nodes.md#reported-deployment-result).
+Recognition of all four expected GPUs, cold-boot behavior, CT inference, and the
+corrected `trixie` Zabbix source remain outside those verified results.

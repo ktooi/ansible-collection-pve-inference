@@ -62,8 +62,9 @@ The user subsequently applied the reviewed transaction successfully: Nsight
 Compute was added, the 64 pending packages and `mailcap` trigger completed,
 `dpkg --audit` produced no output, and `apt-get check` succeeded. Available root
 space was 3.9 GB afterward. This confirms recovery of package consistency without
-upgrading the installed NVIDIA driver branch. The host GPU playbook still needs
-to complete DKMS, device, and service validation.
+upgrading the installed NVIDIA driver branch. A subsequent host-role run completed
+its DKMS, device, and service checks; see the [reported deployment result](troubleshooting-nvidia-nodes.md#reported-deployment-result)
+for the validation scope and remaining multi-GPU check.
 
 ## Inspect before applying a repair
 
