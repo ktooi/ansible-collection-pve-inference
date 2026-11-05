@@ -12,6 +12,7 @@ and rebooting on 2026-11-05:
 | `nvidia-smi` inventory | Four RTX 3090 cards, indices `0` through `3`, all reporting driver `620.70.06` |
 | PCI driver binding | All four display functions at `05:00.0`, `06:00.0`, `09:00.0`, and `0a:00.0` use `nvidia` |
 | Filtered current-boot log | No preceding BAR allocation failures, NVIDIA probe failures, or NVML API mismatch |
+| Subsequent host playbook | `ok=83 changed=1 unreachable=0 failed=0 skipped=31 rescued=0 ignored=0`; configured GPU-count assertion passed |
 
 This confirms host recognition of all four cards on the reported updated-kernel
 boot. The recovery followed the capacity expansion, exact target-header/module
@@ -275,7 +276,11 @@ NVML mismatch detection now checks both stdout and stderr. The existing
 to `false`. Check module readiness and guest impact before enabling it. Local
 tests exercise stream detection and count policy without calling reboot.
 
-The reported reboot confirms four-GPU recognition. The earlier successful
-playbook establishes its configured checks with one visible GPU; a subsequent
-playbook result with the four-GPU requirement has not yet been reported. These
-host checks do not establish CT/vLLM inference or behavior after a full power-off.
+The subsequent host playbook completed with `ok=83 changed=1 unreachable=0
+failed=0 skipped=31 rescued=0 ignored=0`. The configured GPU-count assertion ran
+and passed, together with the critical device-node, userspace, and driver-version
+checks. Persistenced and the boot-time device service reported `ok`. The only
+changed task normalized ownership and mode of NVIDIA character devices after
+reboot. Interpreter discovery and existing Ansible deprecation warnings remained
+nonfatal. These host checks do not establish CT/vLLM inference or behavior after
+a full power-off.

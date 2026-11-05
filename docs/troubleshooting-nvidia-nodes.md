@@ -90,5 +90,16 @@ allocation failures for the other three cards. After preparing and rebooting to
 `nvidia-smi`, all four bound to `nvidia`, and no preceding BAR/probe failures in
 the filtered current-boot log. See
 [multi-GPU troubleshooting](troubleshooting-multi-gpu.md#confirmed-recovery) for
-the recovery evidence and expected-count policy. Post-reboot service/node
-assertions and CT inference are not established by the GPU inventory alone.
+the recovery evidence and expected-count policy.
+
+The subsequent post-reboot host playbook also completed:
+
+```text
+ok=83 changed=1 unreachable=0 failed=0 skipped=31 rescued=0 ignored=0
+```
+
+The critical character-device, userspace, driver-version, and configured GPU-count
+assertions all passed; persistenced and the boot-time device service reported
+`ok`. The changed task normalized NVIDIA device ownership/mode after reboot.
+This verifies the post-reboot host-role checks as well as the manual inventory;
+CT inference and a full power-off cycle remain outside this reported validation.
