@@ -16,6 +16,7 @@ This collection follows these principles:
 - CT lifecycle management on PVE.
 - Runtime foundation in CT (Python, user, directories).
 - Runtime deployment (initially vLLM).
+- Checksum-pinned model/LoRA file deployment and backend-specific vLLM adapter configuration.
 - Post-deployment validation checks.
 
 ### Out of scope (initial)
@@ -52,6 +53,7 @@ flowchart TD
     F[playbooks/runtime_vllm.yml] --> G[role: ct_runtime_common]
     F --> G2[role: ct_runtime_launcher_common]
     F --> H[role: ct_runtime_vllm]
+    H --> H2[role: ct_model_artifacts]
 
     I[playbooks/validate.yml] --> J[role: ct_validate]
 
@@ -104,6 +106,10 @@ path with `-m pip` and the import check above.
 ---
 
 ## Usage
+
+For model and adapter downloads declared in CT host variables, see
+[LoRA deployment](docs/lora-deployment.md). The existing vLLM playbook handles
+the files and runtime configuration together; no separate deployment script is needed.
 
 ### Supported CT distributions
 - Debian: 12, 13

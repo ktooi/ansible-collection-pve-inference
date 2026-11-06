@@ -61,6 +61,10 @@ ct_runtime_vllm_hf_token: ""
 
 # Package and extensibility
 ct_runtime_vllm_extra_args: "{{ ct_runtime_launcher_extra_args | default('') }}"
+# Local PEFT adapter directories. Core registers named models; Omni exposes
+# ct_runtime_vllm_lora_requests for request-time selection instead of core flags.
+ct_runtime_vllm_lora_adapters: []
+ct_runtime_vllm_max_lora_rank: 16
 ct_runtime_vllm_version: ""
 ct_runtime_vllm_torch_package: ""
 ct_runtime_vllm_torch_extra_index_url: ""

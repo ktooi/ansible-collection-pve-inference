@@ -1,0 +1,17 @@
+---
+# Merge into the image CT's existing host_vars, keeping its matching base model,
+# package versions, GPU and CUDA configuration. These are local adapter aliases.
+ct_runtime_vllm_backend: omni
+ct_model_artifacts:
+  - name: adapter-01-config
+    url: "{{ lookup('ansible.builtin.env', 'ADAPTER_CONFIG_URL') }}"
+    dest: /opt/inference/loras/adapter-01/adapter_config.json
+    checksum: "sha256:{{ lookup('ansible.builtin.env', 'ADAPTER_CONFIG_SHA256') }}"
+  - name: adapter-01-weights
+    url: "{{ lookup('ansible.builtin.env', 'ADAPTER_WEIGHTS_URL') }}"
+    dest: /opt/inference/loras/adapter-01/adapter_model.safetensors
+    checksum: "sha256:{{ lookup('ansible.builtin.env', 'ADAPTER_WEIGHTS_SHA256') }}"
+ct_runtime_vllm_lora_adapters:
+  - name: adapter-01
+    path: /opt/inference/loras/adapter-01
+    scale: 0.8

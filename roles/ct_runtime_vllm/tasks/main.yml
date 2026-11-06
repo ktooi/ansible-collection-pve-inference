@@ -12,6 +12,9 @@
       - ct_runtime_vllm_additional_packages is not string
     fail_msg: "Select backend core/omni and pip_state present/latest; additional_packages must be a list."
 
+- name: Validate LoRA settings before runtime deployment
+  ansible.builtin.import_tasks: lora_settings.yml
+
 - name: Validate vLLM resolver options
   ansible.builtin.assert:
     that:
@@ -933,6 +936,17 @@
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Deploy managed model and LoRA artifacts
+  ansible.builtin.include_role:
+    name: ktooi.pve_inference.ct_model_artifacts
+  vars:
+    ct_model_artifacts_owner: "{{ ct_runtime_vllm_user }}"
+    ct_model_artifacts_group: "{{ ct_runtime_vllm_group }}"
+    ct_model_artifacts_notify: [Restart vllm]
+
+- name: Configure local LoRA adapters
+  ansible.builtin.import_tasks: lora.yml
 
 # Purpose: Render vLLM environment file を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Render vLLM environment file

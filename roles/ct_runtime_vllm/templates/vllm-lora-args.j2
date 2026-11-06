@@ -1,0 +1,3 @@
+{% set adapters = ct_runtime_vllm_lora_adapters_normalized | default([]) -%}
+{% if ct_runtime_vllm_backend == 'core' and adapters | length > 0 %} --enable-lora --max-lora-rank {{ ct_runtime_vllm_max_lora_rank }} --lora-modules{% for adapter in adapters %} {{ adapter.name }}={{ adapter.path }}{% endfor %}
+{%- endif -%}

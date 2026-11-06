@@ -1,0 +1,16 @@
+---
+- name: Validate configured LoRA adapters
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_lora_adapters_normalized: >-
+      {{ ct_runtime_vllm_lora_adapters | ktooi.pve_inference.vllm_lora_adapters_validate(ct_runtime_vllm_backend) }}
+    cacheable: false
+
+- name: Validate core LoRA rank limit
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_max_lora_rank is integer
+      - ct_runtime_vllm_max_lora_rank > 0
+    fail_msg: ct_runtime_vllm_max_lora_rank must be a positive integer.
+  when:
+    - ct_runtime_vllm_backend == 'core'
+    - ct_runtime_vllm_lora_adapters_normalized | length > 0

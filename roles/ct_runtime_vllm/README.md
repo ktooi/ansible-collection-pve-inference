@@ -85,7 +85,10 @@ flowchart TD
 | `ct_runtime_vllm_logging_level` | vLLM logging verbosity | `INFO` | `DEBUG`, `INFO`, `WARNING`, ... |
 | `ct_runtime_vllm_bind_host` | API bind host | `0.0.0.0` | IP/host string |
 | `ct_runtime_vllm_port` | API port | `8000` | Integer `1..65535` |
-| `ct_runtime_vllm_model` | Model identifier | `mistralai/Mistral-7B-Instruct-v0.3` | Valid model identifier |
+| `ct_runtime_vllm_model` | Base/merged model identifier or local directory | `mistralai/Mistral-7B-Instruct-v0.3` | Model ID or absolute model directory |
+| `ct_model_artifacts` | Files downloaded and checksum-verified before configuring the runtime | `[]` | See [artifact role](../ct_model_artifacts/README.md) |
+| `ct_runtime_vllm_lora_adapters` | Local PEFT adapters: name/path and optional Omni scale | `[]` | See [LoRA deployment](../../docs/lora-deployment.md) |
+| `ct_runtime_vllm_max_lora_rank` | Core LoRA maximum rank; emitted only with configured core adapters | `16` | Positive integer supported by vLLM |
 | `ct_runtime_vllm_served_model_name` | Candidate served model name value | `""` | Empty, string, or list (first non-empty string is used) |
 | `ct_runtime_vllm_pass_served_model_name` | Pass `--served-model-name` to vLLM CLI | `false` | `true` / `false` |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |
@@ -185,6 +188,11 @@ after disabling conflicting file binds. Keep host kernel-module installation in
 the host role.
 
 ## Deploying audio, image, and video models
+
+For checksum-pinned model/adapter downloads and declarative LoRA configuration,
+see [LoRA deployment](../../docs/lora-deployment.md). Core registers named
+adapters; Omni uses request-time selection. An empty adapter list preserves the
+existing launch arguments.
 
 The official main-branch documentation was reviewed on 2026-11-03. Supported models
 and APIs depend on the installed release. New features documented on main may be

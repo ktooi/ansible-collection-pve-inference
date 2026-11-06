@@ -1,0 +1,59 @@
+---
+- name: Inspect required PEFT adapter files
+  ansible.builtin.stat:
+    path: "{{ item.0.path }}/{{ item.1 }}"
+    follow: true
+    get_checksum: false
+  loop: "{{ ct_runtime_vllm_lora_adapters_normalized | product(['adapter_config.json', 'adapter_model.safetensors']) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}/{{ item.1 }}"
+  register: ct_runtime_vllm_lora_files
+  when: not ansible_check_mode
+
+- name: Require complete local PEFT adapter directories
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isreg | default(false)
+      - item.stat.size | default(0) > 0
+    fail_msg: >-
+      Each LoRA path must contain adapter_config.json and adapter_model.safetensors.
+      Deploy compatible PEFT files using ct_model_artifacts or prepare them before this role.
+      Renaming an incompatible checkpoint does not convert its format.
+  loop: "{{ ct_runtime_vllm_lora_files.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.0.name }}/{{ item.item.1 }}"
+  when: not ansible_check_mode
+
+- name: Read local PEFT adapter configuration
+  ansible.builtin.slurp:
+    src: "{{ item.path }}/adapter_config.json"
+  loop: "{{ ct_runtime_vllm_lora_adapters_normalized }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: ct_runtime_vllm_lora_configs
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Validate PEFT type and configured rank
+  ansible.builtin.assert:
+    that:
+      - (item.content | b64decode | from_json).peft_type | default('') == 'LORA'
+      - (item.content | b64decode | from_json).r | default(0) is integer
+      - (item.content | b64decode | from_json).r | default(0) > 0
+      - >-
+        ct_runtime_vllm_backend != 'core'
+        or (item.content | b64decode | from_json).r | int <= ct_runtime_vllm_max_lora_rank
+    fail_msg: PEFT adapters must declare type LORA and a positive rank within the core rank limit.
+  loop: "{{ ct_runtime_vllm_lora_configs.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Build Omni request-time LoRA selections
+  ansible.builtin.set_fact:
+    ct_runtime_vllm_lora_requests: >-
+      {{ (ct_runtime_vllm_lora_adapters_normalized if ct_runtime_vllm_backend == 'omni' else [])
+         | ktooi.pve_inference.vllm_lora_requests }}
+    cacheable: false
