@@ -123,6 +123,15 @@ Hugging Face connection errors separately; a successful IPv4 request to the Hub
 home page does not verify every model-download endpoint or the service's network
 environment.
 
+After I/O errors, a cached model file may have the expected byte count but
+incorrect contents. For example, `invalid JSON in header` while opening a
+safetensors file requires checking the weight contents, not only cache
+completion markers and sizes. Compare each file with its Hub metadata hash
+(LFS SHA-256, or Git blob SHA-1 for ordinary files) at the expected model
+revision. Validate safetensors headers and replace only confirmed damaged
+files using the model client's download path, with enough physical pool space
+for the replacement and temporary files.
+
 Before creating additional CTs or downloading models, budget physical capacity
 for all guests, Python environments, model caches, temporary downloads, and logs.
 Monitor both thin-pool data and metadata usage, with alerts early enough to act.

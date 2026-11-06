@@ -19,6 +19,14 @@
       - ct_runtime_vllm_resolver_options is not search('[\r\n]')
     fail_msg: "ct_runtime_vllm_resolver_options must be a single-line string of glibc resolver options."
 
+- name: Validate vLLM base executable path
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_base_path is string
+      - ct_runtime_vllm_base_path | trim | length > 0
+      - ct_runtime_vllm_base_path is not search('[\r\n]')
+    fail_msg: "ct_runtime_vllm_base_path must be a non-empty, single-line executable search path."
+
 # Purpose: Normalize served model name for vLLM CLI を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Normalize served model name for vLLM CLI
   ansible.builtin.set_fact:
