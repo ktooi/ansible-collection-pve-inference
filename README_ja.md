@@ -68,8 +68,9 @@ flowchart TD
 ## インストール
 
 ### 要件
-- Ansible Core `>=2.16`
+- Ansible Core `>=2.17`（`community.proxmox >=1.6.0` の要件）
 - `community.proxmox >=1.6.0`
+- CT ライフサイクル管理用のコントローラー側 Python パッケージ: `proxmoxer >=2.0`、`requests`
 
 `requirements.yml` 例:
 
@@ -85,6 +86,19 @@ collections:
 ansible-galaxy collection install -r requirements.yml
 ```
 
+Collection のチェックアウト先で、`ansible-playbook` を実行する venv に Python 依存関係をインストールします。
+
+```bash
+python -m pip install -r requirements-controller.txt
+python -c 'import sys, proxmoxer, requests; print(sys.executable); print("Proxmox dependencies OK")'
+```
+
+`ct_instance` は Proxmox API 操作を `localhost` に委譲します。
+これらのパッケージは、Ansible コントローラー上で当該タスクが使用する Python から読み込める必要があります。
+PVE ホストや CT にインストールしても、この要件は満たせません。
+`ansible-galaxy` は Collection をインストールしますが、Python パッケージの依存関係はインストールしません。
+import エラーに別の Python パスが表示される場合は、そのパスを指定して `-m pip` と上記の import 確認を実行してください。
+
 ---
 
 ## 使用方法
@@ -95,6 +109,15 @@ ansible-galaxy collection install -r requirements.yml
 - RHEL および主要な RHEL クローン: 9, 10（Red Hat Enterprise Linux / AlmaLinux / Rocky Linux / Oracle Linux）
 
 CT runtime 系 Role は `tasks/variables.yml` と `vars/*.yml` を使ってディストリビューション別変数を読み分ける方式で実装しています。
+
+### ストレージ容量
+
+CT の rootfs サイズは仮想的な割当です。CT 作成やモデル取得の前に、同じプールを使う全ゲストを含めて、実際のストレージ容量を確認してください。
+LVM thin-pool が満杯になると、CT 内の `df` に空きがあっても I/O エラーや読み取り専用への移行が発生します。
+確認と復旧の手順は [CT ストレージの復旧](docs/troubleshooting-ct-storage.md)を参照してください。
+
+モデル初期化時の Hugging Face 接続エラーについては、[通信の切分けと DNS 設定](docs/troubleshooting-hf-network.md)を参照してください。
+サービス実行ユーザーで `single-request-reopen` の効果を確認できた場合は、対象 CT の host_vars に `ct_runtime_vllm_resolver_options: single-request-reopen` を設定できます。
 
 
 ### 1) PVE で API Token を払い出す
@@ -229,22 +252,18 @@ Proxmox の制約です。**privileged CT**（`ct_instance_unprivileged: false`�
 
 ### トラブルシューティング: VM 作成待機で timeout
 
-以下が出る場合:
+API モジュールの待機中は進捗が表示されません。既定の `ct_instance_timeout: 600` を増やす前に、PVE 上で実際の作成タスクを確認してください。
 
-- `Reached timeout while waiting for creating VM`
-- かつ thin-pool 警告（例: `You have not turned on protection against thin pools running out of space`）
-
-Proxmox のストレージ処理が遅延/失敗しており、Ansible 側待機時間を超えています。
-
-対応:
-
-- `group_vars/pve_hosts.yml` で `ct_instance_timeout` を増やす（例: `1200`）
-- PVE 側で thin-pool 容量/メタデータ使用率を確認（`lvs` など）
-- thin-pool の auto-extend / 監視設定を見直す
-
-```yaml
-ct_instance_timeout: 1200
+```bash
+pvenode task list --vmid 102 --source all --limit 5
+pvenode task status 'UPID:REPLACE_WITH_CREATION_TASK_ID'
+pvenode task log 'UPID:REPLACE_WITH_CREATION_TASK_ID'
 ```
+
+VMID と UPID は実際の値に置き換えます。タスクが `status=stopped`、`exitstatus=OK` または `WARN*` なら正常終了です。実行中または失敗したタスクはログで原因を確認します。thin-pool の警告だけでは作成失敗とは判断できません。
+
+本 Role は警告付き終了を扱える `community.proxmox.proxmox`（`community.proxmox >=1.6.0`）を使用します。旧実装では `WARNINGS: 1` を成功と判定せず、タイムアウトまで待つ場合があります。タイムアウトからの継続には、返された UPID の成功結果と、ローカル CT の存在確認の両方が必要です。
+詳細は [CT Role の手順](roles/ct_instance/README.md#creation-appears-to-wait-without-progress) を参照してください。
 
 ### トラブルシューティング: 401 Unauthorized
 
@@ -333,6 +352,8 @@ ct_runtime_vllm_hf_token: "{{ vault_hf_token }}"
 
 ### Role による前提条件チェック
 
+各 Role は収集値を `ansible_facts[...]` から参照し、`INJECT_FACTS_AS_VARS` が無効でも動作します。ansible-core 2.21 で非推奨となり、2.24 で廃止予定の自動展開された変数への依存を解消しています。
+
 これまで暗黙だった前提条件について、Role 内で明示チェックするようにしました。例えば:
 - PVE ホスト側: `host_nvidia_gpu` で Debian 系 / `*-pve` カーネル / `pve-headers-{{ ansible_kernel }}` / `/dev/nvidia*` を確認
 - PVE ホスト側: `proxmox-ve` が削除される apt プランを検知した場合は中断
@@ -352,12 +373,14 @@ ct_runtime_vllm_hf_token: "{{ vault_hf_token }}"
 
 ### トラブルシューティング: `CT <vmid> already exists on node`
 
-`ct_create.yml` で `CT <vmid> already exists` が出る場合、再実行時の冪等性が崩れています。
-本 Collection は再実行時に Proxmox から既存 CT エラーを受けた場合、`state: present` の作成専用制約を考慮して許容し、後続設定へ進むよう改善しました。
+`state: present` の既存 CT エラーは、SSH 接続先の `pct status <vmid>` でローカルの LXC CT の存在を確認できた場合のみ許容します。
+VMID はクラスタ全体の QEMU VM と CT で共有されるため、API の `VM <vmid> already exists` は別のリソースを指す場合があります。
 
 継続して失敗する場合は次を確認してください。
 
 - `ct_instance_vmid` が意図した既存 CT と一致しているか
+- 新規 CT の VMID が、クラスタ内のすべての VM／CT に対して未使用か。PVE 上の `pvesh get /cluster/resources --type vm` で割り当てを確認できます。`pvesh get /cluster/nextid` は未使用候補を返しますが、ID は予約しません。
+- ホスト側パススルーを設定する場合、API 接続先、`ct_instance_node`、inventory の SSH 接続先が同じ PVE ノード・クラスタを指しているか
 - 実行環境の Role が最新版か
 
 ### トラブルシューティング: CT 内で /dev/nvidia* が見えない
@@ -433,6 +456,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_timeout` | Proxmox タスク待機タイムアウト（秒） | `600` | `30` 以上の整数 |
 | `ct_instance_enable_nvidia_passthrough` | CT 設定へ NVIDIA パススルーブロックを管理 | `false` | `true` / `false` |
 | `ct_instance_nvidia_gpus` | CT に公開するホスト GPU を選択（CT 間の重複指定可） | `null` | `all`、空でない整数リスト、`null` |
+| `ct_instance_nvidia_bind_nvidia_smi` | ホストの `nvidia-smi` を CT に読み取り専用で bind-mount | `false` | `true` / `false` |
 | `ct_instance_ostemplate` | CT OS テンプレート | Debian 12 template path | 既存 `vztmpl` パス |
 | `ct_runtime_vllm_model` | vLLM 配信モデル ID | `mistralai/Mistral-7B-Instruct-v0.3` | 有効な HF/ローカルモデル識別子 |
 | `ct_runtime_vllm_hf_token` | vLLM ダウンロード時に使う任意の Hugging Face Token（`HF_TOKEN`） | `""` | 空文字または Token 文字列（vault 推奨） |

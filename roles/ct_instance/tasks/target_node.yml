@@ -1,0 +1,38 @@
+---
+- name: Inspect the local Proxmox node link before host-side CT operations
+  become: true
+  ansible.builtin.stat:
+    path: /etc/pve/local
+    follow: false
+    get_checksum: false
+    get_mime: false
+  register: ct_instance_local_node
+
+- name: Require the API target node to match the SSH target node
+  ansible.builtin.assert:
+    that:
+      - ct_instance_local_node.stat.islnk | default(false)
+      - (ct_instance_local_node.stat.lnk_source | default('') | basename) == ct_instance_node
+    fail_msg: >-
+      Host-side NVIDIA passthrough requires ct_instance_node={{ ct_instance_node }}
+      to match the PVE node reached over SSH ({{ inventory_hostname }}).
+      /etc/pve/local resolves to {{ ct_instance_local_node.stat.lnk_source | default('an unavailable node path') }}.
+      Align ct_instance_node and the inventory SSH destination before creating or configuring this CT.
+
+- name: Inspect the selected VMID for a local QEMU VM conflict
+  become: true
+  ansible.builtin.stat:
+    path: "/etc/pve/qemu-server/{{ ct_instance_vmid }}.conf"
+    get_checksum: false
+    get_mime: false
+  register: ct_instance_qemu_config
+
+- name: Require a VMID that is not assigned to a local QEMU VM
+  ansible.builtin.assert:
+    that:
+      - not ct_instance_qemu_config.stat.exists
+    fail_msg: >-
+      VMID {{ ct_instance_vmid }} already belongs to a QEMU VM on node {{ ct_instance_node }}
+      (/etc/pve/qemu-server/{{ ct_instance_vmid }}.conf).
+      Proxmox VMIDs are shared by VMs and CTs across the cluster.
+      Select an unused ct_instance_vmid for {{ ct_instance_hostname }}; pvesh get /cluster/nextid shows a candidate, not a reservation.

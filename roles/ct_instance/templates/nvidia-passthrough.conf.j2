@@ -11,6 +11,9 @@ lxc.mount.entry: {{ ct_instance_nvidia_devices.caps_directory }} dev/nvidia-caps
 lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libcuda.so.1 usr/lib/x86_64-linux-gnu/libcuda.so.1 none bind,optional,create=file
 lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 none bind,optional,create=file
 {% endif %}
+{% if ct_instance_nvidia_bind_nvidia_smi | bool %}
+lxc.mount.entry: {{ ct_instance_host_nvidia_smi_path }} usr/bin/nvidia-smi none bind,ro,create=file
+{% endif %}
 {% if ct_instance_nvidia_mount_host_cuda_toolkit | bool %}
 lxc.mount.entry: {{ ct_instance_host_cuda_toolkit_path }} {{ ct_instance_host_cuda_toolkit_path | regex_replace('^/', '') }} none bind,optional,create=dir
 {% if ct_instance_nvidia_mount_host_cuda_toolkit_into_nvidia_prefix | bool %}

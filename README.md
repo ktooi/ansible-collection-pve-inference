@@ -16,6 +16,7 @@ This collection follows these principles:
 - CT lifecycle management on PVE.
 - Runtime foundation in CT (Python, user, directories).
 - Runtime deployment (initially vLLM).
+- Checksum-pinned model/LoRA file deployment and backend-specific vLLM adapter configuration.
 - Post-deployment validation checks.
 
 ### Out of scope (initial)
@@ -52,6 +53,7 @@ flowchart TD
     F[playbooks/runtime_vllm.yml] --> G[role: ct_runtime_common]
     F --> G2[role: ct_runtime_launcher_common]
     F --> H[role: ct_runtime_vllm]
+    H --> H2[role: ct_model_artifacts]
 
     I[playbooks/validate.yml] --> J[role: ct_validate]
 
@@ -68,8 +70,9 @@ flowchart TD
 ## Installation
 
 ### Requirements
-- Ansible Core `>=2.16`
+- Ansible Core `>=2.17` (required by `community.proxmox >=1.6.0`)
 - `community.proxmox >=1.6.0`
+- Controller Python packages: `proxmoxer >=2.0` and `requests` for CT lifecycle management.
 
 Example `requirements.yml`:
 
@@ -85,9 +88,28 @@ Install:
 ansible-galaxy collection install -r requirements.yml
 ```
 
+From the Collection checkout, install the Python dependencies in the same venv
+used to run `ansible-playbook`:
+
+```bash
+python -m pip install -r requirements-controller.txt
+python -c 'import sys, proxmoxer, requests; print(sys.executable); print("Proxmox dependencies OK")'
+```
+
+`ct_instance` delegates Proxmox API operations to `localhost`. These packages
+must be importable by that task's Python interpreter on the Ansible controller;
+installing them on PVE or inside a CT does not satisfy this requirement.
+`ansible-galaxy` installs Collections, not their Python package dependencies.
+If an import error reports a different interpreter, use that explicit Python
+path with `-m pip` and the import check above.
+
 ---
 
 ## Usage
+
+For model and adapter downloads declared in CT host variables, see
+[LoRA deployment](docs/lora-deployment.md). The existing vLLM playbook handles
+the files and runtime configuration together; no separate deployment script is needed.
 
 ### Supported CT distributions
 - Debian: 12, 13
@@ -95,6 +117,18 @@ ansible-galaxy collection install -r requirements.yml
 - RHEL and major RHEL clones: 9, 10 (Red Hat Enterprise Linux, AlmaLinux, Rocky Linux, Oracle Linux)
 
 CT runtime roles load distribution-specific vars files via `tasks/variables.yml` + `vars/*.yml` to handle multi-distribution differences consistently.
+
+### Storage capacity
+
+CT rootfs sizes are virtual allocations. Before CT creation or model downloads,
+check physical capacity in the backing storage pool across all guests. A full
+LVM thin pool can cause I/O errors and a read-only CT filesystem despite free
+space reported by `df` inside the CT. See
+[CT storage recovery](docs/troubleshooting-ct-storage.md).
+
+If model initialization fails with Hub connection errors, use the service-context
+checks and optional resolver setting in
+[Hugging Face network troubleshooting](docs/troubleshooting-hf-network.md).
 
 
 ### 1) Prepare Proxmox API token (on PVE)
@@ -242,24 +276,24 @@ Note: this collection automatically omits the `features` parameter for privilege
 
 ### Troubleshooting: timeout while creating VM
 
-If you see:
+The API module waits without streaming task progress. Before increasing the
+default `ct_instance_timeout: 600`, inspect the actual creation task on PVE:
 
-- `Reached timeout while waiting for creating VM`
-- and logs include thin-pool warnings such as `You have not turned on protection against thin pools running out of space`
-
-then Proxmox storage task completion is delayed/failing and Ansible timed out waiting.
-
-How to resolve:
-
-- Increase `ct_instance_timeout` (for example `1200`) in `group_vars/pve_hosts.yml`.
-- Check thin-pool capacity/health on PVE (`lvs`, free space, metadata usage).
-- Configure thin-pool auto-extend/monitoring according to your storage policy.
-
-Example override:
-
-```yaml
-ct_instance_timeout: 1200
+```bash
+pvenode task list --vmid 102 --source all --limit 5
+pvenode task status 'UPID:REPLACE_WITH_CREATION_TASK_ID'
+pvenode task log 'UPID:REPLACE_WITH_CREATION_TASK_ID'
 ```
+
+Replace the example VMID and UPID. A stopped task with `exitstatus=OK` or
+`WARN*` has completed successfully; a running or failed task needs investigation.
+Thin-pool warnings alone do not establish a failed creation.
+
+This role uses `community.proxmox.proxmox` (`community.proxmox >=1.6.0`), which
+accepts warning-completed tasks. Older implementations can keep waiting for
+`WARNINGS: 1` until timeout. Timeout recovery now requires both the returned
+UPID's successful result and a verified local CT before host-side configuration.
+See [the CT role guidance](roles/ct_instance/README.md#creation-appears-to-wait-without-progress).
 
 ### Troubleshooting: 401 Unauthorized
 
@@ -350,6 +384,10 @@ These variables often vary by hardware size, model family, and throughput target
 
 ### Preflight checks now included in roles
 
+Roles read gathered values through `ansible_facts[...]`, including when
+`INJECT_FACTS_AS_VARS` is disabled. This removes dependence on injected aliases
+deprecated in ansible-core 2.21 and scheduled for removal in 2.24.
+
 The collection now performs explicit precondition checks where assumptions were previously implicit, for example:
 - Proxmox host side: Debian-family + running `*-pve` kernel + exact `pve-headers-{{ ansible_kernel }}` + NVIDIA device nodes (`/dev/nvidia*`) for `host_nvidia_gpu`
 - Proxmox host side: apt install simulation guard to prevent plans that remove `proxmox-ve`
@@ -369,12 +407,19 @@ If both `ct_instance_password` and `ct_instance_pubkey` are set, you can use eit
 
 ### Troubleshooting: `CT <vmid> already exists on node`
 
-If `ct_create.yml` fails with `CT <vmid> already exists`, re-run behavior should be idempotent.
-This collection now treats existing-CT errors as acceptable reruns (the module path is create-only for `state: present`) and continues with post-create steps.
+For `state: present`, the role accepts an existing-CT error only after
+`pct status <vmid>` verifies a local LXC CT on the SSH target.
+VMIDs are shared by QEMU VMs and CTs across the cluster, so an API message that
+`VM <vmid> already exists` may refer to a different resource.
 
 If you still see this error, verify that:
 
 - `ct_instance_vmid` points to the intended existing CT.
+- For a new CT, its VMID is unused across all VMs and CTs; inspect allocations
+  with `pvesh get /cluster/resources --type vm` on PVE. Obtain an unused candidate
+  with `pvesh get /cluster/nextid` (this does not reserve the ID).
+- The API destination, `ct_instance_node`, and inventory SSH destination refer
+  to the same PVE node and cluster when configuring host-side passthrough.
 - the role/task version in your execution environment is the latest one.
 
 ### Troubleshooting: /dev/nvidia* missing in CT
@@ -450,6 +495,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_timeout` | Proxmox task wait timeout (seconds) | `600` | Integer `>=30` |
 | `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA passthrough block in CT config | `false` | `true` / `false` |
 | `ct_instance_nvidia_gpus` | Select host GPU device nodes; selections may overlap between CTs | `null` | `all`, non-empty integer list, or `null` |
+| `ct_instance_nvidia_bind_nvidia_smi` | Read-only bind of the host `nvidia-smi` into the CT | `false` | `true` / `false` |
 | `ct_instance_ostemplate` | CT OS template | Debian 12 template path | Existing `vztmpl` path |
 | `ct_runtime_vllm_model` | Model ID served by vLLM | `mistralai/Mistral-7B-Instruct-v0.3` | Valid Hugging Face/local model identifier |
 | `ct_runtime_vllm_hf_token` | Optional Hugging Face token used by vLLM downloads (`HF_TOKEN`) | `""` | Empty or token string (prefer vault) |

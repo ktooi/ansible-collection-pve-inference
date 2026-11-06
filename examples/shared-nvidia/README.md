@@ -7,6 +7,26 @@ distribute a model across those GPUs.
 
 ## Prepare the host and inventory
 
+From the Collection checkout, install the Proxmox API dependencies in the
+controller venv used to run `ansible-playbook`:
+
+```bash
+python -m pip install -r requirements-controller.txt
+python -c 'import sys, proxmoxer, requests; print(sys.executable); print("Proxmox dependencies OK")'
+```
+
+The API task is delegated to `localhost`; these packages belong on the Ansible
+controller, not the PVE host or model CTs. See the
+[CT role prerequisites](../../roles/ct_instance/README.md#controller-prerequisites)
+if the module reports an import failure.
+
+Before creating either CT or downloading models, check actual free capacity in
+the backing storage pool for all guests. A large virtual rootfs does not reserve
+that space in an LVM thin pool. Model caches and Python environments in both CTs
+consume the same physical pool when their rootfs volumes share it. See
+[CT storage recovery](../../docs/troubleshooting-ct-storage.md) for `out_of_data`,
+I/O errors, or `emergency_ro` even when `df` inside the CT reports free space.
+
 1. Prepare the GPU host with `playbooks/host_nvidia_gpu.yml`. Verify the expected
    physical GPU inventory and core/UVM character devices before CT creation.
 2. Use your existing `pve_hosts` inventory, API credentials, node, storage, SSH
@@ -20,7 +40,10 @@ distribute a model across those GPUs.
    requires a suitable device/user/group mapping instead of assuming this setup.
 3. Adapt the example VMIDs, IPs, subnet, gateway, and bridge in `ct-stt.yml` and
    `ct-image.yml` to your site. Both CTs must reside on the GPU host whose device
-   nodes are being selected.
+   nodes are being selected. VMIDs 120 and 121 are examples, not reserved IDs:
+   choose unused IDs across all VMs and CTs in the cluster. On PVE,
+   `pvesh get /cluster/nextid` returns an unused candidate without reserving it.
+   `ct_instance_node` must match the PVE node reached by the inventory SSH host.
 4. Use the complete `host_vars/ct-stt.yml` and `host_vars/ct-image.yml` as the
    matching files under your inventory, adapting their CT addresses and SSH key
    paths. They include runtime foundation, venv/service paths, package versions,
@@ -57,19 +80,21 @@ as extra variables to the PVE creation play would change its SSH destination.
 ## Host-CUDA prerequisites
 
 The CT creation examples mount the host's `/usr/local/cuda` toolkit at the same
-path and bind the host driver-library files. They leave the `/usr/local/nvidia`
+path, bind the host driver-library files, and read-only bind the host's
+`/usr/bin/nvidia-smi` executable. They leave the `/usr/local/nvidia`
 toolkit alias disabled. The runtime examples use that toolkit as `CUDA_HOME`,
 keep driver libraries on their own search path, and disable CT-side CUDA package
 and nvcc auto-installation. Model Python packages are installed in each CT's venv.
 
-Provide host-compatible NVIDIA driver userspace, including `nvidia-smi` and any
-required driver libraries, in each CT before runtime deployment. The toolkit
-mount and two driver-library binds alone do not provide the entire driver
-userspace installation. If installing that userspace with APT, prepare it before
-enabling the file-level binds, or set
-`ct_instance_nvidia_bind_driver_libraries: false` and manage the compatible CT
-driver userspace yourself. This avoids replacing files that are bind-mounted
-from the host. The examples enable the `nvidia-smi`, device, libcuda,
+The executable comes from `ct_instance_nvidia_bind_nvidia_smi: true`; a toolkit
+mount alone does not supply it. Ensure the host binary works and that each CT
+provides compatible shared-library dependencies and any additional driver
+libraries required by the model runtime. The toolkit, executable, and two library
+binds are not a complete driver-userspace installation for every workload.
+If using APT-managed NVIDIA userspace in the CT, disable both
+`ct_instance_nvidia_bind_driver_libraries` and `ct_instance_nvidia_bind_nvidia_smi`
+before installing packages that replace the mounted files. The examples disable
+CT-side NVIDIA package management and enable the `nvidia-smi`, device, libcuda,
 nvcc, and torch preflights. The role's documented version-pin relaxation from
 strict to count still applies to its torch probe.
 

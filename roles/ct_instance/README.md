@@ -1,7 +1,27 @@
 # Role: ct_instance
 
 ## Purpose
-Declaratively manage Proxmox CT lifecycle (create/update/delete).
+Manage Proxmox CT lifecycle and host-side passthrough configuration.
+
+## Controller prerequisites
+
+Use ansible-core >=2.17 and community.proxmox >=1.6.0. The latter is an install
+dependency in `galaxy.yml` and requires that Ansible minimum.
+
+The Proxmox API task runs on `localhost` through delegation. Install
+`proxmoxer >=2.0` and `requests` in the controller Python environment used by
+that task, normally the venv running `ansible-playbook`:
+
+```bash
+python -m pip install 'proxmoxer>=2.0' requests
+python -c 'import sys, proxmoxer, requests; print(sys.executable); print("Proxmox dependencies OK")'
+```
+
+The Collection also provides [requirements-controller.txt](../../requirements-controller.txt).
+Collection installation does not install these Python packages. If the module
+reports an import failure, use the interpreter path shown in that error with
+`-m pip`; installing packages on PVE or inside a CT will not fix a controller
+import failure. NVIDIA discovery and `pct` commands still run on the PVE host.
 
 ## Usage
 ```yaml
@@ -14,7 +34,7 @@ Declaratively manage Proxmox CT lifecycle (create/update/delete).
 ## Flow
 ```mermaid
 flowchart TD
-    A[Input vars] --> B[community.general.proxmox]
+    A[Input vars] --> B[community.proxmox.proxmox]
     B --> C{state}
     C -->|present| D[Create/Update CT]
     C -->|absent| E[Remove CT]
@@ -46,12 +66,14 @@ flowchart TD
 | `ct_instance_features` | Proxmox CT features (`map` or `list`) (applied only for unprivileged CT, or when `ct_instance_api_user` is `root@pam`) | `{'nesting': 0}` | Feature map (`{nesting: 1}`) or list (`['nesting=1']`) |
 | `ct_instance_mounts` | Mount points map | `{}` | Proxmox mounts map |
 | `ct_instance_timeout` | Proxmox task wait timeout (seconds) | `600` | Integer `>=30` |
-| `ct_instance_treat_timeout_as_existing_ct` | On create-time timeout, continue when CT exists (`pct status <vmid>` succeeds) | `true` | `true` / `false` |
+| `ct_instance_treat_timeout_as_existing_ct` | On create-time timeout, continue only when the returned UPID confirms successful completion (`OK`/`WARN*`) and `pct status <vmid>` verifies a local CT | `true` | `true` / `false` |
 | `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA device passthrough entries in `/etc/pve/lxc/<vmid>.conf` | `false` | `true` / `false` |
 | `ct_instance_restart_on_nvidia_passthrough_change` | Restart CT when passthrough block changes | `true` | `true` / `false` |
 | `ct_instance_nvidia_gpus` | Host GPU device nodes exposed to this CT | `null` | `all`, non-empty list of unique non-negative integers, or `null` |
 | `ct_instance_nvidia_passthrough_block` | Complete raw override; non-empty values bypass automatic device discovery and feature flags | `""` (automatic generation) | Multiline LXC config text |
 | `ct_instance_nvidia_bind_driver_libraries` | Include file-level binds for `libcuda.so.1`/`libnvidia-ml.so.1` in managed NVIDIA passthrough block | `true` | `true` / `false` |
+| `ct_instance_nvidia_bind_nvidia_smi` | Read-only bind of the host `nvidia-smi` executable into CT `/usr/bin/nvidia-smi` | `false` | `true` / `false` |
+| `ct_instance_host_nvidia_smi_path` | Host executable used by the optional `nvidia-smi` bind | `/usr/bin/nvidia-smi` | Absolute executable path |
 | `ct_instance_nvidia_mount_host_cuda_toolkit` | Bind-mount host CUDA toolkit directory into CT in managed NVIDIA passthrough block | `false` | `true` / `false` |
 | `ct_instance_host_cuda_toolkit_path` | Host toolkit path used when `ct_instance_nvidia_mount_host_cuda_toolkit=true` | `/usr/local/cuda` | Absolute path |
 | `ct_instance_nvidia_mount_host_cuda_toolkit_into_nvidia_prefix` | Also bind-mount host CUDA toolkit into CT `/usr/local/nvidia` path to satisfy runtimes that resolve nvcc/toolkit under that prefix | `true` | `true` / `false` |
@@ -66,16 +88,90 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 > For vLLM on CUDA inside CT, enabling `ct_instance_enable_nvidia_passthrough` is typically required.
 
 
-> If CT already exists, the role treats the existing-CT error as an acceptable rerun and continues with post-create tasks to keep reruns idempotent.
+> An existing-CT error is accepted only after `pct status <vmid>` verifies a local LXC CT on the SSH target. A message that a VMID already exists is not sufficient: VMIDs are shared by QEMU VMs and CTs across the cluster.
 
 
-> When create waits hit timeout but CT is already present, the role can continue (`ct_instance_treat_timeout_as_existing_ct: true`).
+> The API call sets `update: false` so existing CTs retain their creation-time settings. Host-side NVIDIA passthrough is managed separately.
+>
+> Timeout recovery requires a returned UPID, a readable task result with `status=stopped` and `exitstatus=OK` or `WARN*`, and a verified local CT. Running, failed, missing, or unreadable task results stop recovery. Both legacy `creating VM` and newer `creation of VM` timeout messages are recognized.
 > Also, passthrough restart logic tolerates `pct stop` returning `CT <vmid> not running`.
 
 > Automatic passthrough inspects actual character-device major/minor numbers, including UVM and capability devices. Rerun this role after driver updates, device changes, or a reboot that changes those numbers. If the managed block changes, the existing CT restart option applies.
 
 
-> Host-CUDA recommendation: for CT runtimes that require `${CUDA_HOME}/bin/nvcc`, set `ct_instance_nvidia_mount_host_cuda_toolkit=true` and `ct_instance_host_cuda_toolkit_path` to a real host toolkit path. In this mode, consider `ct_instance_nvidia_bind_driver_libraries=false` to avoid file-level bind mounts that can conflict with CT-side apt package management.
+> Host-CUDA recommendation: for CT runtimes that require `${CUDA_HOME}/bin/nvcc`, set `ct_instance_nvidia_mount_host_cuda_toolkit=true` and `ct_instance_host_cuda_toolkit_path` to a real host toolkit path. Provide matching NVIDIA driver userspace through host binds or CT-managed packages. A toolkit mount alone does not provide `nvidia-smi` or the complete driver userspace.
+
+## Host NVIDIA userspace bindings
+
+For CTs using host driver libraries and a host-mounted toolkit, the creation
+variables can also expose the matching host executable:
+
+```yaml
+ct_instance_nvidia_bind_driver_libraries: true
+ct_instance_nvidia_bind_nvidia_smi: true
+ct_instance_host_nvidia_smi_path: /usr/bin/nvidia-smi
+```
+
+The executable bind is opt-in, validated as a regular executable host file,
+and read-only inside the CT. The CT must provide its shared-library dependencies
+and a compatible userspace ABI. Driver libraries and this executable must match
+the host driver; additional libraries required by the model runtime still need
+to be available. CUDA Toolkit files and driver userspace have separate purposes.
+
+Rerun the CT creation playbook after enabling the flag. The existing managed-block
+restart policy applies. CT-side NVIDIA package installation can conflict with
+file binds; use CT-managed compatible userspace with both file-bind flags disabled,
+or keep CT-side NVIDIA package management disabled in host-userspace mode.
+The complete raw passthrough override still bypasses these automatic flags and
+host-file validation. Disabled passthrough and absent CTs skip the check.
+
+## Creation appears to wait without progress
+
+The API module waits for creation to complete without streaming the PVE task
+log. The default operation timeout is 600 seconds. On PVE, inspect the relevant
+task and its result:
+
+```bash
+pvenode task list --vmid 102 --source all --limit 5
+pvenode task status 'UPID:REPLACE_WITH_CREATION_TASK_ID'
+pvenode task log 'UPID:REPLACE_WITH_CREATION_TASK_ID'
+```
+
+Replace the example VMID and UPID with the actual values. A CT configuration
+file or `pct status` reporting `stopped` does not establish whether creation
+succeeded; use the creation task's `status` and `exitstatus`.
+
+This role calls `community.proxmox.proxmox` directly and declares
+`community.proxmox >=1.6.0` as a Collection dependency. That implementation
+accepts `WARN*` task results as successful completion. Older Proxmox module
+implementations may wait until timeout for a warning-completed creation.
+Thin-pool warnings alone do not prove a failed create. Increase the timeout
+only after verifying the task is still running and making progress.
+
+## VMID conflicts and target-node checks
+
+With NVIDIA passthrough enabled, the role checks `/etc/pve/local` before lifecycle
+changes and requires its node name to match `ct_instance_node`. It rejects a
+local QEMU configuration at `/etc/pve/qemu-server/<vmid>.conf` before calling the
+API. Before writing passthrough settings, it also requires an existing local
+LXC configuration at `/etc/pve/lxc/<vmid>.conf`.
+
+For example, an API error saying `VM 121 already exists` together with a missing
+`/etc/pve/lxc/121.conf` can mean VMID 121 belongs to a QEMU VM.
+
+On the PVE host, inspect the allocation and obtain an unused ID candidate:
+
+```bash
+pvesh get /cluster/resources --type vm
+pvesh get /cluster/nextid
+```
+
+Set `ct_instance_vmid` in the CT's creation file to an unused cluster-wide ID
+before creating a new CT. The candidate is not reserved by querying it.
+When managing an existing CT, use its actual VMID and align the API destination,
+`ct_instance_node`, and inventory SSH destination with that CT's node and cluster.
+Fallback state is reset for each role invocation so one CT's recovery cannot
+suppress another CT's lifecycle failure.
 
 ## Select or share NVIDIA GPUs
 

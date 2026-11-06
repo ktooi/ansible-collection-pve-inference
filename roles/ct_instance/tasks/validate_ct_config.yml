@@ -1,0 +1,18 @@
+---
+- name: Inspect the local LXC configuration before applying NVIDIA passthrough
+  become: true
+  ansible.builtin.stat:
+    path: "/etc/pve/lxc/{{ ct_instance_vmid }}.conf"
+    get_checksum: false
+    get_mime: false
+  register: ct_instance_local_config
+
+- name: Require a local LXC configuration before applying NVIDIA passthrough
+  ansible.builtin.assert:
+    that:
+      - ct_instance_local_config.stat.isreg | default(false)
+    fail_msg: >-
+      No local LXC configuration exists at /etc/pve/lxc/{{ ct_instance_vmid }}.conf
+      on SSH host {{ inventory_hostname }} for node {{ ct_instance_node }}.
+      Verify the API destination, ct_instance_node, and SSH destination refer to the same PVE node and cluster.
+      An allocated VMID may belong to a QEMU VM or a CT on another node.

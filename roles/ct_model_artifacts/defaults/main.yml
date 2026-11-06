@@ -1,0 +1,11 @@
+---
+ct_model_artifacts: []
+ct_model_artifacts_owner: infer
+ct_model_artifacts_group: infer
+ct_model_artifacts_directory_mode: '0755'
+ct_model_artifacts_file_mode: '0644'
+ct_model_artifacts_timeout: 60
+ct_model_artifacts_validate_certs: true
+ct_model_artifacts_no_log: true
+# Standalone callers can supply handler names; the vLLM role supplies its restart handler.
+ct_model_artifacts_notify: []

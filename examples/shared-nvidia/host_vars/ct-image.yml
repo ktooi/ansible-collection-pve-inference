@@ -86,6 +86,8 @@ ct_runtime_vllm_require_torch_cuda_available: true
 ct_runtime_vllm_torch_cuda_probe_mode: strict
 
 ct_runtime_vllm_hf_cache_dir: /var/cache/inference/huggingface
+# Enable only after DNS probes confirm it is needed in this environment:
+# ct_runtime_vllm_resolver_options: single-request-reopen
 # Public-model example; use a Vault reference if authentication is required.
 ct_runtime_vllm_hf_token: ''
 ct_runtime_vllm_omp_num_threads: 4

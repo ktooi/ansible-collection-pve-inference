@@ -1,4 +1,10 @@
 ---
+- name: Validate the target node before NVIDIA CT lifecycle changes
+  ansible.builtin.import_tasks: target_node.yml
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_state != 'absent'
+
 - name: Prepare NVIDIA passthrough before CT lifecycle changes
   ansible.builtin.import_tasks: nvidia_passthrough.yml
 
@@ -32,10 +38,16 @@
         else ct_instance_api_token_id
       }}
 
-- name: Manage CT lifecycle with fallback for existing VMID
+- name: Reset CT lifecycle fallback state for this invocation
+  ansible.builtin.set_fact:
+    ct_instance_existing_ct_detected: false
+    ct_instance_timeout_detected: false
+    ct_instance_vmid_exists_error: false
+
+- name: Manage CT lifecycle with fallback for an existing local CT
   block:
     - name: Manage CT lifecycle (create or update)
-      community.general.proxmox:
+      community.proxmox.proxmox:
         api_host: "{{ ct_instance_api_host }}"
         api_user: "{{ ct_instance_api_user }}"
         api_token_id: "{{ ct_instance_api_token_id_effective }}"
@@ -64,47 +76,71 @@
         onboot: "{{ ct_instance_onboot }}"
         timeout: "{{ ct_instance_timeout }}"
         state: "{{ ct_instance_state }}"
+        update: false
       delegate_to: localhost
       register: ct_instance_manage_result
 
   rescue:
-    - name: Detect timeout error from CT create/update task
+    - name: Classify CT create/update errors eligible for a local CT check
       when:
         - ct_instance_state == 'present'
-        - ct_instance_treat_timeout_as_existing_ct | bool
         - ct_instance_manage_result is defined
       ansible.builtin.set_fact:
         ct_instance_timeout_detected: >-
           {{
-            'reached timeout while waiting for creating vm'
-            in ((ct_instance_manage_result.msg | default('')) | lower)
+            (ct_instance_treat_timeout_as_existing_ct | bool)
+            and (
+              ((ct_instance_manage_result.msg | default('')) | lower)
+              is search('reached timeout while waiting for (creating vm|creation of vm)')
+            )
           }}
+        ct_instance_vmid_exists_error: >-
+          {{ 'already exists' in ((ct_instance_manage_result.msg | default('')) | lower) }}
 
-    - name: Check whether CT already exists after timeout
+    - name: Check whether the allocated VMID is a local LXC CT
       become: true
-      ansible.builtin.command: "pct status {{ ct_instance_vmid }}"
-      register: ct_instance_pct_status_after_timeout
+      ansible.builtin.command:
+        argv:
+          - pct
+          - status
+          - "{{ ct_instance_vmid | string }}"
+      register: ct_instance_pct_status_for_fallback
       changed_when: false
       failed_when: false
+      check_mode: false
       when:
         - ct_instance_state == 'present'
-        - ct_instance_timeout_detected | default(false)
+        - ct_instance_timeout_detected or ct_instance_vmid_exists_error
 
-    - name: Mark timeout as acceptable when CT exists
+    - name: Verify the creation task result before accepting a timeout
+      ansible.builtin.include_tasks: creation_task.yml
       when:
         - ct_instance_state == 'present'
-        - ct_instance_timeout_detected | default(false)
-        - ct_instance_pct_status_after_timeout.rc | default(1) == 0
+        - ct_instance_timeout_detected
+
+    - name: Accept the fallback only when the local LXC CT exists
+      when:
+        - ct_instance_state == 'present'
+        - ct_instance_timeout_detected or ct_instance_vmid_exists_error
+        - ct_instance_pct_status_for_fallback.rc | default(1) == 0
       ansible.builtin.set_fact:
         ct_instance_existing_ct_detected: true
 
-    - name: Mark existing CT as acceptable on rerun
+    - name: Reject an allocated VMID that is not a local LXC CT
       when:
         - ct_instance_state == 'present'
-        - ct_instance_manage_result is defined
-        - "'already exists' in ((ct_instance_manage_result.msg | default('')) | lower)"
-      ansible.builtin.set_fact:
-        ct_instance_existing_ct_detected: true
+        - ct_instance_vmid_exists_error
+        - not ct_instance_existing_ct_detected
+      ansible.builtin.fail:
+        msg: >-
+          VMID {{ ct_instance_vmid }} is allocated according to the Proxmox API,
+          but pct status cannot verify a local LXC CT on SSH host {{ inventory_hostname }}.
+          Proxmox VMIDs are shared by VMs and CTs across the cluster; this ID may
+          belong to a QEMU VM or a CT on another node.
+          For a new CT, select an unused ct_instance_vmid. For an existing CT,
+          align ct_instance_node, the API destination, and the SSH destination.
+          API error: {{ ct_instance_manage_result.msg | default('') }}
+          Local CT check: {{ ct_instance_pct_status_for_fallback.stderr | default('') }}
 
     - name: Continue when CT already exists (module create path limitation)
       when: ct_instance_existing_ct_detected | default(false)
@@ -118,18 +154,27 @@
       ansible.builtin.fail:
         msg: "{{ ct_instance_manage_result.msg | default('CT lifecycle failed') }}"
 
-# Purpose: Warn operators about dpkg cross-device-link risks when binding individual NVIDIA library files.
-- name: Warn when CT NVIDIA file-level library binds are enabled
+- name: Validate the local CT configuration before applying NVIDIA passthrough
+  ansible.builtin.import_tasks: validate_ct_config.yml
+  when:
+    - ct_instance_enable_nvidia_passthrough | bool
+    - ct_instance_state != 'absent'
+
+# Purpose: Explain package-management constraints of host-bound NVIDIA userspace files.
+- name: Warn when CT NVIDIA file-level userspace binds are enabled
   ansible.builtin.debug:
     msg: >-
-      ct_instance_nvidia_bind_driver_libraries=true mounts individual NVIDIA library files into CT.
-      If CT also manages NVIDIA/CUDA packages with apt, dpkg cross-device link errors can occur.
-      For host-CUDA workflows, prefer ct_instance_nvidia_bind_driver_libraries=false and mount a full toolkit path.
+      This CT uses file-level host NVIDIA userspace binds
+      (driver_libraries={{ ct_instance_nvidia_bind_driver_libraries }},
+      nvidia_smi={{ ct_instance_nvidia_bind_nvidia_smi }}).
+      Replacing these files with CT-side NVIDIA packages can cause dpkg errors.
+      Disable CT-side NVIDIA package management when using host-bound userspace,
+      or disable the file binds before installing compatible CT-managed userspace.
   when:
     - ct_instance_enable_nvidia_passthrough | bool
     - ct_instance_state != 'absent'
     - ct_instance_nvidia_passthrough_block | trim | length == 0
-    - ct_instance_nvidia_bind_driver_libraries | bool
+    - (ct_instance_nvidia_bind_driver_libraries | bool) or (ct_instance_nvidia_bind_nvidia_smi | bool)
 
 # Purpose: Inform operators that host toolkit mount mode requires aligned CT runtime CUDA settings.
 - name: Warn when host CUDA toolkit mount is enabled

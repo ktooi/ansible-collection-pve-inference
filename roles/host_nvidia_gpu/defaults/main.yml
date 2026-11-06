@@ -5,7 +5,7 @@ host_nvidia_gpu_prereq_packages:
   - mokutil
 
 host_nvidia_gpu_header_packages:
-  - "pve-headers-{{ ansible_kernel }}"
+  - "pve-headers-{{ ansible_facts['kernel'] }}"
 
 host_nvidia_gpu_packages:
   - nvidia-driver

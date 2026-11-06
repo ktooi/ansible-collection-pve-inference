@@ -59,6 +59,8 @@ flowchart TD
 | `ct_runtime_vllm_venv` | venv path containing `vllm` | `/opt/inference/venv` | Absolute path |
 | `ct_runtime_vllm_workdir` | systemd WorkingDirectory | `/opt/inference` | Absolute path |
 | `ct_runtime_vllm_env_file` | Environment file path | `/etc/default/vllm` | Absolute path |
+| `ct_runtime_vllm_resolver_options` | Optional service `RES_OPTIONS` for the glibc DNS resolver | `""` (omit) | Single-line, space-separated resolver options |
+| `ct_runtime_vllm_base_path` | Literal base PATH after the resolved nvcc directory | `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` | Colon-separated executable directories |
 | `ct_runtime_vllm_service_name` | systemd service unit name | `vllm.service` | Valid unit name |
 | `ct_runtime_vllm_systemd_log_to_files` | Mirror service stdout/stderr to files and journald | `true` | `true` / `false` |
 | `ct_runtime_vllm_systemd_dump_runtime_env` | Dump sorted runtime environment variables to stderr at service start (for debugging) | `false` | `true` / `false` |
@@ -83,7 +85,10 @@ flowchart TD
 | `ct_runtime_vllm_logging_level` | vLLM logging verbosity | `INFO` | `DEBUG`, `INFO`, `WARNING`, ... |
 | `ct_runtime_vllm_bind_host` | API bind host | `0.0.0.0` | IP/host string |
 | `ct_runtime_vllm_port` | API port | `8000` | Integer `1..65535` |
-| `ct_runtime_vllm_model` | Model identifier | `mistralai/Mistral-7B-Instruct-v0.3` | Valid model identifier |
+| `ct_runtime_vllm_model` | Base/merged model identifier or local directory | `mistralai/Mistral-7B-Instruct-v0.3` | Model ID or absolute model directory |
+| `ct_model_artifacts` | Files downloaded and checksum-verified before configuring the runtime | `[]` | See [artifact role](../ct_model_artifacts/README.md) |
+| `ct_runtime_vllm_lora_adapters` | Local PEFT adapters: name/path and optional Omni scale | `[]` | See [LoRA deployment](../../docs/lora-deployment.md) |
+| `ct_runtime_vllm_max_lora_rank` | Core LoRA maximum rank; emitted only with configured core adapters | `16` | Positive integer supported by vLLM |
 | `ct_runtime_vllm_served_model_name` | Candidate served model name value | `""` | Empty, string, or list (first non-empty string is used) |
 | `ct_runtime_vllm_pass_served_model_name` | Pass `--served-model-name` to vLLM CLI | `false` | `true` / `false` |
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |
@@ -132,6 +137,7 @@ flowchart TD
 > CUDA preflight note: by default this role validates `/dev/nvidia*`, `libcuda.so.1`, `nvidia-smi -L`, and torch CUDA visibility. `nvidia-smi` failures are warnings by default (`ct_runtime_vllm_fail_on_nvidia_smi_probe: false`) while torch preflight remains enforced. Torch `strict` mode requires both `torch.cuda.is_available()==True` and `device_count > 0`. Use `ct_runtime_vllm_torch_cuda_probe_mode: count` only if you intentionally want a relaxed check. When `ct_runtime_vllm_torch_backend` or `ct_runtime_vllm_version` is set, preflight is automatically relaxed from `strict` to `count` to avoid false negatives caused by installer/backend mismatches before vLLM runtime initialization.
 >
 > NVCC/CUDA_HOME note: some vLLM/Triton combinations require `nvcc`/`CUDA_HOME` at runtime. This role derives `CUDA_HOME` from `ct_runtime_vllm_cuda_home`, `/usr/local/cuda`, `command -v nvcc`, `/usr/local/cuda-*/bin/nvcc`, pip fallback package resolution (including `venv/bin/nvcc` probe), when toolkit binaries are unavailable, and writes it into `vllm` environment. The role intentionally does not treat `/usr/local/nvidia` alone as CUDA_HOME unless `nvcc` is actually resolvable, because some kernels (e.g. FlashInfer paths) invoke `${CUDA_HOME}/bin/nvcc` directly. If `ct_runtime_vllm_cuda_home` is set but `<cuda_home>/bin/nvcc` is missing, the explicit value is ignored and auto-detection is used to avoid `/usr/local/nvidia/bin/nvcc: not found` runtime failures. When resolved, it also prepends the derived nvcc `bin` path to `PATH` in the vLLM env file.
+> systemd environment files do not expand `${PATH}`. When nvcc is resolved, the role writes a complete literal `PATH` and `INFER_VLLM_PATH`, then restores that path after login-profile processing so both system commands and nvcc remain available. Customize the literal base directories with `ct_runtime_vllm_base_path`.
 > By default `ct_runtime_vllm_require_nvcc=true`, so the role fails preflight instead of starting a broken service when nvcc/CUDA_HOME cannot be resolved.
 > When `ct_runtime_vllm_repository_source: nvidia` is used, nvcc auto-remediation dynamically selects the newest available `cuda-toolkit-<major>-<minor>` package from apt metadata (instead of Debian's `nvidia-cuda-toolkit` name) before retrying nvcc detection.
 > Host-CUDA mode note: when `ct_runtime_vllm_use_host_cuda_stack=true`, this role disables CT-internal CUDA userspace install, NVIDIA repo management, and nvcc auto-remediation paths even if those flags are set, and emits a warning with overridden values. If strict nvcc check fails in this mode, the error explicitly reminds you that `/usr/local/nvidia` is not a toolkit and requests a host-mounted toolkit path (for example `/usr/local/cuda`).
@@ -153,13 +159,40 @@ flowchart TD
 
 > HF Hub authentication note: to avoid `Warning: You are sending unauthenticated requests to the HF Hub...`, set `ct_runtime_vllm_hf_token` (preferably via Ansible Vault) so the role writes `HF_TOKEN` into the runtime environment file.
 
+> DNS note: when service-user probes show that `single-request-reopen` resolves A/AAAA lookup failures, set `ct_runtime_vllm_resolver_options: single-request-reopen`. The role exports `RES_OPTIONS` in the service environment file; the empty default omits it. This applies to the service's glibc resolver without changing CT nameservers or host networking. See [Hugging Face network troubleshooting](../../docs/troubleshooting-hf-network.md). The runtime playbook enables/starts vLLM, so finish storage recovery and capacity checks before rerunning it.
+
 > Restart-loop note: default policy is `on-failure` (not `always`) so normal exits do not loop forever. If you still see restarts, inspect `/var/log/inference/vllm.stderr.log` and kernel OOM logs (`dmesg -T | grep -i -E 'killed process|out of memory'`).
 
 > Served-model-name note: if shared launcher vars accidentally provide a list (for example `['qwen3.5', None]`), this role normalizes it to the first non-empty string. Passing `--served-model-name` is disabled by default (`ct_runtime_vllm_pass_served_model_name=false`) because some vLLM versions reject/validate this path strictly.
 
 > Extra-args note: `ct_runtime_vllm_extra_args` is appended only when non-empty, preventing empty trailing CLI arguments and accidental line-concatenation artifacts in systemd `ExecStart` parsing.
 
+## NVIDIA userspace readiness
+
+The role resolves `nvidia-smi` on the CT command search path and probes it before
+installing model Python packages. Failure diagnostics include the resolved path,
+command error, stdout, and stderr, distinguishing a missing executable from NVML
+or dynamic-linker errors. Strict mode rejects failed or empty probes before
+model package installation.
+
+When `ct_runtime_vllm_use_host_cuda_stack=true`, automatic CT-side NVIDIA/CUDA
+package installation is disabled. A host toolkit mount and two driver-library
+binds alone do not provide `nvidia-smi`. To use the host executable, set
+`ct_instance_nvidia_bind_nvidia_smi: true` in the **PVE-side CT creation variables**
+and rerun CT creation to apply the mount. The matching driver libraries and CT
+shared-library dependencies must be available. See
+[the CT role's host userspace options](../ct_instance/README.md#host-nvidia-userspace-bindings).
+
+For CT-managed NVIDIA userspace, provide packages compatible with the host driver
+after disabling conflicting file binds. Keep host kernel-module installation in
+the host role.
+
 ## Deploying audio, image, and video models
+
+For checksum-pinned model/adapter downloads and declarative LoRA configuration,
+see [LoRA deployment](../../docs/lora-deployment.md). Core registers named
+adapters; Omni uses request-time selection. An empty adapter list preserves the
+existing launch arguments.
 
 The official main-branch documentation was reviewed on 2026-11-03. Supported models
 and APIs depend on the installed release. New features documented on main may be

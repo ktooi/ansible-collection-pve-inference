@@ -83,6 +83,80 @@ class VllmServiceTests(unittest.TestCase):
                 self.assertIn('${INFER_VLLM_EXTRA_ARGS}', unit)
                 self.assertEqual(unit.count('ExecStart='), 1)
 
+    def test_lora_module_arguments_reach_core_only_in_both_logging_modes(self):
+        for backend in ['core', 'omni']:
+            for logging in [True, False]:
+                with self.subTest(backend=backend, logging=logging), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / 'bin').mkdir()
+                    binary = root / 'bin/vllm'
+                    binary.write_text(f'#!{sys.executable}\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n')
+                    binary.chmod(0o755)
+                    adapters = [{'name': 'adapter-01', 'path': '/opt/inference/loras/adapter-01'},
+                                {'name': 'adapter-02', 'path': '/opt/inference/loras/adapter-02'}]
+                    unit = self.render(backend, logging, ct_runtime_vllm_venv=str(root),
+                        ct_runtime_vllm_lora_adapters_normalized=adapters,
+                        ct_runtime_vllm_max_lora_rank=64,
+                        ct_runtime_vllm_stdout_log=str(root / 'stdout.log'),
+                        ct_runtime_vllm_stderr_log=str(root / 'stderr.log'))
+                    invocation = next(line.removeprefix('ExecStart=') for line in unit.splitlines() if line.startswith('ExecStart='))
+                    result = subprocess.run(shlex.split(invocation), capture_output=True, text=True, timeout=15,
+                        env={'PATH': '/usr/bin:/bin', 'INFER_VLLM_MODEL': 'fixture/base-model',
+                             'INFER_VLLM_BIND_HOST': '127.0.0.1', 'INFER_VLLM_PORT': '8000',
+                             'INFER_VLLM_EXTRA_ARGS': '--enforce-eager'})
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    arguments = json.loads(result.stdout)
+                    if backend == 'core':
+                        self.assertIn('--enable-lora', arguments)
+                        self.assertEqual(arguments[arguments.index('--max-lora-rank') + 1], '64')
+                        offset = arguments.index('--lora-modules')
+                        self.assertEqual(arguments[offset + 1:offset + 3], [item['name'] + '=' + item['path'] for item in adapters])
+                        self.assertEqual(arguments[offset + 3], '--enforce-eager')
+                    else:
+                        self.assertNotIn('--enable-lora', arguments)
+                        self.assertNotIn('--lora-modules', arguments)
+                        self.assertNotIn('--max-lora-rank', arguments)
+
+    def test_resolved_nvcc_path_survives_login_profile_and_keeps_system_commands(self):
+        for logging in [True, False]:
+            with self.subTest(logging=logging), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'bin').mkdir()
+                nvcc = root / 'bin/nvcc'
+                nvcc.write_text('#!/bin/sh\nprintf "fixture nvcc\\n"\n')
+                nvcc.chmod(0o755)
+                executable = root / 'bin/vllm'
+                executable.write_text(
+                    f'#!{sys.executable}\nimport json, subprocess\n'
+                    'print(json.dumps({"id": subprocess.check_output(["id", "-u"], text=True).strip(),\n'
+                    '                  "nvcc": subprocess.check_output(["nvcc"], text=True).strip()}))\n')
+                executable.chmod(0o755)
+                overrides = dict(
+                    ct_runtime_vllm_venv=str(root),
+                    ct_runtime_vllm_cuda_home_effective=str(root),
+                    ct_runtime_vllm_nvcc_bin_path_effective=str(root / 'bin'),
+                    ct_runtime_vllm_stdout_log=str(root / 'stdout.log'),
+                    ct_runtime_vllm_stderr_log=str(root / 'stderr.log'))
+                values = yaml.safe_load((ROLE / 'defaults/main.yml').read_text())
+                values.update(overrides)
+                env = jinja2.Environment(loader=jinja2.FileSystemLoader(ROLE / 'templates'),
+                                         undefined=jinja2.StrictUndefined, trim_blocks=True)
+                rendered = env.get_template('vllm.env.j2').render(values)
+                environment = dict(line.split('=', 1) for line in rendered.splitlines() if '=' in line)
+                self.assertNotIn('${PATH}', environment['PATH'])
+                unit = self.render('omni', logging, **overrides)
+                command = next(line.removeprefix('ExecStart=') for line in unit.splitlines()
+                               if line.startswith('ExecStart='))
+                # systemd turns $$ into a literal $ before invoking bash.
+                command = command.replace('$$', '$')
+                result = subprocess.run(shlex.split(command), env=environment,
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn('command not found', result.stderr)
+                output = json.loads(result.stdout)
+                self.assertTrue(output['id'].isdigit())
+                self.assertEqual(output['nvcc'], 'fixture nvcc')
+
 
 class VllmPackageTests(unittest.TestCase):
     def test_modality_packages_are_resolved_together(self):

@@ -1,0 +1,71 @@
+---
+# Resolve explicitly: newer command modules can return only a generic message
+# for a missing executable when their failure is collected with failed_when=false.
+- name: Locate nvidia-smi in the CT command search path
+  ansible.builtin.command:
+    argv:
+      - /bin/sh
+      - -c
+      - command -v nvidia-smi
+  register: ct_runtime_vllm_nvidia_smi_path
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - ct_runtime_vllm_device == 'cuda'
+    - ct_runtime_vllm_require_nvidia_smi
+
+- name: Probe NVIDIA driver runtime with nvidia-smi
+  ansible.builtin.command:
+    argv:
+      - "{{ ct_runtime_vllm_nvidia_smi_path.stdout | trim }}"
+      - -L
+  register: ct_runtime_vllm_nvidia_smi_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - ct_runtime_vllm_device == 'cuda'
+    - ct_runtime_vllm_require_nvidia_smi
+    - ct_runtime_vllm_nvidia_smi_path.rc | default(1) == 0
+
+- name: Assert nvidia-smi probe succeeded in CT
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_nvidia_smi_path.rc | default(1) == 0
+      - ct_runtime_vllm_nvidia_smi_probe.rc | default(1) == 0
+      - ct_runtime_vllm_nvidia_smi_probe.stdout | default('') | trim | length > 0
+    fail_msg: >-
+      nvidia-smi -L preflight failed in CT.
+      executable={{ ct_runtime_vllm_nvidia_smi_path.stdout | default('') | trim | default('not found in CT PATH', true) }};
+      rc={{ ct_runtime_vllm_nvidia_smi_probe.rc | default('unknown') }};
+      command error={{ ct_runtime_vllm_nvidia_smi_probe.msg | default('') }};
+      stdout={{ ct_runtime_vllm_nvidia_smi_probe.stdout | default('') | trim }};
+      stderr={{ ct_runtime_vllm_nvidia_smi_probe.stderr | default('') | trim }}.
+      Provide the nvidia-smi executable and NVIDIA userspace libraries compatible
+      with the host driver. Mounting a CUDA Toolkit and libcuda alone does not
+      provide nvidia-smi. Verify the full command output before changing CUDA or
+      driver packages. See the CT runtime README for host-userspace options.
+  when:
+    - ct_runtime_vllm_device == 'cuda'
+    - ct_runtime_vllm_require_nvidia_smi
+    - ct_runtime_vllm_fail_on_nvidia_smi_probe
+
+- name: Warn when nvidia-smi probe failed but strict nvidia-smi mode is disabled
+  ansible.builtin.debug:
+    msg: >-
+      nvidia-smi -L preflight failed in CT.
+      executable={{ ct_runtime_vllm_nvidia_smi_path.stdout | default('') | trim | default('not found in CT PATH', true) }};
+      rc={{ ct_runtime_vllm_nvidia_smi_probe.rc | default('unknown') }};
+      command error={{ ct_runtime_vllm_nvidia_smi_probe.msg | default('') }};
+      stdout={{ ct_runtime_vllm_nvidia_smi_probe.stdout | default('') | trim }};
+      stderr={{ ct_runtime_vllm_nvidia_smi_probe.stderr | default('') | trim }}.
+      Continuing because ct_runtime_vllm_fail_on_nvidia_smi_probe=false.
+      torch CUDA preflight will still run and enforce CUDA readiness.
+  when:
+    - ct_runtime_vllm_device == 'cuda'
+    - ct_runtime_vllm_require_nvidia_smi
+    - not ct_runtime_vllm_fail_on_nvidia_smi_probe
+    - >-
+      (ct_runtime_vllm_nvidia_smi_probe.rc | default(1) != 0)
+      or (ct_runtime_vllm_nvidia_smi_probe.stdout | default('') | trim | length == 0)
