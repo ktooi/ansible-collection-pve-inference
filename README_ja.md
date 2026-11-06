@@ -116,6 +116,9 @@ CT の rootfs サイズは仮想的な割当です。CT 作成やモデル取得
 LVM thin-pool が満杯になると、CT 内の `df` に空きがあっても I/O エラーや読み取り専用への移行が発生します。
 確認と復旧の手順は [CT ストレージの復旧](docs/troubleshooting-ct-storage.md)を参照してください。
 
+モデル初期化時の Hugging Face 接続エラーについては、[通信の切分けと DNS 設定](docs/troubleshooting-hf-network.md)を参照してください。
+サービス実行ユーザーで `single-request-reopen` の効果を確認できた場合は、対象 CT の host_vars に `ct_runtime_vllm_resolver_options: single-request-reopen` を設定できます。
+
 
 ### 1) PVE で API Token を払い出す
 

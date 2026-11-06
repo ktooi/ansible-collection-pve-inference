@@ -59,6 +59,7 @@ flowchart TD
 | `ct_runtime_vllm_venv` | venv path containing `vllm` | `/opt/inference/venv` | Absolute path |
 | `ct_runtime_vllm_workdir` | systemd WorkingDirectory | `/opt/inference` | Absolute path |
 | `ct_runtime_vllm_env_file` | Environment file path | `/etc/default/vllm` | Absolute path |
+| `ct_runtime_vllm_resolver_options` | Optional service `RES_OPTIONS` for the glibc DNS resolver | `""` (omit) | Single-line, space-separated resolver options |
 | `ct_runtime_vllm_service_name` | systemd service unit name | `vllm.service` | Valid unit name |
 | `ct_runtime_vllm_systemd_log_to_files` | Mirror service stdout/stderr to files and journald | `true` | `true` / `false` |
 | `ct_runtime_vllm_systemd_dump_runtime_env` | Dump sorted runtime environment variables to stderr at service start (for debugging) | `false` | `true` / `false` |
@@ -152,6 +153,8 @@ flowchart TD
 > Environment naming note: runtime command variables are exported with `INFER_VLLM_*` names (not `VLLM_*`) to avoid `Unknown vLLM environment variable` warnings emitted by newer vLLM versions.
 
 > HF Hub authentication note: to avoid `Warning: You are sending unauthenticated requests to the HF Hub...`, set `ct_runtime_vllm_hf_token` (preferably via Ansible Vault) so the role writes `HF_TOKEN` into the runtime environment file.
+
+> DNS note: when service-user probes show that `single-request-reopen` resolves A/AAAA lookup failures, set `ct_runtime_vllm_resolver_options: single-request-reopen`. The role exports `RES_OPTIONS` in the service environment file; the empty default omits it. This applies to the service's glibc resolver without changing CT nameservers or host networking. See [Hugging Face network troubleshooting](../../docs/troubleshooting-hf-network.md). The runtime playbook enables/starts vLLM, so finish storage recovery and capacity checks before rerunning it.
 
 > Restart-loop note: default policy is `on-failure` (not `always`) so normal exits do not loop forever. If you still see restarts, inspect `/var/log/inference/vllm.stderr.log` and kernel OOM logs (`dmesg -T | grep -i -E 'killed process|out of memory'`).
 

@@ -120,6 +120,10 @@ LVM thin pool can cause I/O errors and a read-only CT filesystem despite free
 space reported by `df` inside the CT. See
 [CT storage recovery](docs/troubleshooting-ct-storage.md).
 
+If model initialization fails with Hub connection errors, use the service-context
+checks and optional resolver setting in
+[Hugging Face network troubleshooting](docs/troubleshooting-hf-network.md).
+
 
 ### 1) Prepare Proxmox API token (on PVE)
 

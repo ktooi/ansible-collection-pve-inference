@@ -12,6 +12,13 @@
       - ct_runtime_vllm_additional_packages is not string
     fail_msg: "Select backend core/omni and pip_state present/latest; additional_packages must be a list."
 
+- name: Validate vLLM resolver options
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_resolver_options is string
+      - ct_runtime_vllm_resolver_options is not search('[\r\n]')
+    fail_msg: "ct_runtime_vllm_resolver_options must be a single-line string of glibc resolver options."
+
 # Purpose: Normalize served model name for vLLM CLI を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Normalize served model name for vLLM CLI
   ansible.builtin.set_fact:
