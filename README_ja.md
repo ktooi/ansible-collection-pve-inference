@@ -68,7 +68,7 @@ flowchart TD
 ## インストール
 
 ### 要件
-- Ansible Core `>=2.16`
+- Ansible Core `>=2.17`（`community.proxmox >=1.6.0` の要件）
 - `community.proxmox >=1.6.0`
 - CT ライフサイクル管理用のコントローラー側 Python パッケージ: `proxmoxer >=2.0`、`requests`
 
@@ -243,22 +243,18 @@ Proxmox の制約です。**privileged CT**（`ct_instance_unprivileged: false`�
 
 ### トラブルシューティング: VM 作成待機で timeout
 
-以下が出る場合:
+API モジュールの待機中は進捗が表示されません。既定の `ct_instance_timeout: 600` を増やす前に、PVE 上で実際の作成タスクを確認してください。
 
-- `Reached timeout while waiting for creating VM`
-- かつ thin-pool 警告（例: `You have not turned on protection against thin pools running out of space`）
-
-Proxmox のストレージ処理が遅延/失敗しており、Ansible 側待機時間を超えています。
-
-対応:
-
-- `group_vars/pve_hosts.yml` で `ct_instance_timeout` を増やす（例: `1200`）
-- PVE 側で thin-pool 容量/メタデータ使用率を確認（`lvs` など）
-- thin-pool の auto-extend / 監視設定を見直す
-
-```yaml
-ct_instance_timeout: 1200
+```bash
+pvenode task list --vmid 102 --source all --limit 5
+pvenode task status 'UPID:REPLACE_WITH_CREATION_TASK_ID'
+pvenode task log 'UPID:REPLACE_WITH_CREATION_TASK_ID'
 ```
+
+VMID と UPID は実際の値に置き換えます。タスクが `status=stopped`、`exitstatus=OK` または `WARN*` なら正常終了です。実行中または失敗したタスクはログで原因を確認します。thin-pool の警告だけでは作成失敗とは判断できません。
+
+本 Role は警告付き終了を扱える `community.proxmox.proxmox`（`community.proxmox >=1.6.0`）を使用します。旧実装では `WARNINGS: 1` を成功と判定せず、タイムアウトまで待つ場合があります。タイムアウトからの継続には、返された UPID の成功結果と、ローカル CT の存在確認の両方が必要です。
+詳細は [CT Role の手順](roles/ct_instance/README.md#creation-appears-to-wait-without-progress) を参照してください。
 
 ### トラブルシューティング: 401 Unauthorized
 

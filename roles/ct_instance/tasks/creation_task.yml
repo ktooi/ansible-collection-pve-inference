@@ -1,0 +1,66 @@
+---
+- name: Require the creation task ID before accepting a timed-out create
+  ansible.builtin.assert:
+    that:
+      - ct_instance_manage_result.taskid | default('') is string
+      - ct_instance_manage_result.taskid | default('') is match('^UPID:')
+    fail_msg: >-
+      CT creation timed out and the API module did not return a usable taskid.
+      A local CT configuration alone does not confirm successful creation.
+      Inspect the creation task with pvenode task list and pvenode task log before retrying.
+      API error: {{ ct_instance_manage_result.msg | default('') }}
+
+- name: Read the creation task result on the target PVE node
+  become: true
+  ansible.builtin.command:
+    argv:
+      - pvesh
+      - get
+      - "/nodes/{{ ct_instance_node }}/tasks/{{ ct_instance_manage_result.taskid }}/status"
+      - --output-format
+      - json
+  register: ct_instance_creation_task_query
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Require a readable creation task result
+  ansible.builtin.assert:
+    that:
+      - ct_instance_creation_task_query.rc | default(1) == 0
+    fail_msg: >-
+      Unable to verify creation task {{ ct_instance_manage_result.taskid }} on node {{ ct_instance_node }}.
+      Task query: {{ ct_instance_creation_task_query.stderr | default('') }}
+      API error: {{ ct_instance_manage_result.msg | default('') }}
+
+- name: Parse the creation task result
+  block:
+    - name: Decode the PVE creation task status
+      ansible.builtin.set_fact:
+        ct_instance_creation_task_status: "{{ ct_instance_creation_task_query.stdout | from_json }}"
+
+    - name: Require a creation task status object
+      ansible.builtin.assert:
+        that:
+          - ct_instance_creation_task_status is mapping
+  rescue:
+    - name: Reject an invalid creation task status response
+      ansible.builtin.fail:
+        msg: >-
+          Invalid status response for creation task {{ ct_instance_manage_result.taskid }}.
+          Inspect the task with pvenode task status and pvenode task log before retrying.
+          API error: {{ ct_instance_manage_result.msg | default('') }}
+
+- name: Require the creation task to have finished successfully before recovery
+  ansible.builtin.assert:
+    that:
+      - ct_instance_creation_task_status.status | default('') == 'stopped'
+      - >-
+        (ct_instance_creation_task_status.exitstatus | default('') == 'OK')
+        or (ct_instance_creation_task_status.exitstatus | default('') is match('^WARN'))
+    fail_msg: >-
+      CT {{ ct_instance_vmid }} creation is not confirmed successful:
+      status={{ ct_instance_creation_task_status.status | default('unknown') }},
+      exitstatus={{ ct_instance_creation_task_status.exitstatus | default('unavailable') }}.
+      Inspect the task with pvenode task log '{{ ct_instance_manage_result.taskid }}'.
+      API error: {{ ct_instance_manage_result.msg | default('') }}

@@ -5,6 +5,7 @@ The real Ansible conditions, rescue flow, stat checks, and config writer run.
 """
 
 import copy
+import json
 import os
 from pathlib import Path
 import shutil
@@ -22,14 +23,22 @@ from ansible.module_utils.basic import AnsibleModule
 module = AnsibleModule(argument_spec={
     'failure': {'type': 'str', 'default': ''},
     'marker': {'type': 'str', 'required': True},
+    'taskid': {'type': 'str', 'default': ''},
+    'update': {'type': 'bool', 'default': True},
 })
+if module.params['update']:
+    module.fail_json(msg='Existing CT settings must not be updated implicitly')
 Path(module.params['marker']).touch()
 if module.params['failure']:
-    module.fail_json(msg=module.params['failure'])
+    result = {'msg': module.params['failure']}
+    if module.params['taskid']:
+        result['taskid'] = module.params['taskid']
+    module.fail_json(**result)
 module.exit_json(changed=False)
 '''
 EXISTS = "Creation of lxc VM 121 failed: VM 121 already exists on node 'pve-01'"
 TIMEOUT = 'Reached timeout while waiting for creating VM'
+TASKID = 'UPID:pve-01:00000001:00000001:00000001:vzcreate:121:ansible@pve!ci-token:'
 
 
 class CtLifecycleTests(unittest.TestCase):
@@ -63,14 +72,23 @@ class CtLifecycleTests(unittest.TestCase):
                 task['ansible.builtin.stat']['path'] = str(self.root) + path.removeprefix('/etc/pve')
         return {'name': imported['name'], 'when': imported['when'], 'block': tasks}
 
-    def lifecycle(self, failure=EXISTS):
+    def lifecycle(self, failure=EXISTS, taskid=TASKID):
         reset = self.source_task('Reset CT lifecycle fallback state for this invocation')
         task = self.source_task('Manage CT lifecycle with fallback for an existing local CT')
         api = task['block'][0]
-        api.pop('community.general.proxmox')
-        api['ansible.legacy.fixture_proxmox'] = {'failure': failure, 'marker': str(self.api_marker)}
+        arguments = api.pop('community.proxmox.proxmox')
+        api['ansible.legacy.fixture_proxmox'] = {
+            'failure': failure, 'marker': str(self.api_marker), 'taskid': taskid,
+            'update': arguments.get('update', True),
+        }
         probe = next(item for item in task['rescue'] if 'ansible.builtin.command' in item)
         probe['ansible.builtin.command']['argv'][0] = str(self.root / 'pct')
+        for item in task['rescue']:
+            if item.get('ansible.builtin.include_tasks') == 'creation_task.yml':
+                item.pop('ansible.builtin.include_tasks')
+                item['block'] = yaml.safe_load((ROLE / 'tasks/creation_task.yml').read_text())
+                query = next(child for child in item['block'] if 'ansible.builtin.command' in child)
+                query['ansible.builtin.command']['argv'][0] = str(self.root / 'pvesh')
         return [reset, task]
 
     def prepare(self):
@@ -83,7 +101,8 @@ class CtLifecycleTests(unittest.TestCase):
         writer['ansible.builtin.blockinfile']['path'] = str(self.lxc / '{{ ct_instance_vmid }}.conf')
         return [guard, writer, {'ansible.builtin.debug': {'msg': 'CT_CONFIGURED'}}]
 
-    def run_tasks(self, tasks, statuses=None, overrides=None):
+    def run_tasks(self, tasks, statuses=None, overrides=None, task_status=None,
+                  task_response=None, task_rc=0):
         executable = shutil.which('ansible-playbook')
         self.assertIsNotNone(executable, 'Activate the ansible-core development venv')
         pct = self.root / 'pct'
@@ -95,6 +114,12 @@ class CtLifecycleTests(unittest.TestCase):
             "file=sys.stdout if rc == 0 else sys.stderr)\nsys.exit(rc)\n"
         )
         pct.chmod(0o755)
+        pvesh = self.root / 'pvesh'
+        response = (json.dumps(task_status if task_status is not None
+                               else {'status': 'stopped', 'exitstatus': 'OK'})
+                    if task_response is None else task_response)
+        pvesh.write_text(f'#!{os.sys.executable}\nimport sys\nprint({response!r})\nsys.exit({task_rc})\n')
+        pvesh.chmod(0o755)
         values = yaml.safe_load((ROLE / 'defaults/main.yml').read_text())
         values.update(ansible_python_interpreter=os.sys.executable, ansible_become=False,
                       ct_instance_enable_nvidia_passthrough=True, ct_instance_node='pve-01',
@@ -172,6 +197,45 @@ class CtLifecycleTests(unittest.TestCase):
         self.assertIn(TIMEOUT, output)
         self.assertNotIn('CT_CONFIGURED', output)
         self.assertEqual(self.config.read_text(), 'hostname: ct-image\n')
+
+    def test_warning_completed_creation_can_recover_from_both_timeout_messages(self):
+        for message in [TIMEOUT, 'Reached timeout while waiting for creation of VM 121 from template test']:
+            with self.subTest(message=message):
+                self.config.write_text('hostname: ct-image\n')
+                status, output = self.run_tasks([*self.lifecycle(message), *self.configure()], {'121': 0},
+                                                task_status={'status': 'stopped', 'exitstatus': 'WARNINGS: 1'})
+                self.assertEqual(status, 0, output)
+                self.assertIn('lxc.test: configured', self.config.read_text())
+
+    def test_partial_ct_does_not_override_failed_or_running_creation(self):
+        for task_status in [{'status': 'running'}, {'status': 'stopped', 'exitstatus': 'disk allocation failed'}]:
+            with self.subTest(task_status=task_status):
+                self.config.write_text('hostname: partial\n')
+                status, output = self.run_tasks([*self.lifecycle(TIMEOUT), *self.configure()], {'121': 0},
+                                                task_status=task_status)
+                self.assertEqual(status, 2, output)
+                self.assertIn('creation is not confirmed successful', output)
+                self.assertNotIn('CT_CONFIGURED', output)
+                self.assertEqual(self.config.read_text(), 'hostname: partial\n')
+
+    def test_timeout_without_task_id_is_not_accepted_just_because_ct_exists(self):
+        self.config.write_text('hostname: partial\n')
+        status, output = self.run_tasks([*self.lifecycle(TIMEOUT, taskid=''), *self.configure()], {'121': 0})
+        self.assertEqual(status, 2, output)
+        self.assertIn('did not return a usable taskid', output)
+        self.assertNotIn('CT_CONFIGURED', output)
+        self.assertEqual(self.config.read_text(), 'hostname: partial\n')
+
+    def test_unreadable_or_invalid_creation_status_stops_recovery(self):
+        for rc, response in [(1, 'permission denied'), (0, 'invalid JSON'), (0, '[]')]:
+            with self.subTest(rc=rc, response=response):
+                self.config.write_text('hostname: partial\n')
+                status, output = self.run_tasks([*self.lifecycle(TIMEOUT), *self.configure()], {'121': 0},
+                                                task_rc=rc, task_response=response)
+                self.assertEqual(status, 2, output)
+                self.assertIn(TIMEOUT, output)
+                self.assertNotIn('CT_CONFIGURED', output)
+                self.assertEqual(self.config.read_text(), 'hostname: partial\n')
 
     def test_fallback_state_does_not_leak_to_a_second_ct(self):
         self.config.write_text('hostname: ct-image\n')

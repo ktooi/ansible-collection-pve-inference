@@ -68,7 +68,7 @@ flowchart TD
 ## Installation
 
 ### Requirements
-- Ansible Core `>=2.16`
+- Ansible Core `>=2.17` (required by `community.proxmox >=1.6.0`)
 - `community.proxmox >=1.6.0`
 - Controller Python packages: `proxmoxer >=2.0` and `requests` for CT lifecycle management.
 
@@ -258,24 +258,24 @@ Note: this collection automatically omits the `features` parameter for privilege
 
 ### Troubleshooting: timeout while creating VM
 
-If you see:
+The API module waits without streaming task progress. Before increasing the
+default `ct_instance_timeout: 600`, inspect the actual creation task on PVE:
 
-- `Reached timeout while waiting for creating VM`
-- and logs include thin-pool warnings such as `You have not turned on protection against thin pools running out of space`
-
-then Proxmox storage task completion is delayed/failing and Ansible timed out waiting.
-
-How to resolve:
-
-- Increase `ct_instance_timeout` (for example `1200`) in `group_vars/pve_hosts.yml`.
-- Check thin-pool capacity/health on PVE (`lvs`, free space, metadata usage).
-- Configure thin-pool auto-extend/monitoring according to your storage policy.
-
-Example override:
-
-```yaml
-ct_instance_timeout: 1200
+```bash
+pvenode task list --vmid 102 --source all --limit 5
+pvenode task status 'UPID:REPLACE_WITH_CREATION_TASK_ID'
+pvenode task log 'UPID:REPLACE_WITH_CREATION_TASK_ID'
 ```
+
+Replace the example VMID and UPID. A stopped task with `exitstatus=OK` or
+`WARN*` has completed successfully; a running or failed task needs investigation.
+Thin-pool warnings alone do not establish a failed creation.
+
+This role uses `community.proxmox.proxmox` (`community.proxmox >=1.6.0`), which
+accepts warning-completed tasks. Older implementations can keep waiting for
+`WARNINGS: 1` until timeout. Timeout recovery now requires both the returned
+UPID's successful result and a verified local CT before host-side configuration.
+See [the CT role guidance](roles/ct_instance/README.md#creation-appears-to-wait-without-progress).
 
 ### Troubleshooting: 401 Unauthorized
 

@@ -47,7 +47,7 @@
 - name: Manage CT lifecycle with fallback for an existing local CT
   block:
     - name: Manage CT lifecycle (create or update)
-      community.general.proxmox:
+      community.proxmox.proxmox:
         api_host: "{{ ct_instance_api_host }}"
         api_user: "{{ ct_instance_api_user }}"
         api_token_id: "{{ ct_instance_api_token_id_effective }}"
@@ -76,6 +76,7 @@
         onboot: "{{ ct_instance_onboot }}"
         timeout: "{{ ct_instance_timeout }}"
         state: "{{ ct_instance_state }}"
+        update: false
       delegate_to: localhost
       register: ct_instance_manage_result
 
@@ -88,8 +89,10 @@
         ct_instance_timeout_detected: >-
           {{
             (ct_instance_treat_timeout_as_existing_ct | bool)
-            and ('reached timeout while waiting for creating vm'
-                 in ((ct_instance_manage_result.msg | default('')) | lower))
+            and (
+              ((ct_instance_manage_result.msg | default('')) | lower)
+              is search('reached timeout while waiting for (creating vm|creation of vm)')
+            )
           }}
         ct_instance_vmid_exists_error: >-
           {{ 'already exists' in ((ct_instance_manage_result.msg | default('')) | lower) }}
@@ -108,6 +111,12 @@
       when:
         - ct_instance_state == 'present'
         - ct_instance_timeout_detected or ct_instance_vmid_exists_error
+
+    - name: Verify the creation task result before accepting a timeout
+      ansible.builtin.include_tasks: creation_task.yml
+      when:
+        - ct_instance_state == 'present'
+        - ct_instance_timeout_detected
 
     - name: Accept the fallback only when the local LXC CT exists
       when:

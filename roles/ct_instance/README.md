@@ -1,9 +1,12 @@
 # Role: ct_instance
 
 ## Purpose
-Declaratively manage Proxmox CT lifecycle (create/update/delete).
+Manage Proxmox CT lifecycle and host-side passthrough configuration.
 
 ## Controller prerequisites
+
+Use ansible-core >=2.17 and community.proxmox >=1.6.0. The latter is an install
+dependency in `galaxy.yml` and requires that Ansible minimum.
 
 The Proxmox API task runs on `localhost` through delegation. Install
 `proxmoxer >=2.0` and `requests` in the controller Python environment used by
@@ -31,7 +34,7 @@ import failure. NVIDIA discovery and `pct` commands still run on the PVE host.
 ## Flow
 ```mermaid
 flowchart TD
-    A[Input vars] --> B[community.general.proxmox]
+    A[Input vars] --> B[community.proxmox.proxmox]
     B --> C{state}
     C -->|present| D[Create/Update CT]
     C -->|absent| E[Remove CT]
@@ -63,7 +66,7 @@ flowchart TD
 | `ct_instance_features` | Proxmox CT features (`map` or `list`) (applied only for unprivileged CT, or when `ct_instance_api_user` is `root@pam`) | `{'nesting': 0}` | Feature map (`{nesting: 1}`) or list (`['nesting=1']`) |
 | `ct_instance_mounts` | Mount points map | `{}` | Proxmox mounts map |
 | `ct_instance_timeout` | Proxmox task wait timeout (seconds) | `600` | Integer `>=30` |
-| `ct_instance_treat_timeout_as_existing_ct` | On create-time timeout, continue when CT exists (`pct status <vmid>` succeeds) | `true` | `true` / `false` |
+| `ct_instance_treat_timeout_as_existing_ct` | On create-time timeout, continue only when the returned UPID confirms successful completion (`OK`/`WARN*`) and `pct status <vmid>` verifies a local CT | `true` | `true` / `false` |
 | `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA device passthrough entries in `/etc/pve/lxc/<vmid>.conf` | `false` | `true` / `false` |
 | `ct_instance_restart_on_nvidia_passthrough_change` | Restart CT when passthrough block changes | `true` | `true` / `false` |
 | `ct_instance_nvidia_gpus` | Host GPU device nodes exposed to this CT | `null` | `all`, non-empty list of unique non-negative integers, or `null` |
@@ -86,13 +89,38 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 > An existing-CT error is accepted only after `pct status <vmid>` verifies a local LXC CT on the SSH target. A message that a VMID already exists is not sufficient: VMIDs are shared by QEMU VMs and CTs across the cluster.
 
 
-> When create waits hit timeout but CT is already present, the role can continue (`ct_instance_treat_timeout_as_existing_ct: true`).
+> The API call sets `update: false` so existing CTs retain their creation-time settings. Host-side NVIDIA passthrough is managed separately.
+>
+> Timeout recovery requires a returned UPID, a readable task result with `status=stopped` and `exitstatus=OK` or `WARN*`, and a verified local CT. Running, failed, missing, or unreadable task results stop recovery. Both legacy `creating VM` and newer `creation of VM` timeout messages are recognized.
 > Also, passthrough restart logic tolerates `pct stop` returning `CT <vmid> not running`.
 
 > Automatic passthrough inspects actual character-device major/minor numbers, including UVM and capability devices. Rerun this role after driver updates, device changes, or a reboot that changes those numbers. If the managed block changes, the existing CT restart option applies.
 
 
 > Host-CUDA recommendation: for CT runtimes that require `${CUDA_HOME}/bin/nvcc`, set `ct_instance_nvidia_mount_host_cuda_toolkit=true` and `ct_instance_host_cuda_toolkit_path` to a real host toolkit path. In this mode, consider `ct_instance_nvidia_bind_driver_libraries=false` to avoid file-level bind mounts that can conflict with CT-side apt package management.
+
+## Creation appears to wait without progress
+
+The API module waits for creation to complete without streaming the PVE task
+log. The default operation timeout is 600 seconds. On PVE, inspect the relevant
+task and its result:
+
+```bash
+pvenode task list --vmid 102 --source all --limit 5
+pvenode task status 'UPID:REPLACE_WITH_CREATION_TASK_ID'
+pvenode task log 'UPID:REPLACE_WITH_CREATION_TASK_ID'
+```
+
+Replace the example VMID and UPID with the actual values. A CT configuration
+file or `pct status` reporting `stopped` does not establish whether creation
+succeeded; use the creation task's `status` and `exitstatus`.
+
+This role calls `community.proxmox.proxmox` directly and declares
+`community.proxmox >=1.6.0` as a Collection dependency. That implementation
+accepts `WARN*` task results as successful completion. Older Proxmox module
+implementations may wait until timeout for a warning-completed creation.
+Thin-pool warnings alone do not prove a failed create. Increase the timeout
+only after verifying the task is still running and making progress.
 
 ## VMID conflicts and target-node checks
 
