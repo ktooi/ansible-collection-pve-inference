@@ -91,6 +91,29 @@ necessarily return blocks to the thin pool: discard support and snapshot
 references affect reclamation. Do not run blind trim operations on an affected
 read-only filesystem.
 
+## An undo-file error during offline repair
+
+On Debian's e2fsck 1.47.2, an MMP-enabled filesystem combined with `-z` can
+fail with `Undo file corrupt` and exit code 8. The following generic message
+about an unreadable superblock does not by itself establish superblock damage.
+This failure was reproduced on a clean, disposable ext4 file with a fresh undo
+file; the failed attempt left the test filesystem bytes unchanged. Omitting
+`-z` allowed the check to complete. A separate test with an incorrect free-block
+counter also repaired successfully without `-z` and passed a read-only recheck.
+
+The [MMP check in e2fsck 1.47.2](https://github.com/tytso/e2fsprogs/blob/v1.47.2/e2fsck/unix.c#L1753)
+reopens the filesystem. In the reproduced case, the
+[undo I/O implementation](https://github.com/tytso/e2fsprogs/blob/v1.47.2/lib/ext2fs/undo_io.c#L550)
+wrote a zero undo block-size field before that reopen, which it then rejected.
+Keep the failed undo file and logs. Do not apply an unvalidated undo file or
+select the generic alternate-superblock offsets solely from that message.
+
+Confirm the expected device is offline and its superblock can be read through a
+normal reader such as `dumpe2fs -h`. With an appropriate backup or confirmation
+that the target data is reproducible, omit `-z` from the reviewed repair command
+and inspect its result and read-only verification. This works around the undo
+I/O failure; it does not resolve any remaining filesystem errors automatically.
+
 ## Resume inference and prevent recurrence
 
 Restarting a systemd service is not proof that a model has downloaded or its API
