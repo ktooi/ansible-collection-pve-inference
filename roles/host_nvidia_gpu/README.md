@@ -16,7 +16,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 | Variable | Description | Default | Allowed values |
 |---|---|---|---|
 | `host_nvidia_gpu_prereq_packages` | Build and DKMS prerequisite packages | `['build-essential','dkms','mokutil']` | Package list |
-| `host_nvidia_gpu_header_packages` | Exact header package for running kernel | `['pve-headers-{{ ansible_kernel }}']` | Package list |
+| `host_nvidia_gpu_header_packages` | Exact header package for running kernel | `["pve-headers-{{ ansible_facts['kernel'] }}"]` | Package list |
 | `host_nvidia_gpu_packages` | NVIDIA driver stack packages | `['nvidia-driver','nvidia-kernel-dkms','nvidia-smi','nvidia-persistenced','nvidia-modprobe']` | Package list |
 | `host_nvidia_gpu_apt_default_release` | APT target release (`-t`) for NVIDIA-related installs | `""` | Empty or apt suite (e.g. `trixie-backports`) |
 | `host_nvidia_gpu_require_apt_default_release` | Fail if configured target release is unavailable in apt sources | `false` | `true` / `false` |
@@ -93,7 +93,7 @@ Prepare NVIDIA GPU prerequisites on the Proxmox host, including kernel headers/D
 - When `host_nvidia_gpu_apt_default_release` is set but unavailable in apt sources, the role warns and falls back to normal apt behavior unless strict mode is enabled.
 - For modern PVE kernel lines (`>=6.12`), the role validates that apt provides a sufficiently new `nvidia-driver` candidate and fails early if not.
 - When available, the role prefers `nvidia-open-kernel-dkms` over `nvidia-kernel-dkms` by default (configurable).
-- The role runs `dkms autoinstall -k {{ ansible_kernel }}`, then checks running-kernel readiness via DKMS status first; module-file fallback is used only when DKMS reports no NVIDIA kernel entries.
+- The role runs `dkms autoinstall -k {{ ansible_facts['kernel'] }}`, then checks running-kernel readiness via DKMS status first; module-file fallback is used only when DKMS reports no NVIDIA kernel entries.
 - If DKMS only exists for older kernels (for example after a major PVE kernel jump), the role now fails early with guidance about repo/driver compatibility and reboot requirements.
 - The role attempts both `nvidia-*` and `nvidia-current-*` module sets when needed, and fails with DKMS/modprobe diagnostics only if both paths fail.
 - If Secure Boot is enabled, ensure DKMS MOK enrollment is completed so NVIDIA modules can be loaded.

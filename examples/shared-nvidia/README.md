@@ -73,19 +73,21 @@ as extra variables to the PVE creation play would change its SSH destination.
 ## Host-CUDA prerequisites
 
 The CT creation examples mount the host's `/usr/local/cuda` toolkit at the same
-path and bind the host driver-library files. They leave the `/usr/local/nvidia`
+path, bind the host driver-library files, and read-only bind the host's
+`/usr/bin/nvidia-smi` executable. They leave the `/usr/local/nvidia`
 toolkit alias disabled. The runtime examples use that toolkit as `CUDA_HOME`,
 keep driver libraries on their own search path, and disable CT-side CUDA package
 and nvcc auto-installation. Model Python packages are installed in each CT's venv.
 
-Provide host-compatible NVIDIA driver userspace, including `nvidia-smi` and any
-required driver libraries, in each CT before runtime deployment. The toolkit
-mount and two driver-library binds alone do not provide the entire driver
-userspace installation. If installing that userspace with APT, prepare it before
-enabling the file-level binds, or set
-`ct_instance_nvidia_bind_driver_libraries: false` and manage the compatible CT
-driver userspace yourself. This avoids replacing files that are bind-mounted
-from the host. The examples enable the `nvidia-smi`, device, libcuda,
+The executable comes from `ct_instance_nvidia_bind_nvidia_smi: true`; a toolkit
+mount alone does not supply it. Ensure the host binary works and that each CT
+provides compatible shared-library dependencies and any additional driver
+libraries required by the model runtime. The toolkit, executable, and two library
+binds are not a complete driver-userspace installation for every workload.
+If using APT-managed NVIDIA userspace in the CT, disable both
+`ct_instance_nvidia_bind_driver_libraries` and `ct_instance_nvidia_bind_nvidia_smi`
+before installing packages that replace the mounted files. The examples disable
+CT-side NVIDIA package management and enable the `nvidia-smi`, device, libcuda,
 nvcc, and torch preflights. The role's documented version-pin relaxation from
 strict to count still applies to its torch probe.
 

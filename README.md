@@ -366,6 +366,10 @@ These variables often vary by hardware size, model family, and throughput target
 
 ### Preflight checks now included in roles
 
+Roles read gathered values through `ansible_facts[...]`, including when
+`INJECT_FACTS_AS_VARS` is disabled. This removes dependence on injected aliases
+deprecated in ansible-core 2.21 and scheduled for removal in 2.24.
+
 The collection now performs explicit precondition checks where assumptions were previously implicit, for example:
 - Proxmox host side: Debian-family + running `*-pve` kernel + exact `pve-headers-{{ ansible_kernel }}` + NVIDIA device nodes (`/dev/nvidia*`) for `host_nvidia_gpu`
 - Proxmox host side: apt install simulation guard to prevent plans that remove `proxmox-ve`
@@ -473,6 +477,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_timeout` | Proxmox task wait timeout (seconds) | `600` | Integer `>=30` |
 | `ct_instance_enable_nvidia_passthrough` | Manage NVIDIA passthrough block in CT config | `false` | `true` / `false` |
 | `ct_instance_nvidia_gpus` | Select host GPU device nodes; selections may overlap between CTs | `null` | `all`, non-empty integer list, or `null` |
+| `ct_instance_nvidia_bind_nvidia_smi` | Read-only bind of the host `nvidia-smi` into the CT | `false` | `true` / `false` |
 | `ct_instance_ostemplate` | CT OS template | Debian 12 template path | Existing `vztmpl` path |
 | `ct_runtime_vllm_model` | Model ID served by vLLM | `mistralai/Mistral-7B-Instruct-v0.3` | Valid Hugging Face/local model identifier |
 | `ct_runtime_vllm_hf_token` | Optional Hugging Face token used by vLLM downloads (`HF_TOKEN`) | `""` | Empty or token string (prefer vault) |

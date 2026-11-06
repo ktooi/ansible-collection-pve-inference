@@ -7,6 +7,8 @@ ct_instance_netif:
 ct_instance_enable_nvidia_passthrough: true
 ct_instance_nvidia_gpus: all
 ct_instance_nvidia_bind_driver_libraries: true
+ct_instance_nvidia_bind_nvidia_smi: true
+ct_instance_host_nvidia_smi_path: /usr/bin/nvidia-smi
 ct_instance_nvidia_mount_host_cuda_toolkit: true
 ct_instance_host_cuda_toolkit_path: /usr/local/cuda
 ct_instance_nvidia_mount_host_cuda_toolkit_into_nvidia_prefix: false

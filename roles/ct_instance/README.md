@@ -72,6 +72,8 @@ flowchart TD
 | `ct_instance_nvidia_gpus` | Host GPU device nodes exposed to this CT | `null` | `all`, non-empty list of unique non-negative integers, or `null` |
 | `ct_instance_nvidia_passthrough_block` | Complete raw override; non-empty values bypass automatic device discovery and feature flags | `""` (automatic generation) | Multiline LXC config text |
 | `ct_instance_nvidia_bind_driver_libraries` | Include file-level binds for `libcuda.so.1`/`libnvidia-ml.so.1` in managed NVIDIA passthrough block | `true` | `true` / `false` |
+| `ct_instance_nvidia_bind_nvidia_smi` | Read-only bind of the host `nvidia-smi` executable into CT `/usr/bin/nvidia-smi` | `false` | `true` / `false` |
+| `ct_instance_host_nvidia_smi_path` | Host executable used by the optional `nvidia-smi` bind | `/usr/bin/nvidia-smi` | Absolute executable path |
 | `ct_instance_nvidia_mount_host_cuda_toolkit` | Bind-mount host CUDA toolkit directory into CT in managed NVIDIA passthrough block | `false` | `true` / `false` |
 | `ct_instance_host_cuda_toolkit_path` | Host toolkit path used when `ct_instance_nvidia_mount_host_cuda_toolkit=true` | `/usr/local/cuda` | Absolute path |
 | `ct_instance_nvidia_mount_host_cuda_toolkit_into_nvidia_prefix` | Also bind-mount host CUDA toolkit into CT `/usr/local/nvidia` path to satisfy runtimes that resolve nvcc/toolkit under that prefix | `true` | `true` / `false` |
@@ -97,7 +99,31 @@ In this collection, vLLM readiness is validated by GPU visibility checks inside 
 > Automatic passthrough inspects actual character-device major/minor numbers, including UVM and capability devices. Rerun this role after driver updates, device changes, or a reboot that changes those numbers. If the managed block changes, the existing CT restart option applies.
 
 
-> Host-CUDA recommendation: for CT runtimes that require `${CUDA_HOME}/bin/nvcc`, set `ct_instance_nvidia_mount_host_cuda_toolkit=true` and `ct_instance_host_cuda_toolkit_path` to a real host toolkit path. In this mode, consider `ct_instance_nvidia_bind_driver_libraries=false` to avoid file-level bind mounts that can conflict with CT-side apt package management.
+> Host-CUDA recommendation: for CT runtimes that require `${CUDA_HOME}/bin/nvcc`, set `ct_instance_nvidia_mount_host_cuda_toolkit=true` and `ct_instance_host_cuda_toolkit_path` to a real host toolkit path. Provide matching NVIDIA driver userspace through host binds or CT-managed packages. A toolkit mount alone does not provide `nvidia-smi` or the complete driver userspace.
+
+## Host NVIDIA userspace bindings
+
+For CTs using host driver libraries and a host-mounted toolkit, the creation
+variables can also expose the matching host executable:
+
+```yaml
+ct_instance_nvidia_bind_driver_libraries: true
+ct_instance_nvidia_bind_nvidia_smi: true
+ct_instance_host_nvidia_smi_path: /usr/bin/nvidia-smi
+```
+
+The executable bind is opt-in, validated as a regular executable host file,
+and read-only inside the CT. The CT must provide its shared-library dependencies
+and a compatible userspace ABI. Driver libraries and this executable must match
+the host driver; additional libraries required by the model runtime still need
+to be available. CUDA Toolkit files and driver userspace have separate purposes.
+
+Rerun the CT creation playbook after enabling the flag. The existing managed-block
+restart policy applies. CT-side NVIDIA package installation can conflict with
+file binds; use CT-managed compatible userspace with both file-bind flags disabled,
+or keep CT-side NVIDIA package management disabled in host-userspace mode.
+The complete raw passthrough override still bypasses these automatic flags and
+host-file validation. Disabled passthrough and absent CTs skip the check.
 
 ## Creation appears to wait without progress
 

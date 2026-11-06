@@ -343,6 +343,8 @@ ct_runtime_vllm_hf_token: "{{ vault_hf_token }}"
 
 ### Role による前提条件チェック
 
+各 Role は収集値を `ansible_facts[...]` から参照し、`INJECT_FACTS_AS_VARS` が無効でも動作します。ansible-core 2.21 で非推奨となり、2.24 で廃止予定の自動展開された変数への依存を解消しています。
+
 これまで暗黙だった前提条件について、Role 内で明示チェックするようにしました。例えば:
 - PVE ホスト側: `host_nvidia_gpu` で Debian 系 / `*-pve` カーネル / `pve-headers-{{ ansible_kernel }}` / `/dev/nvidia*` を確認
 - PVE ホスト側: `proxmox-ve` が削除される apt プランを検知した場合は中断
@@ -445,6 +447,7 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_instance_timeout` | Proxmox タスク待機タイムアウト（秒） | `600` | `30` 以上の整数 |
 | `ct_instance_enable_nvidia_passthrough` | CT 設定へ NVIDIA パススルーブロックを管理 | `false` | `true` / `false` |
 | `ct_instance_nvidia_gpus` | CT に公開するホスト GPU を選択（CT 間の重複指定可） | `null` | `all`、空でない整数リスト、`null` |
+| `ct_instance_nvidia_bind_nvidia_smi` | ホストの `nvidia-smi` を CT に読み取り専用で bind-mount | `false` | `true` / `false` |
 | `ct_instance_ostemplate` | CT OS テンプレート | Debian 12 template path | 既存 `vztmpl` パス |
 | `ct_runtime_vllm_model` | vLLM 配信モデル ID | `mistralai/Mistral-7B-Instruct-v0.3` | 有効な HF/ローカルモデル識別子 |
 | `ct_runtime_vllm_hf_token` | vLLM ダウンロード時に使う任意の Hugging Face Token（`HF_TOKEN`） | `""` | 空文字または Token 文字列（vault 推奨） |

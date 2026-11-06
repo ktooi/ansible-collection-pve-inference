@@ -160,18 +160,21 @@
     - ct_instance_enable_nvidia_passthrough | bool
     - ct_instance_state != 'absent'
 
-# Purpose: Warn operators about dpkg cross-device-link risks when binding individual NVIDIA library files.
-- name: Warn when CT NVIDIA file-level library binds are enabled
+# Purpose: Explain package-management constraints of host-bound NVIDIA userspace files.
+- name: Warn when CT NVIDIA file-level userspace binds are enabled
   ansible.builtin.debug:
     msg: >-
-      ct_instance_nvidia_bind_driver_libraries=true mounts individual NVIDIA library files into CT.
-      If CT also manages NVIDIA/CUDA packages with apt, dpkg cross-device link errors can occur.
-      For host-CUDA workflows, prefer ct_instance_nvidia_bind_driver_libraries=false and mount a full toolkit path.
+      This CT uses file-level host NVIDIA userspace binds
+      (driver_libraries={{ ct_instance_nvidia_bind_driver_libraries }},
+      nvidia_smi={{ ct_instance_nvidia_bind_nvidia_smi }}).
+      Replacing these files with CT-side NVIDIA packages can cause dpkg errors.
+      Disable CT-side NVIDIA package management when using host-bound userspace,
+      or disable the file binds before installing compatible CT-managed userspace.
   when:
     - ct_instance_enable_nvidia_passthrough | bool
     - ct_instance_state != 'absent'
     - ct_instance_nvidia_passthrough_block | trim | length == 0
-    - ct_instance_nvidia_bind_driver_libraries | bool
+    - (ct_instance_nvidia_bind_driver_libraries | bool) or (ct_instance_nvidia_bind_nvidia_smi | bool)
 
 # Purpose: Inform operators that host toolkit mount mode requires aligned CT runtime CUDA settings.
 - name: Warn when host CUDA toolkit mount is enabled

@@ -159,6 +159,26 @@ flowchart TD
 
 > Extra-args note: `ct_runtime_vllm_extra_args` is appended only when non-empty, preventing empty trailing CLI arguments and accidental line-concatenation artifacts in systemd `ExecStart` parsing.
 
+## NVIDIA userspace readiness
+
+The role resolves `nvidia-smi` on the CT command search path and probes it before
+installing model Python packages. Failure diagnostics include the resolved path,
+command error, stdout, and stderr, distinguishing a missing executable from NVML
+or dynamic-linker errors. Strict mode rejects failed or empty probes before
+model package installation.
+
+When `ct_runtime_vllm_use_host_cuda_stack=true`, automatic CT-side NVIDIA/CUDA
+package installation is disabled. A host toolkit mount and two driver-library
+binds alone do not provide `nvidia-smi`. To use the host executable, set
+`ct_instance_nvidia_bind_nvidia_smi: true` in the **PVE-side CT creation variables**
+and rerun CT creation to apply the mount. The matching driver libraries and CT
+shared-library dependencies must be available. See
+[the CT role's host userspace options](../ct_instance/README.md#host-nvidia-userspace-bindings).
+
+For CT-managed NVIDIA userspace, provide packages compatible with the host driver
+after disabling conflicting file binds. Keep host kernel-module installation in
+the host role.
+
 ## Deploying audio, image, and video models
 
 The official main-branch documentation was reviewed on 2026-11-03. Supported models

@@ -24,6 +24,29 @@
             gpus: "{{ ct_instance_nvidia_gpus if ct_instance_nvidia_gpus is not none else omit }}"
           register: ct_instance_nvidia_devices
 
+        - name: Inspect the host nvidia-smi executable for CT passthrough
+          become: true
+          ansible.builtin.stat:
+            path: "{{ ct_instance_host_nvidia_smi_path }}"
+            follow: true
+            get_checksum: false
+            get_mime: false
+          register: ct_instance_host_nvidia_smi
+          when: ct_instance_nvidia_bind_nvidia_smi | bool
+
+        - name: Require an executable host nvidia-smi for the requested bind mount
+          ansible.builtin.assert:
+            that:
+              - ct_instance_host_nvidia_smi.stat.exists
+              - ct_instance_host_nvidia_smi.stat.isreg | default(false)
+              - ct_instance_host_nvidia_smi.stat.executable | default(false)
+            fail_msg: >-
+              ct_instance_nvidia_bind_nvidia_smi=true requires an executable host
+              nvidia-smi at {{ ct_instance_host_nvidia_smi_path }}.
+              Prepare the host NVIDIA userspace or set ct_instance_host_nvidia_smi_path
+              to its actual executable before configuring the CT.
+          when: ct_instance_nvidia_bind_nvidia_smi | bool
+
         - name: Build the NVIDIA passthrough block from actual device numbers
           ansible.builtin.set_fact:
             ct_instance_nvidia_passthrough_block_effective: >-

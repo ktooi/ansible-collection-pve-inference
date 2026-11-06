@@ -3,7 +3,7 @@
   ansible.builtin.import_tasks: variables.yml
 
 - name: Install runtime common packages (Debian family)
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
   block:
     - name: Refresh apt cache
       ansible.builtin.apt:
@@ -29,7 +29,7 @@
   ansible.builtin.package:
     name: "{{ ct_runtime_common_packages }}"
     state: present
-  when: ansible_os_family != 'Debian'
+  when: ansible_facts['os_family'] != 'Debian'
 
 - name: Ensure runtime group exists
   ansible.builtin.group:

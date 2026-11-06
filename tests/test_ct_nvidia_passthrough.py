@@ -212,13 +212,45 @@ class PassthroughRoleTests(unittest.TestCase):
         raw = 'lxc.cgroup2.devices.allow: c 222:7 rwm\nlxc.mount.entry: /custom dev/custom none bind,create=file'
         status, output = self.run_tasks([
             self.generate(ct_instance_nvidia_gpus=True, ct_instance_nvidia_passthrough_block=raw,
-                          ct_instance_nvidia_mount_host_cuda_toolkit=True), self.persist(),
+                          ct_instance_nvidia_mount_host_cuda_toolkit=True,
+                          ct_instance_nvidia_bind_nvidia_smi=True), self.persist(),
         ], missing_devices=True)
         self.assertEqual(status, 0, output)
         text = self.config.read_text()
         self.assertIn(raw, text)
         self.assertNotIn('libcuda', text)
         self.assertNotIn('/usr/local/cuda', text)
+
+    def test_host_nvidia_smi_bind_is_opt_in_and_read_only(self):
+        binary = self.root / 'nvidia-smi'
+        binary.write_text('#!/bin/sh\nexit 0\n')
+        binary.chmod(0o755)
+        status, output = self.run_tasks([
+            self.generate(), self.persist(),
+        ])
+        self.assertEqual(status, 0, output)
+        self.assertNotIn('usr/bin/nvidia-smi', self.config.read_text())
+        status, output = self.run_tasks([
+            self.generate(ct_instance_nvidia_bind_nvidia_smi=True,
+                          ct_instance_host_nvidia_smi_path=str(binary)), self.persist(),
+        ])
+        self.assertEqual(status, 0, output)
+        self.assertIn(f'{binary} usr/bin/nvidia-smi none bind,ro,create=file', self.config.read_text())
+
+    def test_missing_or_nonexecutable_host_nvidia_smi_stops_before_writing(self):
+        for present in [False, True]:
+            binary = self.root / 'nvidia-smi'
+            if present:
+                binary.write_text('not executable\n')
+                binary.chmod(0o644)
+            with self.subTest(present=present):
+                status, output = self.run_tasks([
+                    self.generate(ct_instance_nvidia_bind_nvidia_smi=True,
+                                  ct_instance_host_nvidia_smi_path=str(binary)), self.persist(),
+                ])
+                self.assertEqual(status, 2, output)
+                self.assertIn('requires an executable host nvidia-smi', output)
+                self.assertEqual(self.config.read_text(), 'hostname: preserved\n')
 
     def test_cuda_feature_flags_are_preserved(self):
         status, output = self.run_tasks([

@@ -106,7 +106,7 @@
   changed_when: false
   failed_when: false
   when:
-    - ansible_pkg_mgr == "apt"
+    - ansible_facts['pkg_mgr'] == "apt"
     - ct_runtime_vllm_install_cuda_userspace_effective
 
 - name: Assert dpkg package state is healthy before CUDA userspace remediations
@@ -119,7 +119,7 @@
       If CT bind-mounts individual NVIDIA files from host, avoid mixing file-level mounts with CT apt-managed NVIDIA packages.
       dpkg --audit output: {{ ct_runtime_vllm_dpkg_audit.stdout | default('') | trim }}
   when:
-    - ansible_pkg_mgr == "apt"
+    - ansible_facts['pkg_mgr'] == "apt"
     - ct_runtime_vllm_install_cuda_userspace_effective
     - ct_runtime_vllm_require_nvcc
 
@@ -131,7 +131,7 @@
       If CT bind-mounts individual NVIDIA files from host, avoid mixing file-level mounts with CT apt-managed NVIDIA packages.
       dpkg --audit output: {{ ct_runtime_vllm_dpkg_audit.stdout | default('') | trim }}
   when:
-    - ansible_pkg_mgr == "apt"
+    - ansible_facts['pkg_mgr'] == "apt"
     - ct_runtime_vllm_install_cuda_userspace_effective
     - not ct_runtime_vllm_require_nvcc
     - (ct_runtime_vllm_dpkg_audit.stdout | default('') | trim | length) > 0
@@ -259,7 +259,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
     - not ct_runtime_vllm_libcuda_available
-    - ansible_pkg_mgr == "apt"
+    - ansible_facts['pkg_mgr'] == "apt"
     - ct_runtime_vllm_install_cuda_userspace_effective
 
 # Purpose: Try installing fallback NVIDIA compute package when libcuda is still missing を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
@@ -273,7 +273,7 @@
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
     - not ct_runtime_vllm_libcuda_available
-    - ansible_pkg_mgr == "apt"
+    - ansible_facts['pkg_mgr'] == "apt"
     - ct_runtime_vllm_install_cuda_userspace_effective
     - ct_runtime_vllm_libcuda_fallback_pkg.stdout | length > 0
 
@@ -331,6 +331,9 @@
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_libcuda
+
+- name: Validate NVIDIA userspace before installing model Python packages
+  ansible.builtin.import_tasks: nvidia_smi_preflight.yml
 
 # Purpose: Build effective torch CUDA probe mode for preflight を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Build effective torch CUDA probe mode for preflight
@@ -817,48 +820,6 @@
         else omit
       }}
   when: ct_runtime_vllm_torch_package | length > 0
-
-# Purpose: Probe NVIDIA driver runtime with nvidia-smi を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
-- name: Probe NVIDIA driver runtime with nvidia-smi
-  ansible.builtin.command:
-    argv:
-      - nvidia-smi
-      - -L
-  register: ct_runtime_vllm_nvidia_smi_probe
-  changed_when: false
-  failed_when: false
-  when:
-    - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_require_nvidia_smi
-
-# Purpose: Assert nvidia-smi probe succeeded in CT を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
-- name: Assert nvidia-smi probe succeeded in CT
-  ansible.builtin.assert:
-    that:
-      - ct_runtime_vllm_nvidia_smi_probe.rc == 0
-      - (ct_runtime_vllm_nvidia_smi_probe.stdout | default('') | trim | length) > 0
-    fail_msg: >-
-      nvidia-smi preflight failed in CT (rc={{ ct_runtime_vllm_nvidia_smi_probe.rc }},
-      stderr={{ ct_runtime_vllm_nvidia_smi_probe.stderr | default('') | trim }}).
-      NVIDIA driver/runtime may be misconfigured for this container even if /dev/nvidia* and libcuda are present.
-  when:
-    - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_require_nvidia_smi
-    - ct_runtime_vllm_fail_on_nvidia_smi_probe
-
-# Purpose: Warn when nvidia-smi probe failed but strict nvidia-smi mode is disabled を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
-- name: Warn when nvidia-smi probe failed but strict nvidia-smi mode is disabled
-  ansible.builtin.debug:
-    msg: >-
-      nvidia-smi preflight failed in CT (rc={{ ct_runtime_vllm_nvidia_smi_probe.rc }},
-      stderr={{ ct_runtime_vllm_nvidia_smi_probe.stderr | default('') | trim }}).
-      Continuing because ct_runtime_vllm_fail_on_nvidia_smi_probe=false.
-      torch CUDA preflight will still run and enforce CUDA readiness.
-  when:
-    - ct_runtime_vllm_device == "cuda"
-    - ct_runtime_vllm_require_nvidia_smi
-    - not ct_runtime_vllm_fail_on_nvidia_smi_probe
-    - ct_runtime_vllm_nvidia_smi_probe.rc != 0
 
 # Purpose: Probe CUDA availability from torch in vLLM venv を行い、vLLM ランタイムの前提条件・設定整合性を段階的に満たす。
 - name: Probe CUDA availability from torch in vLLM venv

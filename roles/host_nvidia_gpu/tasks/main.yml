@@ -2,15 +2,15 @@
 - name: Assert host OS family is Debian
   ansible.builtin.assert:
     that:
-      - ansible_os_family == 'Debian'
+      - ansible_facts['os_family'] == 'Debian'
     fail_msg: "host_nvidia_gpu currently supports Debian-based Proxmox hosts only"
 
 - name: Assert Proxmox kernel is running
   ansible.builtin.assert:
     that:
-      - ansible_kernel is search('pve')
+      - ansible_facts['kernel'] is search('pve')
     fail_msg: >-
-      Proxmox kernel is required for this role. Current kernel: {{ ansible_kernel }}.
+      Proxmox kernel is required for this role. Current kernel: {{ ansible_facts['kernel'] }}.
       Install and boot a pve kernel first.
   when: host_nvidia_gpu_require_pve_kernel
 
@@ -226,7 +226,7 @@
           (host_nvidia_gpu_open_dkms_candidate_major | int) >= (host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus | int)
         )
     fail_msg: >-
-      NVIDIA candidates are not compatible with kernel {{ ansible_kernel }}.
+      NVIDIA candidates are not compatible with kernel {{ ansible_facts['kernel'] }}.
       Required major version: >= {{ host_nvidia_gpu_min_driver_major_for_kernel_6_12_plus }}.
       Detected candidates:
       - nvidia-driver: {{ host_nvidia_gpu_nvidia_driver_candidate }} (major={{ host_nvidia_gpu_nvidia_driver_candidate_major }})
@@ -244,7 +244,7 @@
       6) Ensure matching suite components are enabled for firmware packages (`non-free-firmware` and `non-free`)
          on the same Debian release line used for NVIDIA packages.
   when:
-    - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
+    - ansible_facts['kernel'] is search('^6\\.(1[2-9]|[2-9][0-9])')
 
 - name: Show remediation commands when no nvidia-driver candidate is visible
   ansible.builtin.debug:
@@ -256,7 +256,7 @@
         apt-cache policy nvidia-driver nvidia-open-kernel-dkms
       If `Candidate: (none)` persists, add an apt source that provides newer NVIDIA packages for your base distro.
   when:
-    - ansible_kernel is search('^6\\.(1[2-9]|[2-9][0-9])')
+    - ansible_facts['kernel'] is search('^6\\.(1[2-9]|[2-9][0-9])')
     - (host_nvidia_gpu_nvidia_driver_candidate_major | int) == 0
 
 - name: Show remediation when open kernel module candidate exists but dependencies are broken
@@ -519,18 +519,18 @@
     - host_nvidia_gpu_blacklist_conf is changed
 
 - name: Build DKMS modules for running kernel
-  ansible.builtin.command: "dkms autoinstall -k {{ ansible_kernel }}"
+  ansible.builtin.command: "dkms autoinstall -k {{ ansible_facts['kernel'] }}"
   register: host_nvidia_dkms_autoinstall
   changed_when: "'Installing' in host_nvidia_dkms_autoinstall.stdout"
   failed_when: false
 
 - name: Run depmod for running kernel
-  ansible.builtin.command: "depmod -a {{ ansible_kernel }}"
+  ansible.builtin.command: "depmod -a {{ ansible_facts['kernel'] }}"
   changed_when: false
 
 - name: Discover compiled NVIDIA modules for running kernel
   ansible.builtin.find:
-    paths: "/lib/modules/{{ ansible_kernel }}"
+    paths: "/lib/modules/{{ ansible_facts['kernel'] }}"
     recurse: true
     patterns: "nvidia*.ko*"
     file_type: file
@@ -546,7 +546,7 @@
   ansible.builtin.set_fact:
     host_nvidia_dkms_has_running_kernel: >-
       {{
-        ansible_kernel in (
+        ansible_facts['kernel'] in (
           host_nvidia_dkms_status_after.stdout
           | regex_findall('nvidia(?:-current)?/[^,]+,\s*([^,\s]+),')
         )
@@ -577,12 +577,12 @@
     that:
       - host_nvidia_running_kernel_driver_ready
     fail_msg: >-
-      NVIDIA driver module does not appear ready for the running kernel {{ ansible_kernel }}.
+      NVIDIA driver module does not appear ready for the running kernel {{ ansible_facts['kernel'] }}.
       DKMS has NVIDIA modules only for kernels: {{ host_nvidia_dkms_known_kernels | default([]) }}.
-      NVIDIA module files found under /lib/modules/{{ ansible_kernel }}: {{ host_nvidia_module_files.matched | default(0) }}.
+      NVIDIA module files found under /lib/modules/{{ ansible_facts['kernel'] }}: {{ host_nvidia_module_files.matched | default(0) }}.
       This is commonly caused by repository/kernel-driver mismatch (for example older 535 drivers on newer PVE kernels)
       or by booting into a newer kernel before a compatible NVIDIA DKMS package is available.
-      Confirm PVE/Debian repositories provide a driver compatible with {{ ansible_kernel }},
+      Confirm PVE/Debian repositories provide a driver compatible with {{ ansible_facts['kernel'] }},
       run apt full-upgrade, and reboot if needed.
 
 - name: Detect module naming variant
@@ -657,7 +657,7 @@
     that:
       - not host_nvidia_modprobe_primary_failed or not host_nvidia_modprobe_fallback_failed
     fail_msg: >-
-      Failed to load NVIDIA modules for kernel {{ ansible_kernel }}.
+      Failed to load NVIDIA modules for kernel {{ ansible_facts['kernel'] }}.
       Found module files in /lib/modules: {{ host_nvidia_module_files.matched }}.
       DKMS status: {{ host_nvidia_dkms_status_after.stdout | default('n/a') }}.
       Primary errors: {{ host_nvidia_modprobe_primary.results | default([]) | selectattr('stderr', 'defined') | map(attribute='stderr') | select('truthy') | list }}.
