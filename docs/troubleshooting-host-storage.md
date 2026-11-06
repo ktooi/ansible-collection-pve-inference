@@ -1,5 +1,9 @@
 # Host storage exhausted during NVIDIA preparation
 
+If `df` inside a CT reports free space but writes fail with `Read-only file
+system` or ext4 shows `emergency_ro`, inspect the backing thin pool instead:
+see [CT storage recovery](troubleshooting-ct-storage.md).
+
 ## Recognize the failure
 
 The reported run successfully applied the IPv4 APT override, refreshed package

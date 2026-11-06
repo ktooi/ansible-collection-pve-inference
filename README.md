@@ -112,6 +112,14 @@ path with `-m pip` and the import check above.
 
 CT runtime roles load distribution-specific vars files via `tasks/variables.yml` + `vars/*.yml` to handle multi-distribution differences consistently.
 
+### Storage capacity
+
+CT rootfs sizes are virtual allocations. Before CT creation or model downloads,
+check physical capacity in the backing storage pool across all guests. A full
+LVM thin pool can cause I/O errors and a read-only CT filesystem despite free
+space reported by `df` inside the CT. See
+[CT storage recovery](docs/troubleshooting-ct-storage.md).
+
 
 ### 1) Prepare Proxmox API token (on PVE)
 

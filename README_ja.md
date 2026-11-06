@@ -110,6 +110,12 @@ import エラーに別の Python パスが表示される場合は、そのパ�
 
 CT runtime 系 Role は `tasks/variables.yml` と `vars/*.yml` を使ってディストリビューション別変数を読み分ける方式で実装しています。
 
+### ストレージ容量
+
+CT の rootfs サイズは仮想的な割当です。CT 作成やモデル取得の前に、同じプールを使う全ゲストを含めて、実際のストレージ容量を確認してください。
+LVM thin-pool が満杯になると、CT 内の `df` に空きがあっても I/O エラーや読み取り専用への移行が発生します。
+確認と復旧の手順は [CT ストレージの復旧](docs/troubleshooting-ct-storage.md)を参照してください。
+
 
 ### 1) PVE で API Token を払い出す
 

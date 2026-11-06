@@ -20,6 +20,13 @@ controller, not the PVE host or model CTs. See the
 [CT role prerequisites](../../roles/ct_instance/README.md#controller-prerequisites)
 if the module reports an import failure.
 
+Before creating either CT or downloading models, check actual free capacity in
+the backing storage pool for all guests. A large virtual rootfs does not reserve
+that space in an LVM thin pool. Model caches and Python environments in both CTs
+consume the same physical pool when their rootfs volumes share it. See
+[CT storage recovery](../../docs/troubleshooting-ct-storage.md) for `out_of_data`,
+I/O errors, or `emergency_ro` even when `df` inside the CT reports free space.
+
 1. Prepare the GPU host with `playbooks/host_nvidia_gpu.yml`. Verify the expected
    physical GPU inventory and core/UVM character devices before CT creation.
 2. Use your existing `pve_hosts` inventory, API credentials, node, storage, SSH
