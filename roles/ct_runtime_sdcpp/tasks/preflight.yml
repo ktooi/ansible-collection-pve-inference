@@ -1,0 +1,46 @@
+---
+- name: Read CMake version for the build fingerprint
+  ansible.builtin.command:
+    argv: [cmake, --version]
+  become: true
+  become_user: "{{ ct_runtime_sdcpp_user }}"
+  environment: "{{ ct_runtime_sdcpp_build_environment }}"
+  changed_when: false
+  register: ct_runtime_sdcpp_cmake_probe
+
+- name: Read C++ compiler version for the build fingerprint
+  ansible.builtin.command:
+    argv: [c++, --version]
+  become: true
+  become_user: "{{ ct_runtime_sdcpp_user }}"
+  environment: "{{ ct_runtime_sdcpp_build_environment }}"
+  changed_when: false
+  register: ct_runtime_sdcpp_cxx_probe
+
+- name: Inspect the selected CUDA compiler
+  ansible.builtin.stat:
+    path: "{{ ct_runtime_sdcpp_nvcc }}"
+  register: ct_runtime_sdcpp_nvcc_stat
+  when: ct_runtime_sdcpp_cuda
+
+- name: Require a provisioned guest CUDA toolkit
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_sdcpp_nvcc_stat.stat.exists
+      - ct_runtime_sdcpp_nvcc_stat.stat.executable | default(false)
+    fail_msg: >-
+      CUDA builds require an existing executable nvcc at {{ ct_runtime_sdcpp_nvcc }}.
+      Provide a compatible toolkit in the guest (or mount it), adjust cuda_home/nvcc,
+      or specify cuda_packages from an already configured repository.
+      This role does not configure host drivers or a CUDA package repository.
+  when: ct_runtime_sdcpp_cuda
+
+- name: Read CUDA compiler version as the service user
+  ansible.builtin.command:
+    argv: ["{{ ct_runtime_sdcpp_nvcc }}", --version]
+  become: true
+  become_user: "{{ ct_runtime_sdcpp_user }}"
+  environment: "{{ ct_runtime_sdcpp_build_environment }}"
+  changed_when: false
+  register: ct_runtime_sdcpp_nvcc_probe
+  when: ct_runtime_sdcpp_cuda

@@ -1,0 +1,46 @@
+---
+# Native runtime only. Host drivers and CT device/library exposure are prerequisites.
+ct_runtime_sdcpp_repository: https://github.com/leejet/stable-diffusion.cpp.git
+ct_runtime_sdcpp_revision: fc350be2ceeeb859bcc201ac435591ed7d46821d
+ct_runtime_sdcpp_cuda: true
+ct_runtime_sdcpp_cuda_home: /usr/local/cuda
+ct_runtime_sdcpp_nvcc: "{{ ct_runtime_sdcpp_cuda_home }}/bin/nvcc"
+ct_runtime_sdcpp_cuda_architectures: ""
+# Optional packages from already configured guest repositories; never install a driver here.
+ct_runtime_sdcpp_cuda_packages: []
+ct_runtime_sdcpp_packages: "{{ ct_runtime_sdcpp_packages_os }}"
+ct_runtime_sdcpp_cmake_options: {}
+ct_runtime_sdcpp_build_jobs: 2
+ct_runtime_sdcpp_force_rebuild: false
+ct_runtime_sdcpp_build_environment: {}
+
+ct_runtime_sdcpp_user: sdcpp
+ct_runtime_sdcpp_group: sdcpp
+ct_runtime_sdcpp_supplementary_groups: []
+ct_runtime_sdcpp_home: /var/lib/sdcpp
+ct_runtime_sdcpp_cache_dir: /var/cache/sdcpp
+ct_runtime_sdcpp_install_dir: /opt/sdcpp
+ct_runtime_sdcpp_service_name: sdcpp.service
+ct_runtime_sdcpp_env_file: /etc/default/sdcpp
+ct_runtime_sdcpp_bind_host: 127.0.0.1
+ct_runtime_sdcpp_port: 1234
+ct_runtime_sdcpp_ld_library_path: "{{ ct_runtime_sdcpp_cuda_home }}/lib64:/usr/local/nvidia/lib64:/usr/local/nvidia/lib:/usr/lib/x86_64-linux-gnu"
+ct_runtime_sdcpp_environment: {}
+
+# One preloaded model per service. Keys are documented in the role README.
+ct_runtime_sdcpp_components: {}
+ct_runtime_sdcpp_artifacts: []
+ct_runtime_sdcpp_backend: "{{ 'cuda0' if ct_runtime_sdcpp_cuda else 'cpu' }}"
+ct_runtime_sdcpp_split_mode: layer
+ct_runtime_sdcpp_max_vram: ""
+ct_runtime_sdcpp_auto_fit: true
+# Each list item is exactly one argument, never a shell command fragment.
+ct_runtime_sdcpp_extra_args: []
+ct_runtime_sdcpp_min_cuda_devices: 1
+
+ct_runtime_sdcpp_check_ready: true
+ct_runtime_sdcpp_readiness_host: "{{ '127.0.0.1' if ct_runtime_sdcpp_bind_host == '0.0.0.0' else ('::1' if ct_runtime_sdcpp_bind_host == '::' else ct_runtime_sdcpp_bind_host) }}"
+ct_runtime_sdcpp_readiness_url: "http://{{ '[' ~ ct_runtime_sdcpp_readiness_host ~ ']' if ':' in ct_runtime_sdcpp_readiness_host else ct_runtime_sdcpp_readiness_host }}:{{ ct_runtime_sdcpp_port }}/sdcpp/v1/models/status"
+ct_runtime_sdcpp_readiness_retries: 120
+ct_runtime_sdcpp_readiness_delay: 5
+ct_runtime_sdcpp_readiness_timeout: 10

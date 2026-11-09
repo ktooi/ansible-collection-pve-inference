@@ -1,0 +1,35 @@
+---
+# Upstream spells some encoder options with underscores; do not normalize blindly.
+ct_runtime_sdcpp_component_flags:
+  model: --model
+  diffusion_model: --diffusion-model
+  high_noise_diffusion_model: --high-noise-diffusion-model
+  uncond_diffusion_model: --uncond-diffusion-model
+  clip_l: --clip_l
+  clip_g: --clip_g
+  clip_vision: --clip_vision
+  t5xxl: --t5xxl
+  llm: --llm
+  llm_vision: --llm_vision
+  embeddings_connectors: --embeddings-connectors
+  vae: --vae
+  audio_vae: --audio-vae
+  audio_encoder: --audio-encoder
+  taesd: --taesd
+  control_net: --control-net
+
+ct_runtime_sdcpp_cmake_required:
+  CMAKE_BUILD_TYPE: Release
+  SD_BUILD_EXAMPLES: "ON"
+  SD_SERVER_BUILD_FRONTEND: "OFF"
+  SD_BUILD_SHARED_LIBS: "OFF"
+  SD_BUILD_SHARED_GGML_LIB: "OFF"
+  SD_USE_SYSTEM_GGML: "OFF"
+  SD_USE_UPSTREAM_GGML: "OFF"
+  SD_HIPBLAS: "OFF"
+  SD_METAL: "OFF"
+  SD_VULKAN: "OFF"
+  SD_OPENCL: "OFF"
+  SD_SYCL: "OFF"
+  SD_MUSA: "OFF"
+  GGML_BACKEND_DL: "OFF"

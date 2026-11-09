@@ -1,0 +1,9 @@
+---
+ct_runtime_sdcpp_packages_os:
+  - ca-certificates
+  - git
+  - cmake
+  - ninja-build
+  - build-essential
+  - pkg-config
+  - sudo

@@ -1,0 +1,16 @@
+---
+- name: Poll sd.cpp native model readiness
+  ansible.builtin.uri:
+    url: "{{ ct_runtime_sdcpp_readiness_url }}"
+    method: GET
+    return_content: true
+    use_proxy: false
+    timeout: "{{ ct_runtime_sdcpp_readiness_timeout }}"
+    status_code: 200
+  register: ct_runtime_sdcpp_readiness
+  until:
+    - ct_runtime_sdcpp_readiness.status | default(0) == 200
+    - (ct_runtime_sdcpp_readiness.json | default({})).get('state', '') == 'ready'
+  retries: "{{ ct_runtime_sdcpp_readiness_retries }}"
+  delay: "{{ ct_runtime_sdcpp_readiness_delay }}"
+  changed_when: false

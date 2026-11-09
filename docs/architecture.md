@@ -16,7 +16,7 @@ Provide a maintainable Ansible architecture for CT-based inference workloads on 
 - Device exposure/bind mount definitions.
 
 ### CT runtime layer
-- Runtime foundation (packages, Python, user, paths).
+- Runtime foundation (packages, user, paths, optional runtime Python environment).
 - Runtime-specific installation/configuration.
 - Service management via systemd.
 
@@ -29,3 +29,21 @@ Provide a maintainable Ansible architecture for CT-based inference workloads on 
 - Add GPU vendors via new `host_*` roles.
 - Add runtime engines via new `ct_runtime_*` roles.
 - Keep common logic in `host_gpu_common` and `ct_runtime_common`.
+
+## Native image runtime extension
+
+`ct_runtime_sdcpp` is a separate engine role within this collection. It shares
+account/directory preparation and model artifact delivery, while owning its
+pinned native build, CLI, service and model-readiness checks. It does not use
+LLM context/KV/TP launcher settings or run the vLLM role for CUDA prerequisites.
+Core/Omni remain in `ct_runtime_vllm` as specified by ADR-002.
+
+Common Python venv creation remains enabled for existing callers and can be
+disabled by native runtimes. Model-specific component files, checksums and
+sampling/placement choices belong in examples or caller variables.
+
+The implementation direction is approved, but final acceptance awaits actual
+deployment tests. See [ADR-006](../adr/adr-006-sdcpp-runtime.md) and the
+[sd.cpp acceptance procedure](sdcpp-deployment.md#acceptance-record).
+Collection separation, if later required, should distinguish PVE infrastructure
+from reusable inference runtimes across modalities; it does not isolate GPU memory.

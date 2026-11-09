@@ -1,0 +1,140 @@
+---
+- name: Resolve fixed and additional CMake definitions
+  ansible.builtin.set_fact:
+    ct_runtime_sdcpp_cmake_effective: >-
+      {{ ct_runtime_sdcpp_cmake_options | combine(ct_runtime_sdcpp_cmake_required)
+         | combine({'SD_CUDA': 'ON' if ct_runtime_sdcpp_cuda else 'OFF'})
+         | combine({'CMAKE_CUDA_COMPILER': ct_runtime_sdcpp_nvcc,
+                    'CUDAToolkit_ROOT': ct_runtime_sdcpp_cuda_home} if ct_runtime_sdcpp_cuda else {})
+         | combine({'CMAKE_CUDA_ARCHITECTURES': ct_runtime_sdcpp_cuda_architectures}
+                   if ct_runtime_sdcpp_cuda and ct_runtime_sdcpp_cuda_architectures | length > 0 else {}) }}
+    cacheable: false
+
+- name: Create sd.cpp source cache
+  ansible.builtin.file:
+    path: "{{ ct_runtime_sdcpp_cache_dir }}"
+    state: directory
+    owner: "{{ ct_runtime_sdcpp_user }}"
+    group: "{{ ct_runtime_sdcpp_group }}"
+    mode: '0755'
+
+- name: Fetch the pinned sd.cpp source and submodules as the service user
+  ansible.builtin.git:
+    repo: "{{ ct_runtime_sdcpp_repository }}"
+    dest: "{{ ct_runtime_sdcpp_cache_dir }}/source"
+    version: "{{ ct_runtime_sdcpp_revision }}"
+    recursive: true
+    track_submodules: false
+    force: false
+  become: true
+  become_user: "{{ ct_runtime_sdcpp_user }}"
+  environment: "{{ ct_runtime_sdcpp_build_environment }}"
+  register: ct_runtime_sdcpp_source
+
+- name: Verify the resolved sd.cpp commit
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_sdcpp_source.after == ct_runtime_sdcpp_revision
+    fail_msg: The source checkout did not resolve to the requested full commit SHA.
+
+- name: Describe the native build inputs
+  ansible.builtin.set_fact:
+    ct_runtime_sdcpp_build_spec:
+      repository: "{{ ct_runtime_sdcpp_repository }}"
+      revision: "{{ ct_runtime_sdcpp_revision }}"
+      generator: Ninja
+      cmake: "{{ ct_runtime_sdcpp_cmake_effective | dict2items | sort(attribute='key') }}"
+      cmake_version: "{{ ct_runtime_sdcpp_cmake_probe.stdout }}"
+      cxx_version: "{{ ct_runtime_sdcpp_cxx_probe.stdout }}"
+      nvcc_version: "{{ ct_runtime_sdcpp_nvcc_probe.stdout | default('') }}"
+      environment: "{{ ct_runtime_sdcpp_build_environment | dict2items | sort(attribute='key') }}"
+    cacheable: false
+  no_log: true
+
+- name: Resolve the fingerprinted sd.cpp build directory
+  ansible.builtin.set_fact:
+    ct_runtime_sdcpp_build_dir: "{{ ct_runtime_sdcpp_cache_dir }}/builds/{{ (ct_runtime_sdcpp_build_spec | to_json(sort_keys=true)) | hash('sha256') }}"
+    cacheable: false
+
+- name: Inspect the completed build marker
+  ansible.builtin.stat:
+    path: "{{ ct_runtime_sdcpp_build_dir }}/.ansible-build-complete"
+  register: ct_runtime_sdcpp_build_marker
+
+- name: Inspect the built server executable
+  ansible.builtin.stat:
+    path: "{{ ct_runtime_sdcpp_build_dir }}/bin/sd-server"
+  register: ct_runtime_sdcpp_built_binary
+
+- name: Build sd.cpp only when its native inputs changed or the build is incomplete
+  when: ct_runtime_sdcpp_force_rebuild or ct_runtime_sdcpp_source.changed or not ct_runtime_sdcpp_build_marker.stat.exists or not ct_runtime_sdcpp_built_binary.stat.exists
+  become: true
+  become_user: "{{ ct_runtime_sdcpp_user }}"
+  environment: "{{ ct_runtime_sdcpp_build_environment }}"
+  block:
+    - name: Create the fingerprinted build directory
+      ansible.builtin.file:
+        path: "{{ ct_runtime_sdcpp_build_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Invalidate the completed build marker before compiling
+      ansible.builtin.file:
+        path: "{{ ct_runtime_sdcpp_build_dir }}/.ansible-build-complete"
+        state: absent
+
+    - name: Initialize the CMake command argument vector
+      ansible.builtin.set_fact:
+        ct_runtime_sdcpp_cmake_argv: [cmake, -S, "{{ ct_runtime_sdcpp_cache_dir }}/source", -B, "{{ ct_runtime_sdcpp_build_dir }}", -G, Ninja]
+        cacheable: false
+
+    - name: Append CMake definitions without shell evaluation
+      ansible.builtin.set_fact:
+        ct_runtime_sdcpp_cmake_argv: "{{ ct_runtime_sdcpp_cmake_argv + ['-D' ~ item.key ~ '=' ~ item.value] }}"
+        cacheable: false
+      loop: "{{ ct_runtime_sdcpp_cmake_effective | dict2items | sort(attribute='key') }}"
+
+    - name: Configure the pinned static sd.cpp build
+      ansible.builtin.command:
+        argv: "{{ ct_runtime_sdcpp_cmake_argv }}"
+      changed_when: true
+
+    - name: Compile the native sd-server target
+      ansible.builtin.command:
+        argv: [cmake, --build, "{{ ct_runtime_sdcpp_build_dir }}", --target, sd-server, --parallel, "{{ ct_runtime_sdcpp_build_jobs | string }}"]
+      changed_when: true
+
+    - name: Record a successful native build
+      ansible.builtin.copy:
+        dest: "{{ ct_runtime_sdcpp_build_dir }}/.ansible-build-complete"
+        content: "{{ ct_runtime_sdcpp_revision }}\n"
+        mode: '0644'
+
+- name: Create the root-owned sd.cpp installation directory
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ ct_runtime_sdcpp_install_dir }}"
+    - "{{ ct_runtime_sdcpp_install_dir }}/bin"
+
+- name: Install the native server atomically
+  ansible.builtin.copy:
+    src: "{{ ct_runtime_sdcpp_build_dir }}/bin/sd-server"
+    dest: "{{ ct_runtime_sdcpp_install_dir }}/bin/sd-server"
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0755'
+  notify: Restart sdcpp
+
+- name: Record the installed source and build fingerprint
+  ansible.builtin.copy:
+    dest: "{{ ct_runtime_sdcpp_install_dir }}/build.json"
+    content: "{{ {'revision': ct_runtime_sdcpp_revision, 'build_directory': ct_runtime_sdcpp_build_dir, 'cmake': ct_runtime_sdcpp_cmake_effective} | to_nice_json }}\n"
+    owner: root
+    group: root
+    mode: '0644'

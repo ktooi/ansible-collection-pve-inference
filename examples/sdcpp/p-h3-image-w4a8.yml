@@ -1,0 +1,65 @@
+---
+# Deployment-validation profile, not a verified four-GPU memory budget.
+# Confirm four CUDA devices and sufficient free capacity before applying.
+# This does not stop another service or reserve VRAM against an LLM.
+ct_runtime_sdcpp_revision: fc350be2ceeeb859bcc201ac435591ed7d46821d
+ct_runtime_sdcpp_cuda: true
+ct_runtime_sdcpp_cuda_home: /usr/local/cuda
+# Build only the architecture used by the intended RTX 3090 trial.
+ct_runtime_sdcpp_cuda_architectures: "86"
+ct_runtime_sdcpp_min_cuda_devices: 4
+
+ct_runtime_sdcpp_components:
+  diffusion_model: "{{ ct_runtime_sdcpp_home }}/models/diffusion_models/p-h3-image_w4a8.safetensors"
+  llm: "{{ ct_runtime_sdcpp_home }}/models/text_encoders/p-h3-image_text_encoder_w4a8.safetensors"
+  vae: "{{ ct_runtime_sdcpp_home }}/models/vae/p-h3-image_vae_int8_convrot.safetensors"
+
+# The bundled encoder contains its vision tower and P-H3 connector.
+# The P-H3 image VAE is required; the MiniMax-H3 video VAE is incompatible.
+ct_runtime_sdcpp_artifacts:
+  - name: p-h3-image-w4a8
+    url: https://huggingface.co/PrunaAI/P-H3-Image-Comfy/resolve/44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543/diffusion_models/p-h3-image_w4a8.safetensors
+    dest: "{{ ct_runtime_sdcpp_components.diffusion_model }}"
+    checksum: sha256:12ea30d6fde736dd69ef16658ce9438823a06e351ac3fa335cc4a3ce6bb17a43
+  - name: p-h3-image-text-encoder-w4a8
+    url: https://huggingface.co/PrunaAI/P-H3-Image-Comfy/resolve/44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543/text_encoders/p-h3-image_text_encoder_w4a8.safetensors
+    dest: "{{ ct_runtime_sdcpp_components.llm }}"
+    checksum: sha256:d4ae62d48e1de846dd55fc975623434e9326df3449601c4e15bea8b3ccd67293
+  - name: p-h3-image-vae-int8
+    url: https://huggingface.co/PrunaAI/P-H3-Image-Comfy/resolve/44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543/vae/p-h3-image_vae_int8_convrot.safetensors
+    dest: "{{ ct_runtime_sdcpp_components.vae }}"
+    checksum: sha256:583e0d43354b6b833aa9a0815a5fac831b1ef6d0c19a7eaa0616980a3dab5ffe
+
+# Names must match sd-server --list-devices inside this CT.
+# Layer allocation follows available memory, not a fixed 25% allocation.
+# VAE runs on one GPU; cuda1 avoids putting it on the first diffusion device.
+ct_runtime_sdcpp_backend: diffusion=cuda0&cuda1&cuda2&cuda3,te=cuda0&cuda1&cuda2&cuda3,vae=cuda1
+ct_runtime_sdcpp_split_mode: layer
+# Auto-fit can count the full component on each GPU before splitting.
+# Disable only after reviewing capacity for this explicit split placement.
+ct_runtime_sdcpp_auto_fit: false
+# Supply an experimentally validated per-device budget if needed.
+# It is a managed-allocation budget, not a physical cap or GPU reservation.
+ct_runtime_sdcpp_max_vram: ""
+
+# Start with a smaller canvas, then repeat acceptance at the intended resolution.
+# P-H3's published upstream default is 2912x2912; dimensions must divide by 32.
+ct_runtime_sdcpp_extra_args:
+  - --cfg-scale
+  - "1.0"
+  - --steps
+  - "8"
+  - --sampling-method
+  - euler
+  - --sigmas
+  - p-h3-image
+  - --rng
+  - cpu
+  - --width
+  - "1024"
+  - --height
+  - "1024"
+
+# Loopback by default. Use a tunnel or an explicitly configured private proxy.
+ct_runtime_sdcpp_bind_host: 127.0.0.1
+ct_runtime_sdcpp_port: 1234

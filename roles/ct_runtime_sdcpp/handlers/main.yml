@@ -1,0 +1,5 @@
+---
+- name: Restart sdcpp
+  ansible.builtin.systemd_service:
+    name: "{{ ct_runtime_sdcpp_service_name }}"
+    state: restarted

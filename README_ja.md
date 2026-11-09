@@ -14,7 +14,7 @@
 ### 含むもの
 - PVE ホストの GPU 前提設定
 - CT の作成/更新/削除
-- CT 内共通ランタイム基盤（Python、ユーザー、ディレクトリ等）
+- CT 内共通ランタイム基盤（ユーザー、ディレクトリ、任意の runtime 用 Python 環境）
 - 推論ランタイム導入（初期は vLLM）
 - 構築後検証
 
@@ -109,6 +109,10 @@ import エラーに別の Python パスが表示される場合は、そのパ�
 - RHEL および主要な RHEL クローン: 9, 10（Red Hat Enterprise Linux / AlmaLinux / Rocky Linux / Oracle Linux）
 
 CT runtime 系 Role は `tasks/variables.yml` と `vars/*.yml` を使ってディストリビューション別変数を読み分ける方式で実装しています。
+
+各 runtime の制約は別途適用されます。新設した native sd.cpp Role は初期段階では
+Debian/Ubuntu を対象とし、**実機デプロイ試験待ち**です。
+[デプロイ手順](docs/sdcpp-deployment.md)を参照してください。
 
 ### ストレージ容量
 
@@ -323,7 +327,7 @@ ansible_user: "root"
 # ansible_password: "{{ vault_ct_root_password }}"
 ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
 
-# ランタイム共通のランチャー変数
+# Shared launcher values for runtimes with matching LLM semantics.
 ct_runtime_launcher_model: "meta-llama/Llama-3.1-8B-Instruct"
 ct_runtime_launcher_context_length: 32768   # LLM のコンテキスト長
 ct_runtime_launcher_tensor_parallel_size: 4
@@ -471,6 +475,7 @@ Role 詳細:
 - [`roles/ct_runtime_common/README.md`](roles/ct_runtime_common/README.md)
 - [`roles/ct_runtime_launcher_common/README.md`](roles/ct_runtime_launcher_common/README.md)
 - [`roles/ct_runtime_vllm/README.md`](roles/ct_runtime_vllm/README.md)
+- [`roles/ct_runtime_sdcpp/README.md`](roles/ct_runtime_sdcpp/README.md)
 - [`roles/ct_runtime_sglang/README.md`](roles/ct_runtime_sglang/README.md)
 - [`roles/ct_runtime_tgi/README.md`](roles/ct_runtime_tgi/README.md)
 - [`roles/ct_runtime_ollama/README.md`](roles/ct_runtime_ollama/README.md)
@@ -484,6 +489,7 @@ Role 詳細:
 - `playbooks/host_amd_gpu.yml`
 - `playbooks/ct_create.yml`
 - `playbooks/runtime_vllm.yml`
+- `playbooks/runtime_sdcpp.yml`
 - `playbooks/runtime_sglang.yml`
 - `playbooks/runtime_tgi.yml`
 - `playbooks/runtime_ollama.yml`
@@ -504,3 +510,21 @@ vLLM-Omni による画像/動画生成を選択できます。最新版の更新
 
 STT 用と画像生成用の CT で同じホスト GPU を共有する構成は、
 [共有 GPU のデプロイ例](examples/shared-nvidia/README.md)を参照してください。
+
+## stable-diffusion.cpp: native 画像 API バックエンド
+
+`ct_runtime_sdcpp` は commit を固定した native `sd-server` をビルドし、GPU を利用できる
+既存 CT 上で独立した systemd service を管理します。ユーザー・ディレクトリとモデルファイルの
+準備を再利用し、runtime 用 Python venv や LLM launcher 設定は使用しません。
+PVE host driver の変更、CT 作成、既存 vLLM service の停止は行いません。
+
+[デプロイ・受入手順](docs/sdcpp-deployment.md)、
+[P-H3 W4A8/INT8 example](examples/sdcpp/README.md)、
+[Role 変数](roles/ct_runtime_sdcpp/README.md)を参照してください。
+Example は model revision と SHA256 を固定し、4 GPU の layer 分割を指定します。
+VRAM の均等使用や、LLM 向けの容量予約は保証しません。
+
+**実装の方向性は承認済みですが、設計の最終確定は実機デプロイ試験後です。**
+[ADR-006](adr/adr-006-sdcpp-runtime.md) は、CUDA build、モデルの生成・編集、GPU ごとの
+メモリ使用量、LLM との同居、再実行・復旧の結果を記録するまで Proposed として扱います。
+ローカルのコード検査と実機試験の結果を区別します。

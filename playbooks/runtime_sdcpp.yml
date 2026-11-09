@@ -1,0 +1,6 @@
+---
+- name: Configure native stable-diffusion.cpp inside an existing GPU-ready CT
+  hosts: ct_targets
+  become: true
+  roles:
+    - role: ktooi.pve_inference.ct_runtime_sdcpp
