@@ -2,10 +2,35 @@
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
+- name: Validate TGI Hugging Face cache settings
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_tgi_hf_hub_cache_dir is string
+      - ct_runtime_tgi_hf_hub_cache_dir == '' or (ct_runtime_tgi_hf_hub_cache_dir is match('^/[A-Za-z0-9_./-]+\Z') and '..' not in ct_runtime_tgi_hf_hub_cache_dir.split('/') and ct_runtime_tgi_hf_hub_cache_dir | regex_replace('/+', '/') != '/')
+    fail_msg: hf_hub_cache_dir must be empty or an absolute path without whitespace or parent traversal.
+
 - name: Install TGI launcher package(s)
   ansible.builtin.pip:
     name: "{{ ct_runtime_tgi_packages }}"
     executable: pip3
+
+- name: Prepare optional shared model storage for TGI
+  vars:
+    ct_model_storage_user: "{{ ct_runtime_tgi_user }}"
+    ct_model_storage_service_name: "{{ ct_runtime_tgi_service_name }}"
+    ct_model_storage_notify: [Restart tgi]
+  block:
+    - name: Reject shared-storage extra-vars that override the runtime binding
+      ansible.builtin.assert:
+        that:
+          - ct_model_storage_user == ct_runtime_tgi_user
+          - ct_model_storage_service_name == ct_runtime_tgi_service_name
+          - ct_model_storage_notify == ['Restart tgi']
+        fail_msg: Runtime storage guards must use the runtime's account, service and restart handler. Remove conflicting ct_model_storage_user/service_name/notify extra-vars.
+
+    - name: Validate shared model storage and manage the runtime startup guard
+      ansible.builtin.include_role:
+        name: ktooi.pve_inference.ct_model_storage
 
 - name: Render TGI environment file
   ansible.builtin.template:

@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import pwd
 import shutil
+import stat
 import subprocess
 import tempfile
 import threading
@@ -50,7 +51,7 @@ class ModelArtifactRoleTests(unittest.TestCase):
         self.thread.join()
         self.temporary.cleanup()
 
-    def run_role(self, assets, *, check=False, lora=None, backend='omni', maximum=16, integration=False, private_logs=False):
+    def run_role(self, assets, *, check=False, lora=None, backend='omni', maximum=16, integration=False, private_logs=False, overrides=None):
         values = {
             'ansible_python_interpreter': os.sys.executable,
             'ct_model_artifacts': assets,
@@ -58,6 +59,7 @@ class ModelArtifactRoleTests(unittest.TestCase):
             'ct_model_artifacts_group': grp.getgrgid(os.getgid()).gr_name,
             'ct_model_artifacts_no_log': private_logs,
         }
+        values.update(overrides or {})
         if integration:
             source = yaml.safe_load((ROOT / 'roles/ct_runtime_vllm/tasks/main.yml').read_text())
             tasks = [next(task for task in source if task['name'] == 'Deploy managed model and LoRA artifacts')]
@@ -164,6 +166,63 @@ class ModelArtifactRoleTests(unittest.TestCase):
         self.assertNotEqual(status, 0, output)
         self.assertIn('Artifact destinations must be absent or regular files', output)
         self.assertEqual(self.requests, [])
+
+    def test_user_download_preserves_preprovisioned_metadata_without_owner_lookup(self):
+        directory = self.root / 'preprovisioned-models'
+        directory.mkdir()
+        directory.chmod(0o2770)
+        destination = directory / 'weights'
+        destination.write_bytes(b'old weights')
+        destination.chmod(0o640)
+        asset = self.asset('weights', b'verified shared weights', dest=destination)
+        account = pwd.getpwuid(os.getuid()).pw_name
+        overrides = {
+            'ct_model_artifacts_become_user': account,
+            'ct_model_artifacts_manage_permissions': False,
+            'ct_model_artifacts_owner': 'nonexistent-model-owner-fixture',
+            'ct_model_artifacts_group': 'nonexistent-model-group-fixture',
+        }
+        status, output = self.run_role([asset], overrides=overrides)
+        self.assertEqual(status, 0, output)
+        self.assertEqual(destination.read_bytes(), b'verified shared weights')
+        self.assertEqual(destination.stat().st_uid, os.getuid())
+        self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o640)
+        self.assertEqual(stat.S_IMODE(directory.stat().st_mode), 0o2770)
+        count = len(self.requests)
+        status, output = self.run_role([asset], overrides=overrides)
+        self.assertEqual(status, 0, output)
+        self.assertIn('changed=0', output)
+        self.assertEqual(len(self.requests), count)
+
+    def test_user_download_bad_checksum_preserves_previous_bytes_and_permissions(self):
+        directory = self.root / 'preprovisioned-models'
+        directory.mkdir(mode=0o750)
+        destination = directory / 'weights'
+        destination.write_bytes(b'previous shared weights')
+        destination.chmod(0o640)
+        asset = self.asset('weights', b'expected new weights', dest=destination)
+        (self.web / 'weights').write_bytes(b'bad incoming bytes')
+        status, output = self.run_role([asset], overrides={
+            'ct_model_artifacts_become_user': pwd.getpwuid(os.getuid()).pw_name,
+            'ct_model_artifacts_manage_permissions': False,
+        })
+        self.assertNotEqual(status, 0, output)
+        self.assertIn('checksum', output.lower())
+        self.assertEqual(destination.read_bytes(), b'previous shared weights')
+        self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o640)
+        self.assertEqual(sorted(path.name for path in directory.iterdir()), ['weights'])
+
+    def test_invalid_permission_controls_fail_before_download(self):
+        asset = self.asset('weights', b'weights')
+        for overrides in [
+            {'ct_model_artifacts_manage_permissions': 'false'},
+            {'ct_model_artifacts_become_user': ['infer']},
+        ]:
+            with self.subTest(overrides=overrides):
+                status, output = self.run_role([asset], overrides=overrides)
+                self.assertNotEqual(status, 0, output)
+                self.assertEqual(self.requests, [])
+                self.assertFalse(Path(asset['dest']).parent.exists())
 
     def test_core_rank_above_limit_is_rejected_and_supported_rank_succeeds(self):
         directory = self.root / 'adapter-01'

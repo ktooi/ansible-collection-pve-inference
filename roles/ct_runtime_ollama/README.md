@@ -43,8 +43,14 @@ flowchart TD
 | `ct_runtime_ollama_port` | API port | `{{ ct_runtime_launcher_port | default(11434) }}` | Integer `1..65535` |
 | `ct_runtime_ollama_model` | Model name to pull (optional) | `{{ ct_runtime_launcher_model | default('', true) }}` | Empty or model name |
 | `ct_runtime_ollama_serve_models_path` | Models directory | `/var/lib/ollama` | Absolute path |
+| `ct_runtime_ollama_manage_models_directory` | Create/chown/chmod the models directory; `false` validates a precreated directory as the service user | `true` | YAML boolean |
 | `ct_runtime_ollama_binary_url` | Download URL for Ollama archive | `https://github.com/ollama/ollama/releases/download/v0.6.8/ollama-linux-amd64.tgz` | Valid URL |
 | `ct_runtime_ollama_binary_archive` | Download destination file | `/tmp/ollama-linux-amd64.tgz` | Absolute path |
 | `ct_runtime_ollama_binary_dest_dir` | Archive extract destination | `/usr/local` | Absolute path |
 | `ct_runtime_ollama_extra_args` | Extra `ollama serve` args | `{{ ct_runtime_launcher_extra_args | default('') }}` | String |
 | `ct_runtime_ollama_pull_model` | Pull model after service start | `false` | `true` / `false` |
+
+For server-provisioned NFS ACLs, set `ct_runtime_ollama_manage_models_directory: false`,
+select the prepared models path and enable `ct_model_storage_enabled`.
+The runtime supplies its service account and unit to the shared-storage guard.
+See [shared model storage](../../docs/shared-model-storage.md).

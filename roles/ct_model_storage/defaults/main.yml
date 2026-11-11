@@ -1,0 +1,14 @@
+---
+# Validate storage that infrastructure configuration has already mounted.
+ct_model_storage_enabled: false
+ct_model_storage_mount_path: /srv/models
+ct_model_storage_path: "{{ ct_model_storage_mount_path }}"
+ct_model_storage_allowed_fstypes: [nfs, nfs4]
+ct_model_storage_access: write
+ct_model_storage_user: infer
+
+# An empty service name validates storage without installing a unit drop-in.
+ct_model_storage_service_name: ""
+ct_model_storage_notify: []
+ct_model_storage_helper_path: /usr/local/libexec/pve-inference-model-storage-check
+ct_model_storage_systemd_dir: /etc/systemd/system

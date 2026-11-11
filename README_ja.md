@@ -467,12 +467,27 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor Parallel 数 | `1` | `1` 以上の整数 |
 | `ct_runtime_vllm_max_model_len` | LLM コンテキスト長 | `8192` | `1` 以上の整数 |
 
+## オプショナルな共有モデルストレージ
+
+PVE ホストでマウントした NFS を CT に bind mount し、モデルファイルの保存先にできます。
+`ct_model_storage_enabled: true` を指定すると、事前作成した namespace のマウント・
+実際のファイルシステム種別・runtime user の権限を確認し、サービス起動前にも検証します。
+既定では無効で、従来のローカル保存を維持します。
+
+実際の保存先は artifact/component の絶対パスや Hugging Face の hub cache 変数で指定します。
+既存ファイルの自動移動は行いません。トークン、venv、sd.cpp のビルド領域、実行時キャッシュは
+ローカルに残します。各ランタイムの設定、root squash の権限、新規・既存 CT の接続手順と
+実機確認項目は[共有モデルストレージのガイド](docs/shared-model-storage.md)を参照してください。
+
 Role 詳細:
+
 - [`roles/host_gpu_common/README.md`](roles/host_gpu_common/README.md)
 - [`roles/host_nvidia_gpu/README.md`](roles/host_nvidia_gpu/README.md)
 - [`roles/host_amd_gpu/README.md`](roles/host_amd_gpu/README.md)
 - [`roles/ct_instance/README.md`](roles/ct_instance/README.md)
 - [`roles/ct_runtime_common/README.md`](roles/ct_runtime_common/README.md)
+- [`roles/ct_model_storage/README.md`](roles/ct_model_storage/README.md)
+- [`roles/ct_model_artifacts/README.md`](roles/ct_model_artifacts/README.md)
 - [`roles/ct_runtime_launcher_common/README.md`](roles/ct_runtime_launcher_common/README.md)
 - [`roles/ct_runtime_vllm/README.md`](roles/ct_runtime_vllm/README.md)
 - [`roles/ct_runtime_sdcpp/README.md`](roles/ct_runtime_sdcpp/README.md)

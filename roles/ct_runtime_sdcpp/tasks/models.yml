@@ -28,6 +28,24 @@
     fail_msg: An explicitly selected cudaN backend device is not visible to sd-server. Device indices are relative to the service CUDA_VISIBLE_DEVICES setting.
   when: ct_runtime_sdcpp_cuda
 
+- name: Prepare optional shared model storage for sd.cpp
+  vars:
+    ct_model_storage_user: "{{ ct_runtime_sdcpp_user }}"
+    ct_model_storage_service_name: "{{ ct_runtime_sdcpp_service_name }}"
+    ct_model_storage_notify: [Restart sdcpp]
+  block:
+    - name: Reject shared-storage extra-vars that override the runtime binding
+      ansible.builtin.assert:
+        that:
+          - ct_model_storage_user == ct_runtime_sdcpp_user
+          - ct_model_storage_service_name == ct_runtime_sdcpp_service_name
+          - ct_model_storage_notify == ['Restart sdcpp']
+        fail_msg: Runtime storage guards must use the runtime's account, service and restart handler. Remove conflicting ct_model_storage_user/service_name/notify extra-vars.
+
+    - name: Validate shared model storage and manage the runtime startup guard
+      ansible.builtin.include_role:
+        name: ktooi.pve_inference.ct_model_storage
+
 - name: Deploy sd.cpp artifacts with the dedicated runtime contract
   vars:
     ct_model_artifacts: "{{ ct_runtime_sdcpp_artifacts }}"

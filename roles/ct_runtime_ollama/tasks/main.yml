@@ -2,6 +2,12 @@
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
+- name: Validate Ollama model directory management
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_ollama_manage_models_directory is boolean
+    fail_msg: ct_runtime_ollama_manage_models_directory must be a YAML boolean.
+
 - name: Download Ollama binary archive
   ansible.builtin.get_url:
     url: "{{ ct_runtime_ollama_binary_url }}"
@@ -14,6 +20,24 @@
     dest: "{{ ct_runtime_ollama_binary_dest_dir }}"
     remote_src: true
 
+- name: Prepare optional shared model storage for Ollama
+  vars:
+    ct_model_storage_user: "{{ ct_runtime_ollama_user }}"
+    ct_model_storage_service_name: "{{ ct_runtime_ollama_service_name }}"
+    ct_model_storage_notify: [Restart ollama]
+  block:
+    - name: Reject shared-storage extra-vars that override the runtime binding
+      ansible.builtin.assert:
+        that:
+          - ct_model_storage_user == ct_runtime_ollama_user
+          - ct_model_storage_service_name == ct_runtime_ollama_service_name
+          - ct_model_storage_notify == ['Restart ollama']
+        fail_msg: Runtime storage guards must use the runtime's account, service and restart handler. Remove conflicting ct_model_storage_user/service_name/notify extra-vars.
+
+    - name: Validate shared model storage and manage the runtime startup guard
+      ansible.builtin.include_role:
+        name: ktooi.pve_inference.ct_model_storage
+
 - name: Ensure Ollama models directory exists
   ansible.builtin.file:
     path: "{{ ct_runtime_ollama_serve_models_path }}"
@@ -21,6 +45,25 @@
     owner: "{{ ct_runtime_ollama_user }}"
     group: "{{ ct_runtime_ollama_group }}"
     mode: "0755"
+  when: ct_runtime_ollama_manage_models_directory
+
+- name: Inspect the precreated Ollama model directory
+  ansible.builtin.stat:
+    path: "{{ ct_runtime_ollama_serve_models_path }}"
+    get_checksum: false
+  become: true
+  become_user: "{{ ct_runtime_ollama_user }}"
+  register: ct_runtime_ollama_models_directory
+  when: not ct_runtime_ollama_manage_models_directory
+
+- name: Require a readable precreated Ollama model directory
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_ollama_models_directory.stat.isdir | default(false)
+      - ct_runtime_ollama_models_directory.stat.readable | default(false)
+      - ct_runtime_ollama_models_directory.stat.executable | default(false)
+    fail_msg: The precreated Ollama model directory must exist and be readable/searchable by the runtime user; provision server-side ownership or ACLs first.
+  when: not ct_runtime_ollama_manage_models_directory
 
 - name: Render Ollama environment file
   ansible.builtin.template:

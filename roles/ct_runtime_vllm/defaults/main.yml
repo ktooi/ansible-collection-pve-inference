@@ -57,6 +57,8 @@ ct_runtime_vllm_ld_library_path: /usr/local/nvidia/lib64:/usr/local/nvidia/lib:/
 ct_runtime_vllm_cuda_home: ""
 ct_runtime_vllm_require_nvcc: true
 ct_runtime_vllm_hf_cache_dir: ""
+# Share repository cache only; keep HF_HOME and its credentials local.
+ct_runtime_vllm_hf_hub_cache_dir: ""
 ct_runtime_vllm_hf_token: ""
 
 # Package and extensibility
