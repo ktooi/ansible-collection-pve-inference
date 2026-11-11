@@ -1,0 +1,71 @@
+---
+- name: Validate shared model storage declarations
+  ansible.builtin.import_tasks: settings.yml
+
+- name: Prepare the optional model storage guard
+  when: ct_model_storage_enabled
+  block:
+    - name: Create the local model storage helper directory
+      ansible.builtin.file:
+        path: "{{ ct_model_storage_helper_path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Install the local model storage check
+      ansible.builtin.copy:
+        src: model_storage_check.py
+        dest: "{{ ct_model_storage_helper_path }}"
+        owner: root
+        group: root
+        mode: '0755'
+      notify: "{{ ct_model_storage_notify }}"
+
+    - name: Validate the mounted model namespace as its runtime account
+      ansible.builtin.command:
+        argv: >-
+          {{ [ct_model_storage_helper_path, 'check', '--mount-path', ct_model_storage_mount_path,
+              '--path', ct_model_storage_path, '--access', ct_model_storage_access]
+             + (ct_model_storage_allowed_fstypes | map('regex_replace', '^', '--allowed-fstype=') | list) }}
+      become: true
+      become_user: "{{ ct_model_storage_user }}"
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Create the local model storage service drop-in directory
+      ansible.builtin.file:
+        path: "{{ ct_model_storage_systemd_dir }}/{{ ct_model_storage_service_name }}.d"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      when: ct_model_storage_service_name | length > 0
+
+    - name: Install the model storage startup guard
+      ansible.builtin.template:
+        src: model-storage.conf.j2
+        dest: "{{ ct_model_storage_systemd_dir }}/{{ ct_model_storage_service_name }}.d/90-pve-inference-model-storage.conf"
+        owner: root
+        group: root
+        mode: '0644'
+      register: ct_model_storage_installed_dropin
+      notify: "{{ ct_model_storage_notify }}"
+      when: ct_model_storage_service_name | length > 0
+
+- name: Remove only the managed model storage guard when disabled
+  ansible.builtin.file:
+    path: "{{ ct_model_storage_systemd_dir }}/{{ ct_model_storage_service_name }}.d/90-pve-inference-model-storage.conf"
+    state: absent
+  register: ct_model_storage_removed_dropin
+  notify: "{{ ct_model_storage_notify }}"
+  when:
+    - not ct_model_storage_enabled
+    - ct_model_storage_service_name | length > 0
+
+- name: Reload systemd after a model storage guard change
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when:
+    - ct_model_storage_service_name | length > 0
+    - ct_model_storage_installed_dropin.changed | default(false) or ct_model_storage_removed_dropin.changed | default(false)

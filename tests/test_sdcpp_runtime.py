@@ -32,6 +32,8 @@ class SdcppFixture(unittest.TestCase):
             ROOT / 'roles/ct_model_artifacts', target_is_directory=True)
         (collection / 'roles/ct_runtime_common').symlink_to(
             ROOT / 'roles/ct_runtime_common', target_is_directory=True)
+        self.storage_role = collection / 'roles/ct_model_storage'
+        shutil.copytree(ROOT / 'roles/ct_model_storage', self.storage_role)
         (collection / 'plugins').symlink_to(ROOT / 'plugins', target_is_directory=True)
 
         # Build/model tests may notify the real role's handlers. Record their
@@ -62,6 +64,20 @@ class SdcppFixture(unittest.TestCase):
                         if task[action].get('group') == 'root':
                             task[action]['group'] = grp.getgrgid(os.getgid()).gr_name
             build_file.write_text(yaml.safe_dump(build_tasks, sort_keys=False))
+            storage_file = self.storage_role / 'tasks/main.yml'
+            storage_tasks = yaml.safe_load(storage_file.read_text())
+
+            def adjust_storage_ownership(tasks):
+                for task in tasks:
+                    if 'block' in task:
+                        adjust_storage_ownership(task['block'])
+                    for action in ('ansible.builtin.file', 'ansible.builtin.copy', 'ansible.builtin.template'):
+                        if action in task:
+                            task[action].pop('owner', None)
+                            task[action].pop('group', None)
+
+            adjust_storage_ownership(storage_tasks)
+            storage_file.write_text(yaml.safe_dump(storage_tasks, sort_keys=False))
 
         self.model = self.root / 'model.safetensors'
         self.model.write_bytes(b'fixture model; not inference weights')
@@ -79,6 +95,8 @@ class SdcppFixture(unittest.TestCase):
             'ct_runtime_sdcpp_cuda': False,
             'ct_runtime_sdcpp_backend': 'cpu',
             'ct_runtime_sdcpp_components': {'diffusion_model': str(self.model)},
+            'ct_model_storage_helper_path': str(self.root / 'libexec/model-storage-check'),
+            'ct_model_storage_systemd_dir': str(self.root / 'systemd'),
         }
         self.env = dict(
             os.environ, ANSIBLE_NOCOLOR='1', ANSIBLE_INJECT_FACT_VARS='False',
@@ -528,6 +546,29 @@ class SdcppBuildTests(SdcppFixture):
 
 
 class SdcppModelsTests(SdcppFixture):
+    def test_missing_shared_mount_prevents_model_http_requests(self):
+        self.executable('print("cpu0 fixture CPU")\n')
+        payload = b'model must not reach local fallback'
+        url, requests = self.http_fixture(payload, 'application/octet-stream')
+        mount = self.root / 'unmounted-models'
+        mount.mkdir()
+        target = mount / 'must-not-download.safetensors'
+        status, output = self.run_tasks(
+            [self.include('settings.yml'), self.include('models.yml')], {
+                'ct_model_storage_enabled': True,
+                'ct_model_storage_mount_path': str(mount),
+                'ct_model_storage_path': str(mount),
+                'ct_runtime_sdcpp_components': {'diffusion_model': str(target)},
+                'ct_runtime_sdcpp_artifacts': [{
+                    'url': url + '/weights', 'dest': str(target),
+                    'checksum': 'sha256:' + hashlib.sha256(payload).hexdigest(),
+                }],
+            })
+        self.assertNotEqual(status, 0, output)
+        self.assertIn('not an exact mountpoint', output)
+        self.assertEqual(requests, [])
+        self.assertEqual(list(mount.iterdir()), [])
+
     def test_artifacts_are_idempotent_and_notify_only_the_sdcpp_handler(self):
         self.executable('print("cpu0 fixture CPU")\n')
         payload = b'fixture downloaded model'

@@ -2,10 +2,35 @@
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
+- name: Validate SGLang Hugging Face cache settings
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_sglang_hf_hub_cache_dir is string
+      - ct_runtime_sglang_hf_hub_cache_dir == '' or (ct_runtime_sglang_hf_hub_cache_dir is match('^/[A-Za-z0-9_./-]+\Z') and '..' not in ct_runtime_sglang_hf_hub_cache_dir.split('/') and ct_runtime_sglang_hf_hub_cache_dir | regex_replace('/+', '/') != '/')
+    fail_msg: hf_hub_cache_dir must be empty or an absolute path without whitespace or parent traversal.
+
 - name: Install SGLang package
   ansible.builtin.pip:
     name: "{{ ('sglang==' ~ ct_runtime_sglang_version) if ct_runtime_sglang_version | length > 0 else 'sglang' }}"
     virtualenv: "{{ ct_runtime_sglang_venv }}"
+
+- name: Prepare optional shared model storage for SGLang
+  vars:
+    ct_model_storage_user: "{{ ct_runtime_sglang_user }}"
+    ct_model_storage_service_name: "{{ ct_runtime_sglang_service_name }}"
+    ct_model_storage_notify: [Restart sglang]
+  block:
+    - name: Reject shared-storage extra-vars that override the runtime binding
+      ansible.builtin.assert:
+        that:
+          - ct_model_storage_user == ct_runtime_sglang_user
+          - ct_model_storage_service_name == ct_runtime_sglang_service_name
+          - ct_model_storage_notify == ['Restart sglang']
+        fail_msg: Runtime storage guards must use the runtime's account, service and restart handler. Remove conflicting ct_model_storage_user/service_name/notify extra-vars.
+
+    - name: Validate shared model storage and manage the runtime startup guard
+      ansible.builtin.include_role:
+        name: ktooi.pve_inference.ct_model_storage
 
 - name: Render SGLang environment file
   ansible.builtin.template:

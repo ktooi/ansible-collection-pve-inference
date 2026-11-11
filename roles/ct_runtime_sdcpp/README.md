@@ -147,6 +147,16 @@ ensure its remote CMake/Ninja/compiler processes have exited. Check mode validat
 | `components` | `{}` | Model component key to absolute readable file path; a `model` or `diffusion_model` is required |
 | `artifacts` | `[]` | Existing `ct_model_artifacts` URL/destination/SHA256 schema, scoped to sd.cpp |
 
+Model component and artifact paths can reference a prepared NFS/bind mount.
+Enable `ct_model_storage_enabled` for the common mount/type/permission check and
+service startup guard. The check runs after account/build/backend preparation and
+before downloads. Keep `cache_dir`, `home` and `install_dir` local; only point
+the selected model paths at shared storage. Root-squashed namespaces can use
+`ct_model_artifacts_become_user: sdcpp` and
+`ct_model_artifacts_manage_permissions: false`. See the
+[shared model storage guide](../../docs/shared-model-storage.md) for complete
+vars and the existing-CT bind-mount procedure.
+
 Managed service/build paths exclude whitespace, control characters, traversal and
 systemd specifiers. Model paths may contain spaces and Unicode. Each configured
 component is checked as the service user before the service configuration changes.

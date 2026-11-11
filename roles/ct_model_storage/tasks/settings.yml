@@ -1,0 +1,70 @@
+---
+- name: Validate model storage switches and service selection
+  ansible.builtin.assert:
+    that:
+      - ct_model_storage_enabled is boolean
+      - ct_model_storage_service_name is string
+      - ct_model_storage_service_name is not search('[\\x00-\\x1f\\x7f]')
+      - ct_model_storage_service_name == '' or ct_model_storage_service_name is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\\.service$')
+      - ct_model_storage_notify is sequence and ct_model_storage_notify is not string and ct_model_storage_notify is not mapping
+    fail_msg: Model storage requires a YAML boolean, an optional safe .service unit name, and a list of notification handlers.
+
+- name: Validate model storage notification handlers
+  ansible.builtin.assert:
+    that:
+      - item is string and item | length > 0
+    fail_msg: Model storage notification handlers must be non-empty strings.
+  loop: "{{ ct_model_storage_notify }}"
+
+- name: Validate enabled model storage configuration
+  ansible.builtin.assert:
+    that:
+      - ct_model_storage_access in ['read', 'write']
+      - ct_model_storage_user is string and ct_model_storage_user is match('^[a-z_][a-z0-9_-]*$')
+      - ct_model_storage_user is not search('[\\x00-\\x1f\\x7f]')
+      - ct_model_storage_allowed_fstypes is sequence and ct_model_storage_allowed_fstypes is not string and ct_model_storage_allowed_fstypes is not mapping
+      - ct_model_storage_allowed_fstypes | length > 0
+    fail_msg: Select read/write access, an existing service account, and a non-empty list of allowed filesystem types.
+  when: ct_model_storage_enabled
+
+- name: Validate model storage filesystem types
+  ansible.builtin.assert:
+    that:
+      - item is string and item is match('^[A-Za-z0-9][A-Za-z0-9_.-]*$')
+      - item is not search('[\\x00-\\x1f\\x7f]')
+    fail_msg: Filesystem types must be non-empty names without whitespace or control characters.
+  loop: "{{ ct_model_storage_allowed_fstypes }}"
+  when: ct_model_storage_enabled
+
+- name: Validate model storage paths before local changes
+  ansible.builtin.assert:
+    that:
+      - item is string and item is match('^/[A-Za-z0-9_./-]+$')
+      - item is not search('[\\x00-\\x1f\\x7f]')
+      - item != '/' and not item.endswith('/') and '//' not in item
+      - "'.' not in item.split('/') and '..' not in item.split('/')"
+    fail_msg: Model storage paths must be canonical absolute non-root paths without whitespace, traversal, or systemd specifiers.
+  loop: >-
+    {{ ([ct_model_storage_mount_path, ct_model_storage_path, ct_model_storage_helper_path]
+        if ct_model_storage_enabled else [])
+       + ([ct_model_storage_systemd_dir] if ct_model_storage_service_name | length > 0 else []) }}
+
+- name: Keep the namespace beneath its mount and helpers outside shared storage
+  ansible.builtin.assert:
+    that:
+      - ct_model_storage_path == ct_model_storage_mount_path or ct_model_storage_path.startswith(ct_model_storage_mount_path ~ '/')
+      - ct_model_storage_helper_path != ct_model_storage_mount_path and not ct_model_storage_helper_path.startswith(ct_model_storage_mount_path ~ '/')
+      - ct_model_storage_service_name == '' or (ct_model_storage_systemd_dir != ct_model_storage_mount_path and not ct_model_storage_systemd_dir.startswith(ct_model_storage_mount_path ~ '/'))
+    fail_msg: The namespace must be beneath the shared mount; the helper and systemd directory must remain outside that mount.
+  when: ct_model_storage_enabled
+
+- name: Reject symlinks in managed local paths before writing or removing a guard
+  ansible.builtin.command:
+    argv: >-
+      {{ ['python3', '-c', lookup('ansible.builtin.file', role_path ~ '/files/model_storage_check.py'), 'validate-paths']
+         + ([ct_model_storage_helper_path] if ct_model_storage_enabled else [])
+         + ([ct_model_storage_systemd_dir ~ '/' ~ ct_model_storage_service_name ~ '.d/90-pve-inference-model-storage.conf']
+            if ct_model_storage_service_name | length > 0 else []) }}
+  changed_when: false
+  check_mode: false
+  when: ct_model_storage_enabled or ct_model_storage_service_name | length > 0

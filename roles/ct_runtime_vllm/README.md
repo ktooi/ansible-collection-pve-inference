@@ -125,7 +125,8 @@ flowchart TD
 | `ct_runtime_vllm_nvidia_cuda_repo_list_filename` | apt sources list filename for CT NVIDIA repo | `nvidia-cuda` | filename without extension |
 | `ct_runtime_vllm_auto_install_nvcc_pip_fallback` | Try pip-based nvcc fallback when apt candidates are unavailable | `true` | `true` / `false` |
 | `ct_runtime_vllm_nvcc_pip_package` | pip package used for nvcc fallback | `nvidia-cuda-nvcc-cu12` | pip package spec |
-| `ct_runtime_vllm_hf_cache_dir` | Hugging Face cache dir | `""` | Empty or absolute path |
+| `ct_runtime_vllm_hf_cache_dir` | Legacy combined HF home/cache location; sets `HF_HOME` and `HUGGINGFACE_HUB_CACHE` | `""` | Empty or absolute path; mutually exclusive with the new hub-only setting |
+| `ct_runtime_vllm_hf_hub_cache_dir` | Repository cache only; sets `HF_HUB_CACHE` and `HUGGINGFACE_HUB_CACHE`, leaving `HF_HOME` local | `""` | Empty or absolute path without whitespace/traversal |
 | `ct_runtime_vllm_hf_token` | Hugging Face Hub token exported as `HF_TOKEN` | `""` | Empty or token string (prefer Ansible Vault) |
 | `ct_runtime_vllm_extra_args` | Extra CLI args | `""` | String |
 | `ct_runtime_vllm_version` | Pin version (optional) | `""` | Empty or semantic version string |
@@ -158,6 +159,14 @@ flowchart TD
 > Environment naming note: runtime command variables are exported with `INFER_VLLM_*` names (not `VLLM_*`) to avoid `Unknown vLLM environment variable` warnings emitted by newer vLLM versions.
 
 > HF Hub authentication note: to avoid `Warning: You are sending unauthenticated requests to the HF Hub...`, set `ct_runtime_vllm_hf_token` (preferably via Ansible Vault) so the role writes `HF_TOKEN` into the runtime environment file.
+
+For shared model storage, prefer `ct_runtime_vllm_hf_hub_cache_dir` and leave
+legacy `ct_runtime_vllm_hf_cache_dir` empty. The legacy setting is preserved for
+existing callers but also moves `HF_HOME`, which includes credential storage.
+Both settings cannot be used together. Enable `ct_model_storage_enabled` for
+mount/type/permission validation and a startup guard; the runtime supplies its
+service user and unit automatically. This applies to core and Omni. See
+[shared model storage](../../docs/shared-model-storage.md).
 
 > DNS note: when service-user probes show that `single-request-reopen` resolves A/AAAA lookup failures, set `ct_runtime_vllm_resolver_options: single-request-reopen`. The role exports `RES_OPTIONS` in the service environment file; the empty default omits it. This applies to the service's glibc resolver without changing CT nameservers or host networking. See [Hugging Face network troubleshooting](../../docs/troubleshooting-hf-network.md). The runtime playbook enables/starts vLLM, so finish storage recovery and capacity checks before rerunning it.
 

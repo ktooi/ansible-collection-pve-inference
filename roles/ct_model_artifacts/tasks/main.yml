@@ -1,54 +1,26 @@
 ---
+- name: Validate model artifact permission settings
+  ansible.builtin.assert:
+    that:
+      - ct_model_artifacts_manage_permissions is boolean
+      - ct_model_artifacts_become_user is string
+      - ct_model_artifacts_become_user == '' or ct_model_artifacts_become_user is match('^[a-zA-Z_][a-zA-Z0-9_.-]*[$]?\Z')
+    fail_msg: Artifact manage_permissions must be a YAML boolean; become_user must be empty or an existing Linux account name.
+
 - name: Validate model artifact declarations
   ansible.builtin.set_fact:
     ct_model_artifacts_validated: "{{ ct_model_artifacts | ktooi.pve_inference.model_artifacts_validate }}"
     cacheable: false
   no_log: "{{ ct_model_artifacts_no_log }}"
 
-- name: Inspect existing model artifact destinations
-  ansible.builtin.stat:
-    path: "{{ item }}"
-    follow: false
-    get_checksum: false
-  loop: "{{ ct_model_artifacts_validated | map(attribute='dest') | list }}"
-  register: ct_model_artifacts_destinations
+- name: Manage model artifacts in the caller's privilege context
+  ansible.builtin.include_tasks: files.yml
+  when: ct_model_artifacts_become_user | length == 0
 
-- name: Require file destinations for managed model artifacts
-  ansible.builtin.assert:
-    that:
-      - not item.stat.exists or item.stat.isreg | default(false)
-    fail_msg: Artifact destinations must be absent or regular files; directories and symlinks are not managed.
-  loop: "{{ ct_model_artifacts_destinations.results }}"
-  loop_control:
-    label: "{{ item.item }}"
-
-- name: Ensure model artifact directories exist
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-    owner: "{{ ct_model_artifacts_owner }}"
-    group: "{{ ct_model_artifacts_group }}"
-    mode: "{{ ct_model_artifacts_directory_mode }}"
-  loop: "{{ ct_model_artifacts_validated | map(attribute='dest') | map('dirname') | unique | list }}"
-
-- name: Download and verify managed model artifacts
-  ansible.builtin.get_url:
-    url: "{{ item.url }}"
-    dest: "{{ item.dest }}"
-    checksum: "{{ item.checksum }}"
-    headers: "{{ item.headers }}"
-    owner: "{{ ct_model_artifacts_owner }}"
-    group: "{{ ct_model_artifacts_group }}"
-    mode: "{{ ct_model_artifacts_file_mode }}"
-    tmp_dest: "{{ item.dest | dirname }}"
-    timeout: "{{ ct_model_artifacts_timeout }}"
-    validate_certs: "{{ ct_model_artifacts_validate_certs }}"
-    unredirected_headers: [Authorization]
-    use_netrc: false
-  loop: "{{ ct_model_artifacts_validated }}"
-  loop_control:
-    label: "{{ item.name }}"
-  no_log: "{{ ct_model_artifacts_no_log }}"
-  diff: false
-  notify: "{{ ct_model_artifacts_notify }}"
-  when: not ansible_check_mode
+- name: Manage model artifacts as the shared-storage writer
+  ansible.builtin.include_tasks:
+    file: files.yml
+    apply:
+      become: true
+      become_user: "{{ ct_model_artifacts_become_user }}"
+  when: ct_model_artifacts_become_user | length > 0

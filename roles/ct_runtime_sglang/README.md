@@ -35,3 +35,9 @@ Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaL
 | `ct_runtime_sglang_mtp_num_draft_tokens` | Draft tokens used with MTP/EAGLE flags when enabled | `3` | Integer `>=1` |
 | `ct_runtime_sglang_extra_args` | Extra launcher args | `{{ ct_runtime_launcher_extra_args | default('') }}` | String |
 | `ct_runtime_sglang_version` | Optional pinned package version | `""` | Empty or version string |
+| `ct_runtime_sglang_hf_hub_cache_dir` | Repository cache only; emits `HF_HUB_CACHE` and `HUGGINGFACE_HUB_CACHE` without moving `HF_HOME` | `""` | Empty or absolute path without whitespace/traversal |
+
+For NFS or another mounted model store, enable `ct_model_storage_enabled` and
+point this cache setting at the prepared namespace. The runtime supplies its
+service account and unit to the shared-storage guard. See
+[shared model storage](../../docs/shared-model-storage.md).

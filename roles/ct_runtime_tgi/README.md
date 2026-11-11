@@ -36,3 +36,9 @@ Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaL
 | `ct_runtime_tgi_max_total_tokens` | Max total tokens | `{{ ct_runtime_launcher_context_length | default(8192) }}` | Integer `>=1` |
 | `ct_runtime_tgi_max_concurrent_requests` | Max concurrent requests | `{{ ct_runtime_launcher_max_num_seqs | default(32) }}` | Integer `>=1` |
 | `ct_runtime_tgi_extra_args` | Extra launcher args | `{{ ct_runtime_launcher_extra_args | default('') }}` | String |
+| `ct_runtime_tgi_hf_hub_cache_dir` | Repository cache only; emits `HF_HUB_CACHE` and `HUGGINGFACE_HUB_CACHE` without moving `HF_HOME` | `""` | Empty or absolute path without whitespace/traversal |
+
+For NFS or another mounted model store, enable `ct_model_storage_enabled` and
+point this cache setting at the prepared namespace. The runtime supplies its
+service account and unit to the shared-storage guard. See
+[shared model storage](../../docs/shared-model-storage.md).

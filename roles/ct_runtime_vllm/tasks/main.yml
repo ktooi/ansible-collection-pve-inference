@@ -15,6 +15,14 @@
 - name: Validate LoRA settings before runtime deployment
   ansible.builtin.import_tasks: lora_settings.yml
 
+- name: Validate vLLM Hugging Face cache settings
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_vllm_hf_hub_cache_dir is string
+      - ct_runtime_vllm_hf_hub_cache_dir == '' or (ct_runtime_vllm_hf_hub_cache_dir is match('^/[A-Za-z0-9_./-]+\Z') and '..' not in ct_runtime_vllm_hf_hub_cache_dir.split('/') and ct_runtime_vllm_hf_hub_cache_dir | regex_replace('/+', '/') != '/')
+      - ct_runtime_vllm_hf_hub_cache_dir == '' or ct_runtime_vllm_hf_cache_dir == ''
+    fail_msg: Use an absolute hf_hub_cache_dir without whitespace or parent traversal, and leave legacy hf_cache_dir empty to keep HF_HOME local.
+
 - name: Validate vLLM resolver options
   ansible.builtin.assert:
     that:
@@ -936,6 +944,24 @@
   when:
     - ct_runtime_vllm_device == "cuda"
     - ct_runtime_vllm_require_torch_cuda_available
+
+- name: Prepare optional shared model storage for vLLM
+  vars:
+    ct_model_storage_user: "{{ ct_runtime_vllm_user }}"
+    ct_model_storage_service_name: "{{ ct_runtime_vllm_service_name }}"
+    ct_model_storage_notify: [Restart vllm]
+  block:
+    - name: Reject shared-storage extra-vars that override the runtime binding
+      ansible.builtin.assert:
+        that:
+          - ct_model_storage_user == ct_runtime_vllm_user
+          - ct_model_storage_service_name == ct_runtime_vllm_service_name
+          - ct_model_storage_notify == ['Restart vllm']
+        fail_msg: Runtime storage guards must use the runtime's account, service and restart handler. Remove conflicting ct_model_storage_user/service_name/notify extra-vars.
+
+    - name: Validate shared model storage and manage the runtime startup guard
+      ansible.builtin.include_role:
+        name: ktooi.pve_inference.ct_model_storage
 
 - name: Deploy managed model and LoRA artifacts
   ansible.builtin.include_role:

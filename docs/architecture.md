@@ -19,6 +19,14 @@ Provide a maintainable Ansible architecture for CT-based inference workloads on 
 - Runtime foundation (packages, user, paths, optional runtime Python environment).
 - Runtime-specific installation/configuration.
 - Service management via systemd.
+- Optional `ct_model_storage` validation of already-mounted model namespaces and
+  runtime startup guards. Host NFS mounts and CT bind attachment remain in their
+  infrastructure layers; credentials, virtualenvs and build caches remain local.
+
+Shared model paths are explicit runtime/artifact inputs. See
+[ADR-007](../adr/adr-007-shared-model-storage.md) and the
+[shared storage guide](shared-model-storage.md) for namespace permissions,
+root-squash behavior and deployment-test requirements.
 
 ### Validation layer
 - GPU visibility checks.

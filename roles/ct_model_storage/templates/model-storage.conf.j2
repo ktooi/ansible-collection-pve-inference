@@ -1,0 +1,6 @@
+# Managed by ktooi.pve_inference.ct_model_storage.
+[Unit]
+RequiresMountsFor={{ ct_model_storage_mount_path }}
+
+[Service]
+ExecStartPre={{ ct_model_storage_helper_path }} check --mount-path {{ ct_model_storage_mount_path }} --path {{ ct_model_storage_path }} --access {{ ct_model_storage_access }}{% for fstype in ct_model_storage_allowed_fstypes %} --allowed-fstype={{ fstype }}{% endfor %}

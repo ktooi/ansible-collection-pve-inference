@@ -8,6 +8,8 @@ ct_runtime_ollama_bind_host: "{{ ct_runtime_launcher_bind_host | default('0.0.0.
 ct_runtime_ollama_port: "{{ ct_runtime_launcher_port | default(11434) }}"
 ct_runtime_ollama_model: "{{ ct_runtime_launcher_model | default('', true) }}"
 ct_runtime_ollama_serve_models_path: /var/lib/ollama
+# Disable when the storage administrator precreates the directory and its ACLs.
+ct_runtime_ollama_manage_models_directory: true
 ct_runtime_ollama_binary_url: https://github.com/ollama/ollama/releases/download/v0.6.8/ollama-linux-amd64.tgz
 ct_runtime_ollama_binary_archive: /tmp/ollama-linux-amd64.tgz
 ct_runtime_ollama_binary_dest_dir: /usr/local

@@ -506,12 +506,28 @@ ansible-playbook -i inventory.ini playbooks/validate.yml
 | `ct_runtime_vllm_tensor_parallel_size` | Tensor parallel size | `1` | Integer `>=1` |
 | `ct_runtime_vllm_max_model_len` | LLM context size | `8192` | Integer `>=1` |
 
+## Optional shared model storage
+
+Model files can live on a PVE-host NFS mount exposed to the CT through a bind
+mount. Enable `ct_model_storage_enabled: true` to validate a precreated namespace
+as the runtime user and install a service startup guard that checks both the
+mount and its backing filesystem type. Defaults remain local and disabled.
+
+Explicit artifact/component destinations and Hugging Face hub-cache settings
+select the files placed there; storage validation does not move existing files.
+Keep tokens, virtualenvs, sd.cpp build directories and execution caches local.
+See [shared model storage](docs/shared-model-storage.md) for all runtimes,
+root-squash permissions, new/existing CT attachment and deployment acceptance.
+
 Detailed role docs:
+
 - [`roles/host_gpu_common/README.md`](roles/host_gpu_common/README.md)
 - [`roles/host_nvidia_gpu/README.md`](roles/host_nvidia_gpu/README.md)
 - [`roles/host_amd_gpu/README.md`](roles/host_amd_gpu/README.md)
 - [`roles/ct_instance/README.md`](roles/ct_instance/README.md)
 - [`roles/ct_runtime_common/README.md`](roles/ct_runtime_common/README.md)
+- [`roles/ct_model_storage/README.md`](roles/ct_model_storage/README.md)
+- [`roles/ct_model_artifacts/README.md`](roles/ct_model_artifacts/README.md)
 - [`roles/ct_runtime_launcher_common/README.md`](roles/ct_runtime_launcher_common/README.md)
 - [`roles/ct_runtime_vllm/README.md`](roles/ct_runtime_vllm/README.md)
 - [`roles/ct_runtime_sdcpp/README.md`](roles/ct_runtime_sdcpp/README.md)

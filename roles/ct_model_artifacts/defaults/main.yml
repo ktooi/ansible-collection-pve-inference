@@ -7,5 +7,9 @@ ct_model_artifacts_file_mode: '0644'
 ct_model_artifacts_timeout: 60
 ct_model_artifacts_validate_certs: true
 ct_model_artifacts_no_log: true
+# Empty preserves the caller's privilege context. Shared storage can use its writer account.
+ct_model_artifacts_become_user: ""
+# Disable for server-provisioned ownership, modes and ACLs (for example root-squashed NFS).
+ct_model_artifacts_manage_permissions: true
 # Standalone callers can supply handler names; the vLLM role supplies its restart handler.
 ct_model_artifacts_notify: []
