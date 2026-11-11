@@ -129,6 +129,55 @@ class SdcppFixture(unittest.TestCase):
         binary.chmod(0o755)
         return binary
 
+    def instrument_build_tools(self, nproc_output='3\n', nproc_status=0):
+        """Record actual tool invocations while retaining a real native build."""
+        real_cmake = shutil.which('cmake')
+        self.assertIsNotNone(real_cmake, 'Install CMake in the development environment')
+        tools = self.root / 'build-tools'
+        tools.mkdir()
+        self.tool_log = self.root / 'build-tools.jsonl'
+        self.tool_state = self.root / 'build-tools-state.json'
+        self.tool_state.write_text(json.dumps({
+            'nproc_output': nproc_output, 'nproc_status': nproc_status,
+        }))
+        record = (
+            'import json, os, sys\n'
+            f'with open({str(self.tool_log)!r}, "a") as stream:\n'
+            '    stream.write(json.dumps({\n'
+            '        "tool": os.path.basename(sys.argv[0]), "argv": sys.argv[1:],\n'
+            '        "uid": os.geteuid(),\n'
+            '        "build_token": os.environ.get("SDCPP_FIXTURE_BUILD_TOKEN"),\n'
+            '        "omp_num_threads": os.environ.get("OMP_NUM_THREADS"),\n'
+            '        "omp_thread_limit": os.environ.get("OMP_THREAD_LIMIT"),\n'
+            '    }) + "\\n")\n'
+        )
+        scripts = {
+            'cmake': record + f'os.execv({real_cmake!r}, [{real_cmake!r}, *sys.argv[1:]])\n',
+            'nproc': record + (
+                f'with open({str(self.tool_state)!r}) as stream:\n'
+                '    state = json.load(stream)\n'
+                'sys.stdout.write(state["nproc_output"])\n'
+                'sys.exit(state["nproc_status"])\n'
+            ),
+        }
+        for name, source in scripts.items():
+            target = tools / name
+            target.write_text(f'#!{os.sys.executable}\n' + source)
+            target.chmod(0o755)
+        environment = {
+            'PATH': str(tools) + os.pathsep + os.environ['PATH'],
+            'SDCPP_FIXTURE_BUILD_TOKEN': 'service-build-context',
+            'OMP_NUM_THREADS': '97',
+            'OMP_THREAD_LIMIT': '1',
+        }
+        self.values['ct_runtime_sdcpp_build_environment'] = environment
+        return environment
+
+    def tool_events(self):
+        if not self.tool_log.exists():
+            return []
+        return [json.loads(line) for line in self.tool_log.read_text().splitlines()]
+
     def http_fixture(self, body, content_type='application/json'):
         requests = []
 
@@ -176,6 +225,8 @@ class SdcppSettingsTests(SdcppFixture):
             {'ct_runtime_sdcpp_environment': {'BAD=KEY': 'value'}},
             {'ct_runtime_sdcpp_environment': {'VALID_KEY': 'first\nsecond'}},
         ]
+        cases.extend({'ct_runtime_sdcpp_build_jobs': value}
+                     for value in [0, -1, 1.5, True, False, '', 'AUTO', 'unlimited'])
         for values in cases:
             with self.subTest(values=values):
                 status, output = self.run_tasks([
@@ -226,7 +277,9 @@ class SdcppSettingsTests(SdcppFixture):
     def test_check_mode_validates_without_installation_or_network_requests(self):
         url, requests = self.http_fixture(b'fixture model', 'application/octet-stream')
         target = self.root / 'downloaded.safetensors'
+        self.instrument_build_tools(nproc_status=91)
         status, output = self.run_tasks([self.include('main.yml')], {
+            'ct_runtime_sdcpp_build_jobs': 'auto',
             'ct_runtime_sdcpp_components': {'diffusion_model': str(target)},
             'ct_runtime_sdcpp_artifacts': [{
                 'url': url + '/weights', 'dest': str(target),
@@ -239,6 +292,7 @@ class SdcppSettingsTests(SdcppFixture):
         self.assertFalse(Path(self.values['ct_runtime_sdcpp_cache_dir']).exists())
         self.assertFalse(Path(self.values['ct_runtime_sdcpp_install_dir']).exists())
         self.assertEqual(requests, [])
+        self.assertEqual(self.tool_events(), [])
 
     def test_common_extra_vars_cannot_enable_a_shared_python_environment(self):
         status, output = self.run_tasks([self.include('main.yml')], extra_vars={
@@ -277,7 +331,7 @@ class SdcppBuildTests(SdcppFixture):
         return subprocess.check_output(['git', '-C', str(self.source), 'rev-parse', 'HEAD'],
                                        text=True).strip()
 
-    def build(self, revision, options=None):
+    def build(self, revision, options=None, overrides=None):
         self.assertIsNotNone(shutil.which('cmake'), 'Install CMake in the development environment')
         self.assertIsNotNone(shutil.which('ninja'), 'Install Ninja in the development environment')
         cmake = subprocess.check_output(['cmake', '--version'], text=True)
@@ -288,6 +342,7 @@ class SdcppBuildTests(SdcppFixture):
             'ct_runtime_sdcpp_cmake_options': options or {},
             'ct_runtime_sdcpp_cmake_probe': {'stdout': cmake},
             'ct_runtime_sdcpp_cxx_probe': {'stdout': compiler},
+            **(overrides or {}),
         }, timeout=90)
 
     def installed_output(self):
@@ -333,6 +388,112 @@ class SdcppBuildTests(SdcppFixture):
         builds = Path(self.values['ct_runtime_sdcpp_cache_dir']) / 'builds'
         self.assertEqual(len(list(builds.iterdir())), 2)
         self.assertEqual(len(list(builds.glob('*/.ansible-build-complete'))), 1)
+
+    def test_auto_jobs_use_build_context_without_openmp_hints(self):
+        revision = self.create_source()
+        self.instrument_build_tools()
+        status, output = self.build(revision, overrides={
+            'ct_runtime_sdcpp_build_jobs': 'auto',
+        })
+        self.assertEqual(status, 0, output)
+        self.assertEqual(self.installed_output(), 'one:first')
+        self.assertIn('Building sd-server with 3 parallel jobs (requested: auto).', output)
+
+        probes = [event for event in self.tool_events() if event['tool'] == 'nproc']
+        self.assertEqual(len(probes), 1)
+        self.assertEqual(probes[0]['argv'], [])
+        self.assertEqual(probes[0]['uid'], pwd.getpwnam(self.values['ct_runtime_sdcpp_user']).pw_uid)
+        self.assertEqual(probes[0]['build_token'], 'service-build-context')
+        self.assertIsNone(probes[0]['omp_num_threads'])
+        self.assertIsNone(probes[0]['omp_thread_limit'])
+
+        builds = [event for event in self.tool_events()
+                  if event['tool'] == 'cmake' and '--build' in event['argv']]
+        self.assertEqual(len(builds), 1)
+        argv = builds[0]['argv']
+        self.assertEqual(argv[argv.index('--parallel') + 1], '3')
+        self.assertEqual(builds[0]['uid'], probes[0]['uid'])
+        self.assertEqual(builds[0]['build_token'], 'service-build-context')
+        self.assertEqual(builds[0]['omp_num_threads'], '97')
+        self.assertEqual(builds[0]['omp_thread_limit'], '1')
+
+    def test_fixed_jobs_skip_cpu_probe_and_completed_auto_rerun_is_unchanged(self):
+        revision = self.create_source()
+        self.instrument_build_tools(nproc_status=92)
+        status, output = self.build(revision, overrides={
+            'ct_runtime_sdcpp_build_jobs': '4',
+        })
+        self.assertEqual(status, 0, output)
+        self.assertIn('Building sd-server with 4 parallel jobs (requested: 4).', output)
+        self.assertEqual(self.installed_output(), 'one:first')
+        metadata = Path(self.values['ct_runtime_sdcpp_install_dir']) / 'build.json'
+        first = json.loads(metadata.read_text())
+        events = self.tool_events()
+        self.assertFalse(any(event['tool'] == 'nproc' for event in events))
+        builds = [event for event in events
+                  if event['tool'] == 'cmake' and '--build' in event['argv']]
+        self.assertEqual(len(builds), 1)
+        argv = builds[0]['argv']
+        self.assertEqual(argv[argv.index('--parallel') + 1], '4')
+
+        status, output = self.build(revision, overrides={
+            'ct_runtime_sdcpp_build_jobs': 'auto',
+        })
+        self.assertEqual(status, 0, output)
+        self.assertIn('changed=0', output)
+        self.assertNotIn('HANDLER: Restart sdcpp', output)
+        self.assertEqual(json.loads(metadata.read_text()), first)
+        self.assertEqual(self.tool_events(), events)
+
+    def test_incomplete_build_reuses_objects_with_new_parallel_count(self):
+        revision = self.create_source()
+        self.instrument_build_tools(nproc_output='5\n')
+        status, output = self.build(revision, overrides={
+            'ct_runtime_sdcpp_build_jobs': 2,
+        })
+        self.assertEqual(status, 0, output)
+        metadata = Path(self.values['ct_runtime_sdcpp_install_dir']) / 'build.json'
+        first = json.loads(metadata.read_text())
+        build_directory = Path(first['build_directory'])
+        objects = {path: path.stat().st_mtime_ns for path in build_directory.rglob('*.o')}
+        self.assertTrue(objects)
+
+        # Simulate a build interrupted after compilation, before link/success.
+        (build_directory / '.ansible-build-complete').unlink()
+        (build_directory / 'bin/sd-server').unlink()
+        status, output = self.build(revision, overrides={
+            'ct_runtime_sdcpp_build_jobs': 'auto',
+        })
+        self.assertEqual(status, 0, output)
+        self.assertEqual(self.installed_output(), 'one:first')
+        self.assertEqual(json.loads(metadata.read_text())['build_directory'], str(build_directory))
+        self.assertTrue((build_directory / '.ansible-build-complete').exists())
+        self.assertEqual({path: path.stat().st_mtime_ns for path in objects}, objects)
+        builds = [event for event in self.tool_events()
+                  if event['tool'] == 'cmake' and '--build' in event['argv']]
+        self.assertEqual(len(builds), 2)
+        self.assertEqual([event['argv'][event['argv'].index('--parallel') + 1]
+                          for event in builds], ['2', '5'])
+        self.assertEqual(len(list(build_directory.parent.iterdir())), 1)
+
+    def test_invalid_cpu_probe_stops_before_compilation(self):
+        revision = self.create_source()
+        self.instrument_build_tools()
+        for stdout, returncode in [('0\n', 0), ('-1\n', 0), ('not-a-count\n', 0),
+                                   ('', 0), ('3\n', 93)]:
+            with self.subTest(stdout=stdout, returncode=returncode):
+                self.tool_state.write_text(json.dumps({
+                    'nproc_output': stdout, 'nproc_status': returncode,
+                }))
+                status, output = self.build(revision, overrides={
+                    'ct_runtime_sdcpp_build_jobs': 'auto',
+                })
+                self.assertNotEqual(status, 0, output)
+                self.assertFalse(any(event['tool'] == 'cmake' and '--build' in event['argv']
+                                     for event in self.tool_events()))
+                self.assertFalse(Path(self.values['ct_runtime_sdcpp_install_dir']).exists())
+                self.assertEqual(list(Path(self.values['ct_runtime_sdcpp_cache_dir']).glob(
+                    'builds/*/.ansible-build-complete')), [])
 
 
 class SdcppModelsTests(SdcppFixture):

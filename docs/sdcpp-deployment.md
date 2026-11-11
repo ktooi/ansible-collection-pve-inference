@@ -67,6 +67,38 @@ It sets `ct_runtime_sdcpp_min_cuda_devices: 4` and compiles for architecture 86
 Review available capacity while the LLM and other services are in their intended
 state. Nothing in this profile reserves VRAM or changes the LLM's memory budget.
 
+### Choose build parallelism
+
+The default native build uses at most two parallel jobs. To use the CPU count
+available to the build user inside the CT, add this to the sd.cpp vars file:
+
+```yaml
+ct_runtime_sdcpp_build_jobs: auto
+```
+
+For example, a CT whose `nproc` reports 8 uses `--parallel 8`; it does not gain
+access to additional PVE host CPUs. Inspect the same probe on the CT if needed:
+
+```bash
+sudo -u sdcpp env -u OMP_NUM_THREADS -u OMP_THREAD_LIMIT nproc
+```
+
+The service account must already exist for this manual command. The role creates
+it before detection and logs the resolved job count before compilation. `auto`
+uses CPU affinity/cpuset; cgroup v2 quota detection requires a sufficiently recent
+`nproc` (added in GNU coreutils 9.8). If the CT has only a quota restriction or RAM
+is constrained, set a positive number such as `4` instead. CUDA compiler processes
+can consume substantial RAM, so higher parallelism does not guarantee a faster
+build. Link/dependency phases can also use fewer CPUs than the selected maximum.
+
+Changing only this variable does not create a different build directory. After
+a failed/interrupted build, retain the source/build cache and rerun the playbook
+to reuse completed objects. Confirm that the original remote CMake/Ninja/compiler
+processes have exited before starting another build in that directory; changing
+vars cannot alter an already running command. A completed build is not rebuilt
+just because its job limit changes. `force_rebuild` is unnecessary when the build
+is incomplete. For the full contract, see [build parallelism](../roles/ct_runtime_sdcpp/README.md#build-parallelism).
+
 ## Install and apply the reviewed collection
 
 From the reviewed collection checkout, create a project-isolated installation.

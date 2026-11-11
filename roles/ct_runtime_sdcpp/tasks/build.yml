@@ -72,6 +72,35 @@
   become_user: "{{ ct_runtime_sdcpp_user }}"
   environment: "{{ ct_runtime_sdcpp_build_environment }}"
   block:
+    - name: Detect available CPUs for automatic build parallelism
+      ansible.builtin.command:
+        # Probe in the build context without unrelated OpenMP thread hints.
+        argv: [env, -u, OMP_NUM_THREADS, -u, OMP_THREAD_LIMIT, nproc]
+      register: ct_runtime_sdcpp_build_cpu_probe
+      changed_when: false
+      when: ct_runtime_sdcpp_build_jobs == 'auto'
+
+    - name: Validate the available CPU count
+      ansible.builtin.assert:
+        that:
+          - ct_runtime_sdcpp_build_cpu_probe.stdout | trim is match('^[1-9][0-9]*$')
+        fail_msg: Automatic build parallelism requires nproc to return a positive integer in the build user's context.
+      when: ct_runtime_sdcpp_build_jobs == 'auto'
+
+    - name: Resolve the native build parallel-job limit
+      ansible.builtin.set_fact:
+        ct_runtime_sdcpp_build_jobs_effective: >-
+          {{ (ct_runtime_sdcpp_build_cpu_probe.stdout | trim | int)
+             if ct_runtime_sdcpp_build_jobs == 'auto'
+             else (ct_runtime_sdcpp_build_jobs | int) }}
+        cacheable: false
+
+    - name: Report the native build parallel-job limit
+      ansible.builtin.debug:
+        msg: >-
+          Building sd-server with {{ ct_runtime_sdcpp_build_jobs_effective }} parallel jobs
+          (requested: {{ ct_runtime_sdcpp_build_jobs }}).
+
     - name: Create the fingerprinted build directory
       ansible.builtin.file:
         path: "{{ ct_runtime_sdcpp_build_dir }}"
@@ -101,7 +130,7 @@
 
     - name: Compile the native sd-server target
       ansible.builtin.command:
-        argv: [cmake, --build, "{{ ct_runtime_sdcpp_build_dir }}", --target, sd-server, --parallel, "{{ ct_runtime_sdcpp_build_jobs | string }}"]
+        argv: [cmake, --build, "{{ ct_runtime_sdcpp_build_dir }}", --target, sd-server, --parallel, "{{ ct_runtime_sdcpp_build_jobs_effective | string }}"]
       changed_when: true
 
     - name: Record a successful native build

@@ -564,6 +564,11 @@ See the [deployment and acceptance guide](docs/sdcpp-deployment.md),
 The example pins model revisions and SHA256 values and requests four-GPU layer
 placement. It does not promise equal VRAM use or capacity reserved for an LLM.
 
+Build parallelism defaults to `2`. Set `ct_runtime_sdcpp_build_jobs: auto` to use
+the build user's available CPU count inside the CT, or a positive integer to cap
+memory/CPU use. The role logs the selected count and retains the build cache when
+only this limit changes; see [build parallelism](roles/ct_runtime_sdcpp/README.md#build-parallelism).
+
 **Implementation direction approved; final design acceptance is pending actual
 deployment tests.** [ADR-006](adr/adr-006-sdcpp-runtime.md) remains Proposed until
 CUDA build, model generation/editing, per-GPU memory, LLM co-residency and

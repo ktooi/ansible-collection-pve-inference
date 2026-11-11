@@ -524,6 +524,11 @@ PVE host driver の変更、CT 作成、既存 vLLM service の停止は行い�
 Example は model revision と SHA256 を固定し、4 GPU の layer 分割を指定します。
 VRAM の均等使用や、LLM 向けの容量予約は保証しません。
 
+ビルド並列数の既定値は `2` です。`ct_runtime_sdcpp_build_jobs: auto` で CT 内の
+ビルドユーザーが利用可能な CPU 数を使い、正整数の指定でメモリ・CPU 使用を抑えられます。
+Role は選択した並列数をログに表示し、この値だけの変更ではビルドキャッシュを維持します。
+詳細は[ビルド並列数](roles/ct_runtime_sdcpp/README.md#build-parallelism)を参照してください。
+
 **実装の方向性は承認済みですが、設計の最終確定は実機デプロイ試験後です。**
 [ADR-006](adr/adr-006-sdcpp-runtime.md) は、CUDA build、モデルの生成・編集、GPU ごとの
 メモリ使用量、LLM との同居、再実行・復旧の結果を記録するまで Proposed として扱います。

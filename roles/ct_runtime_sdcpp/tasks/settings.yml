@@ -33,7 +33,7 @@
       - ct_runtime_sdcpp_service_name is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
       - ct_runtime_sdcpp_bind_host is match('^[A-Za-z0-9_.:-]+$')
       - ct_runtime_sdcpp_port | string is match('^[0-9]+$') and ct_runtime_sdcpp_port | int >= 1 and ct_runtime_sdcpp_port | int <= 65535
-      - ct_runtime_sdcpp_build_jobs | string is match('^[0-9]+$') and ct_runtime_sdcpp_build_jobs | int >= 1
+      - ct_runtime_sdcpp_build_jobs == 'auto' or (ct_runtime_sdcpp_build_jobs | string is match('^[0-9]+$') and ct_runtime_sdcpp_build_jobs | int >= 1)
       - ct_runtime_sdcpp_min_cuda_devices | string is match('^[0-9]+$') and ct_runtime_sdcpp_min_cuda_devices | int >= 1
       - ct_runtime_sdcpp_readiness_retries | string is match('^[0-9]+$') and ct_runtime_sdcpp_readiness_retries | int >= 1
       - ct_runtime_sdcpp_readiness_delay | string is match('^[0-9]+$') and ct_runtime_sdcpp_readiness_delay | int >= 1
@@ -43,6 +43,7 @@
       - ct_runtime_sdcpp_cmake_options.keys() | intersect(ct_runtime_sdcpp_cmake_required.keys() | list + ['SD_CUDA', 'CMAKE_CUDA_COMPILER', 'CUDAToolkit_ROOT', 'CMAKE_CUDA_ARCHITECTURES']) | length == 0
     fail_msg: >-
       Supply one preloaded model/diffusion_model, valid service/listener settings and positive limits.
+      build_jobs accepts a positive integer or 'auto'.
       Protected CMake options keep this role a static, patched-GGML CUDA/CPU server build.
 
 - name: Validate sd.cpp managed paths

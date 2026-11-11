@@ -80,7 +80,7 @@ All variable names below have the `ct_runtime_sdcpp_` prefix.
 | `cuda_packages` | `[]` | Optional guest toolkit packages from existing repositories |
 | `packages` | OS package list | CA certificates, Git, CMake, Ninja, C++ build tools, pkg-config and sudo |
 | `cmake_options` | `{}` | Additional CMake name-to-string definitions, e.g. `GGML_NATIVE: "OFF"` |
-| `build_jobs` | `2` | Positive parallel build-job limit; CUDA compilation can require substantial RAM |
+| `build_jobs` | `2` | Positive parallel build-job limit, or `auto` for the build user's available CPUs; CUDA compilation can require substantial RAM |
 | `force_rebuild` | `false` | Force configure/build even when the input fingerprint matches |
 | `build_environment` | `{}` | Single-line string environment mapping for Git/build commands |
 
@@ -104,6 +104,29 @@ Custom compiler/toolkit replacement not reflected in those inputs may require
 Changing the pinned revision or build settings selects the corresponding cache;
 reverting them and rerunning the playbook is the binary rollback path. Model files
 and service configuration must also be restored if their compatibility changed.
+
+#### Build parallelism
+
+Set `ct_runtime_sdcpp_build_jobs: auto` to run `nproc` inside the target CT, as the
+service user and in the build environment. The role removes `OMP_NUM_THREADS` and
+`OMP_THREAD_LIMIT` only for this probe so that unrelated OpenMP settings do not
+alter CPU detection. It validates and reports the result, then passes that
+positive count to `cmake --build ... --parallel N`. Fixed positive integers and
+numeric strings remain supported and skip CPU detection. The default stays `2`.
+
+`auto` uses the CPU affinity/cpuset visible to that process, not the controller's
+or all physical host CPUs. Cgroup CPU-quota handling depends on the installed
+`nproc`: GNU coreutils added cgroup v2 quota support in 9.8. Use an explicit
+positive limit when a quota or available memory calls for fewer jobs. More jobs
+can reduce compile time but increase RAM use; dependencies and linking can leave
+CPUs idle even with `auto`. This option controls build jobs, not inference threads.
+
+Parallelism is not part of the build fingerprint. Changing only `build_jobs`
+preserves the build directory and completed objects; a completed build is skipped
+without probing CPUs or restarting the service. An incomplete build resumes in
+the same directory. A running build keeps its original job count: before a retry,
+ensure its remote CMake/Ninja/compiler processes have exited. Check mode validates
+`auto` without running the probe or compiling.
 
 ### Service and files
 
@@ -186,3 +209,6 @@ checks pass, the design and OS/GPU support remain provisional.
 - [Server build options](https://github.com/leejet/stable-diffusion.cpp/blob/fc350be2ceeeb859bcc201ac435591ed7d46821d/examples/server/CMakeLists.txt)
 - [Native backend placement](https://github.com/leejet/stable-diffusion.cpp/blob/fc350be2ceeeb859bcc201ac435591ed7d46821d/docs/backend.md)
 - [Native model-status API](https://github.com/leejet/stable-diffusion.cpp/blob/fc350be2ceeeb859bcc201ac435591ed7d46821d/examples/server/api.md)
+- [CMake build parallelism](https://cmake.org/cmake/help/latest/manual/cmake.1.html#build-a-project)
+- [GNU nproc semantics](https://www.gnu.org/software/coreutils/manual/html_node/nproc-invocation.html)
+- [Coreutils 9.8 CPU-quota support](https://github.com/coreutils/coreutils/blob/v9.8/NEWS)

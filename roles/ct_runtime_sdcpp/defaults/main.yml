@@ -10,6 +10,8 @@ ct_runtime_sdcpp_cuda_architectures: ""
 ct_runtime_sdcpp_cuda_packages: []
 ct_runtime_sdcpp_packages: "{{ ct_runtime_sdcpp_packages_os }}"
 ct_runtime_sdcpp_cmake_options: {}
+# Positive parallel-job limit, or 'auto' to use the build user's available CPUs.
+# Keep the conservative default because CUDA compilation can use substantial RAM.
 ct_runtime_sdcpp_build_jobs: 2
 ct_runtime_sdcpp_force_rebuild: false
 ct_runtime_sdcpp_build_environment: {}
