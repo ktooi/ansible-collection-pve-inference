@@ -9,6 +9,7 @@
       - ct_runtime_sdcpp_auto_fit is boolean
       - ct_runtime_sdcpp_force_rebuild is boolean
       - ct_runtime_sdcpp_check_ready is boolean
+      - ct_runtime_sdcpp_private_tmp is boolean
       - ct_runtime_sdcpp_components is mapping
       - ct_runtime_sdcpp_cmake_options is mapping
       - ct_runtime_sdcpp_environment is mapping
@@ -17,7 +18,7 @@
       - ct_runtime_sdcpp_artifacts is sequence and ct_runtime_sdcpp_artifacts is not string
       - ct_runtime_sdcpp_cuda_packages is sequence and ct_runtime_sdcpp_cuda_packages is not string
       - ct_runtime_sdcpp_supplementary_groups is sequence and ct_runtime_sdcpp_supplementary_groups is not string
-    fail_msg: Use a full lowercase commit SHA, mappings for component/environment/build settings, and argument/artifact lists.
+    fail_msg: Use a full lowercase commit SHA, booleans for feature switches including private_tmp, mappings for component/environment/build settings, and argument/artifact lists.
 
 - name: Validate sd.cpp artifact checksums and destinations before build work
   ansible.builtin.set_fact:

@@ -569,6 +569,10 @@ the build user's available CPU count inside the CT, or a positive integer to cap
 memory/CPU use. The role logs the selected count and retains the build cache when
 only this limit changes; see [build parallelism](roles/ct_runtime_sdcpp/README.md#build-parallelism).
 
+Service `PrivateTmp` isolation is opt-in (`ct_runtime_sdcpp_private_tmp: false` by
+default), because some LXC guests reject mount namespaces with `226/NAMESPACE`
+before execution. See [recovery steps](docs/sdcpp-deployment.md#recover-from-226namespace).
+
 **Implementation direction approved; final design acceptance is pending actual
 deployment tests.** [ADR-006](adr/adr-006-sdcpp-runtime.md) remains Proposed until
 CUDA build, model generation/editing, per-GPU memory, LLM co-residency and

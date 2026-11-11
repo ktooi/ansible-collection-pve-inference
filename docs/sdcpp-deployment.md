@@ -226,6 +226,88 @@ Use the local forwarded endpoint in subsequent requests. If using Traefik/SSO,
 select an appropriate private bind address and authenticated proxy route
 explicitly. The role does not deploy the proxy or authentication.
 
+### Recover from 226/NAMESPACE
+
+The reported `ct-image` trial reached model-file verification but systemd failed
+before starting the launcher:
+
+```text
+Failed to set up mount namespacing: Permission denied
+Failed at step NAMESPACE spawning /opt/sdcpp/bin/start-sd-server
+status=226/NAMESPACE
+```
+
+This is a service execution-environment failure, before model loading. The original
+unit hardcoded `PrivateTmp=true`, which requests a new filesystem namespace. That
+request can be denied by a restricted CT. The journal alone does not identify the
+specific host policy (for example, an AppArmor rule). Increasing HTTP retries or
+rebuilding the binary cannot repair this pre-execution failure.
+
+The role now defaults `ct_runtime_sdcpp_private_tmp` to `false`. Update the
+collection and use the following runtime setting for an affected CT:
+
+```yaml
+ct_runtime_sdcpp_private_tmp: false
+```
+
+Rerun the normal runtime playbook. The unit change triggers a daemon reload and
+service restart. This setting does not change the native build fingerprint or
+model checksums, so it does not itself require recompilation or model downloads.
+Set it to `true` only when service mount namespaces have been verified in the CT.
+The dedicated account, `NoNewPrivileges=true` and `UMask=0027` remain in effect;
+only per-service `/tmp` and `/var/tmp` isolation is disabled. No change to the CT's
+privileged/unprivileged mode, nesting or host AppArmor policy is needed for this
+role-level adjustment.
+
+For an immediate trial before updating the collection, run this inside the
+affected CT as root. It stops the restart loop and adds one temporary drop-in
+under `/run` (cleared by a CT reboot):
+
+```bash
+systemctl stop sdcpp.service
+
+install -d -m 0755 /run/systemd/system/sdcpp.service.d
+cat > /run/systemd/system/sdcpp.service.d/90-sdcpp-lxc-namespace.conf <<'EOF'
+[Service]
+PrivateTmp=false
+EOF
+
+systemctl daemon-reload
+systemctl reset-failed sdcpp.service
+systemctl start sdcpp.service
+
+systemctl show sdcpp.service \
+  -p PrivateTmp -p NoNewPrivileges -p ActiveState -p SubState \
+  -p MainPID -p ExecMainStatus -p NRestarts
+journalctl -u sdcpp.service --since '-2 minutes' -n 100 --no-pager
+```
+
+Confirm that `PrivateTmp` is disabled, the namespace failure no longer recurs,
+and the server proceeds to model loading. Initial CLI model loading happens before
+HTTP listen, so an immediate API connection refusal can still occur while loading.
+After the listener starts, require the native model status to return `state=ready`;
+successful service start alone is not deployment acceptance.
+
+After applying the updated role with `private_tmp: false`, remove only this
+temporary workaround once the managed unit itself contains the new setting:
+
+```bash
+if grep -Fxq 'PrivateTmp=false' /etc/systemd/system/sdcpp.service; then
+  rm -f -- /run/systemd/system/sdcpp.service.d/90-sdcpp-lxc-namespace.conf
+  systemctl daemon-reload
+fi
+```
+
+Other local drop-ins are preserved. A later opt-in to `private_tmp: true` requires
+this temporary override to be absent. If `226/NAMESPACE` persists with the setting
+disabled, inspect `systemctl cat sdcpp.service` for additional namespace settings
+and obtain the relevant host-side denial logs before considering host changes.
+
+The target failure is observed; recovery and P-H3 readiness after this change
+still require a target rerun. Local template/syntax tests cannot establish that
+the CT's complete GPU/model workload succeeds. See the official
+[PrivateTmp and execution-status reference](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html).
+
 ## Generate and inspect an image
 
 While testing, record memory in another terminal on the GPU host or CT:

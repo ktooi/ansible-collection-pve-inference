@@ -205,6 +205,7 @@ class SdcppSettingsTests(SdcppFixture):
         cases = [
             {'ct_runtime_sdcpp_revision': 'main'},
             {'ct_runtime_sdcpp_cuda': 'false'},
+            {'ct_runtime_sdcpp_private_tmp': 'false'},
             {'ct_runtime_sdcpp_extra_args': '--steps 8'},
             {'ct_runtime_sdcpp_components': {}},
             {'ct_runtime_sdcpp_components': {'diffusion_model': 'relative/model.gguf'}},
@@ -235,6 +236,36 @@ class SdcppSettingsTests(SdcppFixture):
                 ], values)
                 self.assertNotEqual(status, 0, output)
                 self.assertNotIn('CONFIGURATION_FOLLOW_UP', output)
+
+    def test_service_template_defaults_and_opt_in_preserve_hardening_and_idempotence(self):
+        unit = self.root / 'sdcpp.service'
+        tasks = [
+            self.include('settings.yml'),
+            {'ansible.builtin.template': {
+                'src': str(self.role / 'templates/sdcpp.service.j2'),
+                'dest': str(unit), 'mode': '0644',
+            }, 'notify': 'Restart sdcpp'},
+        ]
+        cases = [
+            ({}, 'false', True),
+            ({}, 'false', False),
+            ({'ct_runtime_sdcpp_private_tmp': True}, 'true', True),
+        ]
+        for overrides, private_tmp, changed in cases:
+            with self.subTest(private_tmp=private_tmp, changed=changed):
+                status, output = self.run_tasks(tasks, overrides)
+                self.assertEqual(status, 0, output)
+                lines = unit.read_text().splitlines()
+                self.assertIn('PrivateTmp=' + private_tmp, lines)
+                self.assertIn('NoNewPrivileges=true', lines)
+                self.assertIn('UMask=0027', lines)
+                self.assertIn('User=' + self.values['ct_runtime_sdcpp_user'], lines)
+                self.assertIn('Group=' + self.values['ct_runtime_sdcpp_group'], lines)
+                if changed:
+                    self.assertIn('HANDLER: Restart sdcpp', output)
+                else:
+                    self.assertIn('changed=0', output)
+                    self.assertNotIn('HANDLER: Restart sdcpp', output)
 
     def test_launcher_preserves_literal_arguments_and_upstream_flag_spelling(self):
         self.executable('import json, sys\nprint(json.dumps(sys.argv[1:]))\n')

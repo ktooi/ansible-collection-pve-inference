@@ -23,6 +23,8 @@ ct_runtime_sdcpp_home: /var/lib/sdcpp
 ct_runtime_sdcpp_cache_dir: /var/cache/sdcpp
 ct_runtime_sdcpp_install_dir: /opt/sdcpp
 ct_runtime_sdcpp_service_name: sdcpp.service
+# Opt in only when the CT permits systemd to create service mount namespaces.
+ct_runtime_sdcpp_private_tmp: false
 ct_runtime_sdcpp_env_file: /etc/default/sdcpp
 ct_runtime_sdcpp_bind_host: 127.0.0.1
 ct_runtime_sdcpp_port: 1234

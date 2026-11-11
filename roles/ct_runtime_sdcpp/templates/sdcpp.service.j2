@@ -14,7 +14,7 @@ Restart=on-failure
 RestartSec=5
 TimeoutStopSec=120
 NoNewPrivileges=true
-PrivateTmp=true
+PrivateTmp={{ ct_runtime_sdcpp_private_tmp | ternary('true', 'false') }}
 UMask=0027
 
 [Install]

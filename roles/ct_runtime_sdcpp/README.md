@@ -138,6 +138,7 @@ ensure its remote CMake/Ninja/compiler processes have exited. Check mode validat
 | `cache_dir` | `/var/cache/sdcpp` | User-owned Git checkout and fingerprinted builds |
 | `install_dir` | `/opt/sdcpp` | Root-owned executable/launcher and build metadata |
 | `service_name` | `sdcpp.service` | Unit name |
+| `private_tmp` | `false` | Boolean opt-in for systemd `PrivateTmp`; requires service mount namespaces to work inside the CT |
 | `env_file` | `/etc/default/sdcpp` | Root/service-group readable environment file (0640) |
 | `bind_host` | `127.0.0.1` | Listener address; set an appropriate private address for remote clients |
 | `port` | `1234` | Listener port |
@@ -151,6 +152,15 @@ systemd specifiers. Model paths may contain spaces and Unicode. Each configured
 component is checked as the service user before the service configuration changes.
 The artifact role supplies checksum validation and atomic replacement; it does not
 infer compatible files, convert weights, or remove files omitted from the list.
+
+`PrivateTmp` defaults to `false` because restricted LXC guests can reject systemd's
+service mount-namespace setup with `226/NAMESPACE` before the launcher executes.
+Set `ct_runtime_sdcpp_private_tmp: true` only after verifying this isolation works
+in the target CT. With it disabled, temporary paths use the CT's normal filesystem
+view instead of a per-service private `/tmp` and `/var/tmp`. The dedicated service
+user/group, `NoNewPrivileges=true` and `UMask=0027` remain enabled. The role does not
+change PVE/LXC privileges, nesting, AppArmor or other host policies to enable it.
+See [namespace-failure recovery](../../docs/sdcpp-deployment.md#recover-from-226namespace).
 
 Supported component keys are `model`, `diffusion_model`, `high_noise_diffusion_model`,
 `uncond_diffusion_model`, `clip_l`, `clip_g`, `clip_vision`, `t5xxl`, `llm`,
@@ -212,3 +222,4 @@ checks pass, the design and OS/GPU support remain provisional.
 - [CMake build parallelism](https://cmake.org/cmake/help/latest/manual/cmake.1.html#build-a-project)
 - [GNU nproc semantics](https://www.gnu.org/software/coreutils/manual/html_node/nproc-invocation.html)
 - [Coreutils 9.8 CPU-quota support](https://github.com/coreutils/coreutils/blob/v9.8/NEWS)
+- [systemd execution environment and PrivateTmp](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html)
