@@ -1,0 +1,132 @@
+---
+- name: Validate sd.cpp configuration types
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_sdcpp_revision is string and ct_runtime_sdcpp_revision is match('^[0-9a-f]{40}$')
+      - ct_runtime_sdcpp_repository is string and ct_runtime_sdcpp_repository | length > 0
+      - ct_runtime_sdcpp_repository is not search('[\x00-\x1f\x7f]')
+      - ct_runtime_sdcpp_cuda is boolean
+      - ct_runtime_sdcpp_auto_fit is boolean
+      - ct_runtime_sdcpp_force_rebuild is boolean
+      - ct_runtime_sdcpp_check_ready is boolean
+      - ct_runtime_sdcpp_private_tmp is boolean
+      - ct_runtime_sdcpp_components is mapping
+      - ct_runtime_sdcpp_cmake_options is mapping
+      - ct_runtime_sdcpp_environment is mapping
+      - ct_runtime_sdcpp_build_environment is mapping
+      - ct_runtime_sdcpp_extra_args is sequence and ct_runtime_sdcpp_extra_args is not string
+      - ct_runtime_sdcpp_artifacts is sequence and ct_runtime_sdcpp_artifacts is not string
+      - ct_runtime_sdcpp_cuda_packages is sequence and ct_runtime_sdcpp_cuda_packages is not string
+      - ct_runtime_sdcpp_supplementary_groups is sequence and ct_runtime_sdcpp_supplementary_groups is not string
+    fail_msg: Use a full lowercase commit SHA, booleans for feature switches including private_tmp, mappings for component/environment/build settings, and argument/artifact lists.
+
+- name: Validate sd.cpp artifact checksums and destinations before build work
+  ansible.builtin.set_fact:
+    ct_runtime_sdcpp_artifacts_validated: "{{ ct_runtime_sdcpp_artifacts | ktooi.pve_inference.model_artifacts_validate }}"
+    cacheable: false
+  no_log: true
+
+- name: Validate sd.cpp service and numeric settings
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_sdcpp_user is match('^[a-z_][a-z0-9_-]*$')
+      - ct_runtime_sdcpp_group is match('^[a-z_][a-z0-9_-]*$')
+      - ct_runtime_sdcpp_service_name is match('^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$')
+      - ct_runtime_sdcpp_bind_host is match('^[A-Za-z0-9_.:-]+$')
+      - ct_runtime_sdcpp_port | string is match('^[0-9]+$') and ct_runtime_sdcpp_port | int >= 1 and ct_runtime_sdcpp_port | int <= 65535
+      - ct_runtime_sdcpp_build_jobs == 'auto' or (ct_runtime_sdcpp_build_jobs | string is match('^[0-9]+$') and ct_runtime_sdcpp_build_jobs | int >= 1)
+      - ct_runtime_sdcpp_min_cuda_devices | string is match('^[0-9]+$') and ct_runtime_sdcpp_min_cuda_devices | int >= 1
+      - ct_runtime_sdcpp_readiness_retries | string is match('^[0-9]+$') and ct_runtime_sdcpp_readiness_retries | int >= 1
+      - ct_runtime_sdcpp_readiness_delay | string is match('^[0-9]+$') and ct_runtime_sdcpp_readiness_delay | int >= 1
+      - ct_runtime_sdcpp_readiness_timeout | string is match('^[0-9]+$') and ct_runtime_sdcpp_readiness_timeout | int >= 1
+      - ct_runtime_sdcpp_components.keys() | difference(ct_runtime_sdcpp_component_flags.keys()) | length == 0
+      - "'model' in ct_runtime_sdcpp_components or 'diffusion_model' in ct_runtime_sdcpp_components"
+      - ct_runtime_sdcpp_cmake_options.keys() | intersect(ct_runtime_sdcpp_cmake_required.keys() | list + ['SD_CUDA', 'CMAKE_CUDA_COMPILER', 'CUDAToolkit_ROOT', 'CMAKE_CUDA_ARCHITECTURES']) | length == 0
+    fail_msg: >-
+      Supply one preloaded model/diffusion_model, valid service/listener settings and positive limits.
+      build_jobs accepts a positive integer or 'auto'.
+      Protected CMake options keep this role a static, patched-GGML CUDA/CPU server build.
+
+- name: Validate sd.cpp managed paths
+  ansible.builtin.assert:
+    that:
+      - item is string and item is match('^/[A-Za-z0-9_./-]+$')
+      - item != '/' and '/..' not in item
+    fail_msg: Managed service/build paths must be absolute, non-root paths without whitespace, traversal or systemd specifiers.
+  loop:
+    - "{{ ct_runtime_sdcpp_home }}"
+    - "{{ ct_runtime_sdcpp_cache_dir }}"
+    - "{{ ct_runtime_sdcpp_install_dir }}"
+    - "{{ ct_runtime_sdcpp_env_file }}"
+    - "{{ ct_runtime_sdcpp_cuda_home }}"
+    - "{{ ct_runtime_sdcpp_nvcc }}"
+
+- name: Validate model component paths
+  ansible.builtin.assert:
+    that:
+      - item.value is string and item.value is match('^/.+')
+      - item.value is not search('[\x00-\x1f\x7f]')
+    fail_msg: Component values must be absolute file paths without control characters.
+  loop: "{{ ct_runtime_sdcpp_components | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Validate sd.cpp native option values
+  ansible.builtin.assert:
+    that:
+      - item is string and item is not search('[\x00-\x1f\x7f]')
+    fail_msg: Native settings and extra arguments must be individual strings without control characters.
+  loop: "{{ [ct_runtime_sdcpp_backend, ct_runtime_sdcpp_split_mode, ct_runtime_sdcpp_max_vram, ct_runtime_sdcpp_cuda_architectures, ct_runtime_sdcpp_ld_library_path] + ct_runtime_sdcpp_extra_args }}"
+
+- name: Keep managed options out of extra arguments
+  ansible.builtin.assert:
+    that:
+      - item is not match('^(--listen-ip|--listen-port|--backend|--split-mode|--max-vram|--auto-fit|--list-devices|--version|--help|-l|-h|-m|--qwen2vl|--qwen2vl_vision|--tae)(=|$)')
+      - item.split('=')[0] not in ct_runtime_sdcpp_component_flags.values()
+    fail_msg: Use the dedicated variables for managed options; extra_args cannot replace the listener or turn the server into an information command.
+  loop: "{{ ct_runtime_sdcpp_extra_args }}"
+
+- name: Validate additional CMake definitions
+  ansible.builtin.assert:
+    that:
+      - item.key is match('^[A-Za-z][A-Za-z0-9_]*$')
+      - item.value is string
+      - item.value is not search('[\x00-\x1f\x7f]')
+    fail_msg: Additional CMake definitions must map simple names to string values.
+  loop: "{{ ct_runtime_sdcpp_cmake_options | dict2items }}"
+
+- name: Validate environment entries
+  ansible.builtin.assert:
+    that:
+      - item.key is match('^[A-Za-z_][A-Za-z0-9_]*$')
+      - item.value is string and item.value is not search('[\x00-\x1f\x7f]')
+    fail_msg: Environment entries must have valid names and single-line string values.
+  loop: "{{ (ct_runtime_sdcpp_environment | dict2items) + (ct_runtime_sdcpp_build_environment | dict2items) }}"
+  no_log: true
+
+- name: Resolve sd.cpp environment and initial argument vector
+  ansible.builtin.set_fact:
+    ct_runtime_sdcpp_environment_effective: "{{ {'LD_LIBRARY_PATH': ct_runtime_sdcpp_ld_library_path} | combine(ct_runtime_sdcpp_environment) }}"
+    ct_runtime_sdcpp_argv: >-
+      {{ [ct_runtime_sdcpp_install_dir ~ '/bin/sd-server',
+          '--listen-ip', ct_runtime_sdcpp_bind_host,
+          '--listen-port', ct_runtime_sdcpp_port | string,
+          '--backend', ct_runtime_sdcpp_backend,
+          '--split-mode', ct_runtime_sdcpp_split_mode,
+          '--auto-fit', 'on' if ct_runtime_sdcpp_auto_fit else 'off']
+          + (['--max-vram', ct_runtime_sdcpp_max_vram] if ct_runtime_sdcpp_max_vram | length > 0 else []) }}
+    cacheable: false
+  no_log: true
+
+- name: Append model components to sd.cpp argument vector
+  ansible.builtin.set_fact:
+    ct_runtime_sdcpp_argv: "{{ ct_runtime_sdcpp_argv + [ct_runtime_sdcpp_component_flags[item.key], item.value] }}"
+    cacheable: false
+  loop: "{{ ct_runtime_sdcpp_components | dict2items | sort(attribute='key') }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Append sd.cpp extra argument vector
+  ansible.builtin.set_fact:
+    ct_runtime_sdcpp_argv: "{{ ct_runtime_sdcpp_argv + ct_runtime_sdcpp_extra_args }}"
+    cacheable: false

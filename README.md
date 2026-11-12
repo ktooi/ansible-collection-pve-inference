@@ -14,7 +14,7 @@ This collection follows these principles:
 ### In scope
 - Proxmox host GPU prerequisites.
 - CT lifecycle management on PVE.
-- Runtime foundation in CT (Python, user, directories).
+- Runtime foundation in CT (user, directories, optional runtime Python environment).
 - Runtime deployment (initially vLLM).
 - Checksum-pinned model/LoRA file deployment and backend-specific vLLM adapter configuration.
 - Post-deployment validation checks.
@@ -117,6 +117,10 @@ the files and runtime configuration together; no separate deployment script is n
 - RHEL and major RHEL clones: 9, 10 (Red Hat Enterprise Linux, AlmaLinux, Rocky Linux, Oracle Linux)
 
 CT runtime roles load distribution-specific vars files via `tasks/variables.yml` + `vars/*.yml` to handle multi-distribution differences consistently.
+
+Per-runtime restrictions still apply. The new native sd.cpp role initially has
+a Debian/Ubuntu path and is **deployment-validation pending**; see
+[its deployment guide](docs/sdcpp-deployment.md).
 
 ### Storage capacity
 
@@ -355,7 +359,7 @@ ansible_user: "root"
 # ansible_password: "{{ vault_ct_root_password }}"
 ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
 
-# shared launcher variables (runtime-agnostic)
+# shared launcher variables for runtimes with matching LLM semantics
 ct_runtime_launcher_model: "meta-llama/Llama-3.1-8B-Instruct"
 ct_runtime_launcher_context_length: 32768   # LLM context size
 ct_runtime_launcher_tensor_parallel_size: 4
@@ -510,6 +514,7 @@ Detailed role docs:
 - [`roles/ct_runtime_common/README.md`](roles/ct_runtime_common/README.md)
 - [`roles/ct_runtime_launcher_common/README.md`](roles/ct_runtime_launcher_common/README.md)
 - [`roles/ct_runtime_vllm/README.md`](roles/ct_runtime_vllm/README.md)
+- [`roles/ct_runtime_sdcpp/README.md`](roles/ct_runtime_sdcpp/README.md)
 - [`roles/ct_runtime_sglang/README.md`](roles/ct_runtime_sglang/README.md)
 - [`roles/ct_runtime_tgi/README.md`](roles/ct_runtime_tgi/README.md)
 - [`roles/ct_runtime_ollama/README.md`](roles/ct_runtime_ollama/README.md)
@@ -523,6 +528,7 @@ Detailed role docs:
 - `playbooks/host_amd_gpu.yml`
 - `playbooks/ct_create.yml`
 - `playbooks/runtime_vllm.yml`
+- `playbooks/runtime_sdcpp.yml`
 - `playbooks/runtime_sglang.yml`
 - `playbooks/runtime_tgi.yml`
 - `playbooks/runtime_ollama.yml`
@@ -544,3 +550,30 @@ Image/video generation requires Omni and a compatible GPU, Python, and CUDA envi
 
 For separate STT and image CTs sharing the same host GPUs, see
 [the shared-GPU deployment example](examples/shared-nvidia/README.md).
+
+## stable-diffusion.cpp: native image API backend
+
+`ct_runtime_sdcpp` builds a commit-pinned native `sd-server` and manages a separate
+systemd service in an existing GPU CT. It reuses account/directory and model-file
+preparation without a runtime Python venv or LLM launcher settings. It does not
+change the PVE host driver, create CTs or stop existing vLLM services.
+
+See the [deployment and acceptance guide](docs/sdcpp-deployment.md),
+[P-H3 W4A8/INT8 example](examples/sdcpp/README.md) and
+[role variables](roles/ct_runtime_sdcpp/README.md).
+The example pins model revisions and SHA256 values and requests four-GPU layer
+placement. It does not promise equal VRAM use or capacity reserved for an LLM.
+
+Build parallelism defaults to `2`. Set `ct_runtime_sdcpp_build_jobs: auto` to use
+the build user's available CPU count inside the CT, or a positive integer to cap
+memory/CPU use. The role logs the selected count and retains the build cache when
+only this limit changes; see [build parallelism](roles/ct_runtime_sdcpp/README.md#build-parallelism).
+
+Service `PrivateTmp` isolation is opt-in (`ct_runtime_sdcpp_private_tmp: false` by
+default), because some LXC guests reject mount namespaces with `226/NAMESPACE`
+before execution. See [recovery steps](docs/sdcpp-deployment.md#recover-from-226namespace).
+
+**Implementation direction approved; final design acceptance is pending actual
+deployment tests.** [ADR-006](adr/adr-006-sdcpp-runtime.md) remains Proposed until
+CUDA build, model generation/editing, per-GPU memory, LLM co-residency and
+lifecycle results are recorded. This status is distinct from local code checks.

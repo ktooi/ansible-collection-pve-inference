@@ -21,9 +21,17 @@ Supported CT distributions: Debian 12/13, Ubuntu 22.04/24.04 LTS, and RHEL/AlmaL
 | `ct_runtime_common_group` | Runtime OS group | `infer` | Valid Linux group |
 | `ct_runtime_common_home` | Runtime user home | `/opt/inference` | Absolute path |
 | `ct_runtime_common_venv` | Python virtualenv path | `/opt/inference/venv` | Absolute path |
+| `ct_runtime_common_create_venv` | Create the runtime's Python virtualenv | `true` | YAML boolean |
 | `ct_runtime_common_packages` | Base packages in CT | `['python3','python3-venv','python3-pip','curl','git']` | Package name list |
 | `ct_runtime_common_directories` | Directories to create | `['/opt/inference','/opt/inference/bin','/var/log/inference','/var/cache/inference']` | Absolute path list |
 | `ct_runtime_common_apt_cache_valid_time` | Debian apt cache validity (seconds) | `3600` | Integer `>=0` |
+
+Native executables such as `sd-server` can set
+`ct_runtime_common_create_venv: false` while reusing the account and directory
+preparation. Existing callers keep venv creation enabled by default. Disabling
+creation neither deletes an existing venv nor changes the configured package
+list; override `ct_runtime_common_packages` for a native runtime's prerequisites.
+Python required by Ansible modules is independent of the runtime venv.
 
 
 ## Troubleshooting

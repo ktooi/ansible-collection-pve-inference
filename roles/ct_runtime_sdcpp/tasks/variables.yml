@@ -1,0 +1,12 @@
+---
+- name: Require a source-reviewed Debian or Ubuntu guest
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] in ['Debian', 'Ubuntu']
+      - (ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_major_version'] | string in ['12', '13']) or (ansible_facts['distribution'] == 'Ubuntu' and ansible_facts['distribution_version'] | string in ['22.04', '24.04'])
+    fail_msg: >-
+      This initial sd.cpp role targets Debian 12/13 and Ubuntu 22.04/24.04 only.
+      Source review and static checks do not establish GPU deployment support.
+
+- name: Load sd.cpp guest package names
+  ansible.builtin.include_vars: "{{ ansible_facts['distribution'] | lower }}.yml"

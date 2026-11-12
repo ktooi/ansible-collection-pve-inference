@@ -1,0 +1,21 @@
+[Unit]
+Description=stable-diffusion.cpp inference server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ ct_runtime_sdcpp_user }}
+Group={{ ct_runtime_sdcpp_group }}
+WorkingDirectory={{ ct_runtime_sdcpp_home }}
+EnvironmentFile={{ ct_runtime_sdcpp_env_file }}
+ExecStart={{ ct_runtime_sdcpp_install_dir }}/bin/start-sd-server
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=120
+NoNewPrivileges=true
+PrivateTmp={{ ct_runtime_sdcpp_private_tmp | ternary('true', 'false') }}
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

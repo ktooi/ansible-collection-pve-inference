@@ -1,0 +1,44 @@
+{
+  "subject": "P-H3-Image sd.cpp deployment trial",
+  "reviewed_date": "2026-11-09",
+  "timezone": "Asia/Tokyo",
+  "status": "Source reviewed; deployment and GPU inference acceptance pending",
+  "sdcpp": {
+    "repository": "https://github.com/leejet/stable-diffusion.cpp",
+    "revision": "fc350be2ceeeb859bcc201ac435591ed7d46821d"
+  },
+  "model": {
+    "repository": "PrunaAI/P-H3-Image-Comfy",
+    "revision": "44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543",
+    "files": [
+      {
+        "path": "diffusion_models/p-h3-image_w4a8.safetensors",
+        "sha256": "12ea30d6fde736dd69ef16658ce9438823a06e351ac3fa335cc4a3ce6bb17a43",
+        "byte_size": 13362068864,
+        "pointer_source": "https://huggingface.co/PrunaAI/P-H3-Image-Comfy/raw/44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543/diffusion_models/p-h3-image_w4a8.safetensors",
+        "download_url": "https://huggingface.co/PrunaAI/P-H3-Image-Comfy/resolve/44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543/diffusion_models/p-h3-image_w4a8.safetensors"
+      },
+      {
+        "path": "text_encoders/p-h3-image_text_encoder_w4a8.safetensors",
+        "sha256": "d4ae62d48e1de846dd55fc975623434e9326df3449601c4e15bea8b3ccd67293",
+        "byte_size": 3575536021,
+        "pointer_source": "https://huggingface.co/PrunaAI/P-H3-Image-Comfy/raw/44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543/text_encoders/p-h3-image_text_encoder_w4a8.safetensors",
+        "download_url": "https://huggingface.co/PrunaAI/P-H3-Image-Comfy/resolve/44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543/text_encoders/p-h3-image_text_encoder_w4a8.safetensors"
+      },
+      {
+        "path": "vae/p-h3-image_vae_int8_convrot.safetensors",
+        "sha256": "583e0d43354b6b833aa9a0815a5fac831b1ef6d0c19a7eaa0616980a3dab5ffe",
+        "byte_size": 3146996440,
+        "pointer_source": "https://huggingface.co/PrunaAI/P-H3-Image-Comfy/raw/44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543/vae/p-h3-image_vae_int8_convrot.safetensors",
+        "download_url": "https://huggingface.co/PrunaAI/P-H3-Image-Comfy/resolve/44a0fb73f299da1bb715bdb5ff59ce3fd3c6f543/vae/p-h3-image_vae_int8_convrot.safetensors"
+      }
+    ]
+  },
+  "verification": "SHA256 and byte size were read from each pinned raw Git LFS pointer. Model binaries were not downloaded or executed during this metadata verification.",
+  "notes": [
+    "Packed W4A8/INT8 format support requires the normal patched GGML build.",
+    "The dedicated upstream P-H3 command uses INT8 diffusion with BF16 encoder and VAE; this smaller W4A8 profile requires independent generation/editing tests.",
+    "No prompt upsampler is deployed by this profile.",
+    "Four-GPU layer splitting does not guarantee equal VRAM use or capacity reserved for another LLM."
+  ]
+}

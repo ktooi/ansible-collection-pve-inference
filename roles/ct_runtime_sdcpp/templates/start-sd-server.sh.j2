@@ -1,0 +1,3 @@
+#!/bin/sh
+# Managed by Ansible. Every value is a separate argv element, not shell source.
+exec {{ ct_runtime_sdcpp_argv | map('quote') | join(' ') }}

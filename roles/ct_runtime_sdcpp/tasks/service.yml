@@ -1,0 +1,56 @@
+---
+- name: Render the argument-safe sd.cpp launcher
+  ansible.builtin.template:
+    src: start-sd-server.sh.j2
+    dest: "{{ ct_runtime_sdcpp_install_dir }}/bin/start-sd-server"
+    owner: root
+    group: root
+    mode: '0755'
+  notify: Restart sdcpp
+
+- name: Create the sd.cpp environment-file directory
+  ansible.builtin.file:
+    path: "{{ ct_runtime_sdcpp_env_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Render the private sd.cpp service environment
+  ansible.builtin.template:
+    src: sdcpp.env.j2
+    dest: "{{ ct_runtime_sdcpp_env_file }}"
+    owner: root
+    group: "{{ ct_runtime_sdcpp_group }}"
+    mode: '0640'
+  no_log: true
+  diff: false
+  notify: Restart sdcpp
+
+- name: Render the sd.cpp systemd service
+  ansible.builtin.template:
+    src: sdcpp.service.j2
+    dest: "/etc/systemd/system/{{ ct_runtime_sdcpp_service_name }}"
+    owner: root
+    group: root
+    mode: '0644'
+  register: ct_runtime_sdcpp_unit
+  notify: Restart sdcpp
+
+- name: Reload systemd after a unit change
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: ct_runtime_sdcpp_unit.changed
+
+- name: Apply notified sd.cpp changes before readiness checks
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the sd.cpp service
+  ansible.builtin.systemd_service:
+    name: "{{ ct_runtime_sdcpp_service_name }}"
+    enabled: true
+    state: started
+
+- name: Wait for the preloaded model to become ready
+  ansible.builtin.import_tasks: readiness.yml
+  when: ct_runtime_sdcpp_check_ready

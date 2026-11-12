@@ -1,0 +1,69 @@
+---
+- name: Load sd.cpp guest variables
+  ansible.builtin.import_tasks: variables.yml
+
+- name: Validate sd.cpp settings
+  ansible.builtin.import_tasks: settings.yml
+
+- name: Explain sd.cpp check-mode coverage
+  ansible.builtin.debug:
+    msg: >-
+      Check mode validates declarations only. It does not install packages, clone/build source,
+      download model files, change the service or validate GPU/model readiness.
+  when: ansible_check_mode
+
+- name: Deploy the native sd.cpp runtime
+  when: not ansible_check_mode
+  block:
+    - name: Prepare an isolated sd.cpp common foundation
+      vars:
+        ct_runtime_common_user: "{{ ct_runtime_sdcpp_user }}"
+        ct_runtime_common_group: "{{ ct_runtime_sdcpp_group }}"
+        ct_runtime_common_home: "{{ ct_runtime_sdcpp_home }}"
+        ct_runtime_common_create_venv: false
+        ct_runtime_common_packages: "{{ ct_runtime_sdcpp_packages }}"
+        ct_runtime_common_directories:
+          - "{{ ct_runtime_sdcpp_home }}"
+          - "{{ ct_runtime_sdcpp_cache_dir }}"
+      block:
+        - name: Reject common-role extra-vars that override sd.cpp isolation
+          ansible.builtin.assert:
+            that:
+              - ct_runtime_common_user == ct_runtime_sdcpp_user
+              - ct_runtime_common_group == ct_runtime_sdcpp_group
+              - ct_runtime_common_home == ct_runtime_sdcpp_home
+              - ct_runtime_common_create_venv is boolean and not ct_runtime_common_create_venv
+              - ct_runtime_common_packages == ct_runtime_sdcpp_packages
+              - ct_runtime_common_directories == [ct_runtime_sdcpp_home, ct_runtime_sdcpp_cache_dir]
+            fail_msg: Pass sd.cpp settings with ct_runtime_sdcpp_*; common-role extra-vars must not override the runtime's isolated account, paths or no-venv foundation.
+
+        - name: Prepare the sd.cpp service account and guest packages without a Python venv
+          ansible.builtin.include_role:
+            name: ktooi.pve_inference.ct_runtime_common
+
+    - name: Add explicitly requested supplementary GPU groups
+      ansible.builtin.user:
+        name: "{{ ct_runtime_sdcpp_user }}"
+        groups: "{{ ct_runtime_sdcpp_supplementary_groups }}"
+        append: true
+      when: ct_runtime_sdcpp_supplementary_groups | length > 0
+
+    - name: Install explicitly requested guest CUDA packages
+      ansible.builtin.package:
+        name: "{{ ct_runtime_sdcpp_cuda_packages }}"
+        state: present
+      when:
+        - ct_runtime_sdcpp_cuda
+        - ct_runtime_sdcpp_cuda_packages | length > 0
+
+    - name: Check build toolchain prerequisites
+      ansible.builtin.import_tasks: preflight.yml
+
+    - name: Build and install the pinned sd.cpp executable
+      ansible.builtin.import_tasks: build.yml
+
+    - name: Check native backend and deploy models
+      ansible.builtin.import_tasks: models.yml
+
+    - name: Configure and start the sd.cpp service
+      ansible.builtin.import_tasks: service.yml

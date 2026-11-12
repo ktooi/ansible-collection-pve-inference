@@ -1,4 +1,10 @@
 ---
+- name: Validate runtime virtual environment selection
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_common_create_venv is boolean
+    fail_msg: "ct_runtime_common_create_venv must be a YAML boolean."
+
 - name: Load OS/distribution specific variables
   ansible.builtin.import_tasks: variables.yml
 
@@ -55,6 +61,11 @@
   loop: "{{ ct_runtime_common_directories }}"
 
 - name: Create runtime python virtual environment
-  ansible.builtin.command: "python3 -m venv {{ ct_runtime_common_venv }}"
-  args:
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -m
+      - venv
+      - "{{ ct_runtime_common_venv }}"
     creates: "{{ ct_runtime_common_venv }}/bin/activate"
+  when: ct_runtime_common_create_venv

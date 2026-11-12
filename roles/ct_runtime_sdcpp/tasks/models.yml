@@ -1,0 +1,71 @@
+---
+- name: List native sd.cpp devices before downloading model files
+  ansible.builtin.command:
+    argv: ["{{ ct_runtime_sdcpp_install_dir }}/bin/sd-server", --list-devices]
+  become: true
+  become_user: "{{ ct_runtime_sdcpp_user }}"
+  environment: "{{ ct_runtime_sdcpp_environment_effective }}"
+  register: ct_runtime_sdcpp_devices
+  changed_when: false
+
+- name: Require CUDA devices visible to the sd.cpp service account
+  ansible.builtin.assert:
+    that:
+      - (ct_runtime_sdcpp_devices.stdout | regex_findall('(?im)^cuda[0-9]+[\t ]')) | length >= ct_runtime_sdcpp_min_cuda_devices | int
+    fail_msg: >-
+      The compiled sd-server could not enumerate the required CUDA devices as {{ ct_runtime_sdcpp_user }}.
+      Check CT device permissions, driver-library mounts, LD_LIBRARY_PATH and CUDA_VISIBLE_DEVICES.
+      No model files have been downloaded by this runtime role yet.
+  when: ct_runtime_sdcpp_cuda
+
+- name: Require every explicitly selected CUDA device before model downloads
+  ansible.builtin.assert:
+    that:
+      - >-
+        (ct_runtime_sdcpp_backend | lower | regex_findall('(?<![a-z0-9_])cuda[0-9]+(?![a-z0-9_])') | unique | list)
+        | difference(ct_runtime_sdcpp_devices.stdout | lower | regex_findall('(?m)^(cuda[0-9]+)[\t ]'))
+        | length == 0
+    fail_msg: An explicitly selected cudaN backend device is not visible to sd-server. Device indices are relative to the service CUDA_VISIBLE_DEVICES setting.
+  when: ct_runtime_sdcpp_cuda
+
+- name: Deploy sd.cpp artifacts with the dedicated runtime contract
+  vars:
+    ct_model_artifacts: "{{ ct_runtime_sdcpp_artifacts }}"
+    ct_model_artifacts_owner: "{{ ct_runtime_sdcpp_user }}"
+    ct_model_artifacts_group: "{{ ct_runtime_sdcpp_group }}"
+    ct_model_artifacts_notify: [Restart sdcpp]
+  block:
+    - name: Reject artifact extra-vars that override the sd.cpp artifact contract
+      ansible.builtin.assert:
+        that:
+          - ct_model_artifacts == ct_runtime_sdcpp_artifacts
+          - ct_model_artifacts_owner == ct_runtime_sdcpp_user
+          - ct_model_artifacts_group == ct_runtime_sdcpp_group
+          - ct_model_artifacts_notify == ['Restart sdcpp']
+        fail_msg: Pass sd.cpp model assets with ct_runtime_sdcpp_artifacts; global artifact extra-vars must not override this runtime's paths, owner or restart handler.
+      no_log: true
+
+    - name: Deploy checksum-pinned sd.cpp model artifacts
+      ansible.builtin.include_role:
+        name: ktooi.pve_inference.ct_model_artifacts
+
+- name: Inspect model components as the service user
+  ansible.builtin.stat:
+    path: "{{ item.value }}"
+    get_checksum: false
+  become: true
+  become_user: "{{ ct_runtime_sdcpp_user }}"
+  loop: "{{ ct_runtime_sdcpp_components | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: ct_runtime_sdcpp_component_stats
+
+- name: Require readable regular model component files
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists and item.stat.isreg | default(false)
+      - item.stat.readable | default(false)
+    fail_msg: A configured sd.cpp model component is missing or unreadable by the service user.
+  loop: "{{ ct_runtime_sdcpp_component_stats.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
