@@ -1,0 +1,71 @@
+---
+# Called within the build block, with its service user and environment.
+- name: Require a clean upstream checkout before copying experimental source
+  ansible.builtin.command:
+    argv: [git, --no-optional-locks, -C, "{{ ct_runtime_sdcpp_cache_dir }}/source", status, --porcelain, --untracked-files=normal, --ignore-submodules=none]
+  register: ct_runtime_sdcpp_resolution_source_status
+  changed_when: false
+
+- name: Inspect the pinned submodule revisions before copying experimental source
+  ansible.builtin.command:
+    argv: [git, --no-optional-locks, -C, "{{ ct_runtime_sdcpp_cache_dir }}/source", submodule, status, --recursive]
+  register: ct_runtime_sdcpp_resolution_submodules
+  changed_when: false
+
+- name: Refuse modified or incomplete upstream source for the resolution patch
+  ansible.builtin.assert:
+    that:
+      - ct_runtime_sdcpp_resolution_source_status.stdout | trim | length == 0
+      - ct_runtime_sdcpp_resolution_submodules.stdout_lines | select('match', '^[-+U]') | list | length == 0
+    fail_msg: The experimental resolution patch requires a clean checkout and its pinned submodules; the role never resets or patches the upstream checkout.
+
+- name: Create the experimental patch bundle directory
+  ansible.builtin.file:
+    path: "{{ ct_runtime_sdcpp_build_dir }}/resolution-patch"
+    state: directory
+    mode: '0755'
+
+- name: Copy the verified resolution patch bundle
+  ansible.builtin.copy:
+    src: "experimental-resolution/{{ item }}"
+    dest: "{{ ct_runtime_sdcpp_build_dir }}/resolution-patch/{{ item }}"
+    mode: '0644'
+  loop:
+    - sdcpp-resolution.patch
+    - apply_sdcpp_limits.py
+    - manifest.json
+
+- name: Inspect the isolated source copy marker
+  ansible.builtin.stat:
+    path: "{{ ct_runtime_sdcpp_build_dir }}/.resolution-source-copied"
+  register: ct_runtime_sdcpp_resolution_source_marker
+
+- name: Prepare a complete isolated source snapshot
+  when: not ct_runtime_sdcpp_resolution_source_marker.stat.exists
+  block:
+    - name: Remove only an incomplete experimental source snapshot before retrying
+      ansible.builtin.file:
+        path: "{{ ct_runtime_sdcpp_build_source_dir }}"
+        state: absent
+
+    - name: Copy pristine source and submodules without altering the upstream checkout
+      ansible.builtin.command:
+        argv: [cp, --archive, --reflink=auto, --, "{{ ct_runtime_sdcpp_cache_dir }}/source", "{{ ct_runtime_sdcpp_build_source_dir }}"]
+      changed_when: true
+
+    - name: Record a completed experimental source snapshot
+      ansible.builtin.copy:
+        dest: "{{ ct_runtime_sdcpp_build_dir }}/.resolution-source-copied"
+        content: "{{ ct_runtime_sdcpp_revision }}\n"
+        mode: '0644'
+
+- name: Check exact source and patch hashes before experimental patch application
+  ansible.builtin.command:
+    argv: [python3, "{{ ct_runtime_sdcpp_build_dir }}/resolution-patch/apply_sdcpp_limits.py", --source-dir, "{{ ct_runtime_sdcpp_build_source_dir }}", --check]
+  changed_when: false
+
+- name: Apply the experimental resolution patch to the isolated source
+  ansible.builtin.command:
+    argv: [python3, "{{ ct_runtime_sdcpp_build_dir }}/resolution-patch/apply_sdcpp_limits.py", --source-dir, "{{ ct_runtime_sdcpp_build_source_dir }}"]
+  register: ct_runtime_sdcpp_resolution_apply
+  changed_when: (ct_runtime_sdcpp_resolution_apply.stdout | from_json).changed

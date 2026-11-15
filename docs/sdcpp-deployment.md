@@ -147,6 +147,78 @@ The runtime role installs/builds the selected revision, deploys declared model
 files, validates component paths, renders the service and waits for the native
 model status. A ready model is still not a completed generation.
 
+## Experimental resolution patch
+
+For an existing MiniMax-H3-Image deployment that needs a long edge above 4096 px,
+the role can apply the bundled `sdcpp-resolution.patch`. This is an **experimental,
+disabled-by-default** server modification, supported only at the exact revision
+below. It does not select model files or change the collection's default revision.
+
+Keep the existing image CT vars and add `sdcpp-resolution-experiment.yml`:
+
+```yaml
+ct_runtime_sdcpp_revision: 32d516c0197ed5ca31305b8575e14eb1451fad33
+ct_runtime_sdcpp_experimental_resolution_patch: true
+# Optional: use the CPUs available to the build process inside the CT.
+ct_runtime_sdcpp_build_jobs: auto
+```
+
+Use the same runtime playbook, loading the experiment vars last:
+
+```bash
+ansible-playbook -i inventory.ini ktooi.pve_inference.runtime_sdcpp \
+  --limit ct-image -e @ct_vars/ct-image.yml \
+  -e @sdcpp-resolution-experiment.yml --check
+
+ansible-playbook -i inventory.ini ktooi.pve_inference.runtime_sdcpp \
+  --limit ct-image -e @ct_vars/ct-image.yml \
+  -e @sdcpp-resolution-experiment.yml
+```
+
+Adjust these inventory/vars paths to the existing Ansible project. The CT must
+already belong to `ct_targets`. Check mode validates the flag, supported revision
+and bundled inputs only; it does not inspect remote source hashes, patch, build,
+restart or generate an image. A normal run verifies source content and compiles
+an isolated patched snapshot. The original checkout remains pristine, and the
+installed binary is replaced only after a successful build. Existing model
+declarations continue through their normal checksum/idempotence checks.
+
+When adopting this flag, remove the older standalone backend patch tasks and
+their handlers from the playbook. Running them after the role would create a
+second owner of the installed binary and could undo a later rollback. The
+ComfyUI resolution overlay/size guard serves a different purpose: retain the
+frontend support needed to submit the larger dimensions.
+
+After the service is ready, query the configured endpoint. The URL below is the
+role's default; use the deployed CT address and port for a remote check:
+
+```bash
+sdcpp_url=http://127.0.0.1:1234
+curl --fail-with-body --silent --show-error \
+  "$sdcpp_url/sdcpp/v1/capabilities" |
+  python3 -c 'import json,sys; x=json.load(sys.stdin)["limits"]; print({k:x.get(k) for k in ("max_width","max_height","max_pixels")})'
+```
+
+Expected image-mode limits are `max_width=8192`, `max_height=8192`, and
+`max_pixels=20000000`. The area check rounds each edge up to a 32-pixel grid and
+covers both base and Hires canvases. An 8192×8192 request therefore remains
+invalid. ADetailer keeps its 4096-pixel edge and 100-step limits. These limits
+apply to the shared image-request validator of this server instance.
+
+Use the existing MiniMax-H3-Image workflow to test a 32-aligned size such as
+5472×3072 only after checking memory capacity. Confirm successful generation,
+saved image dimensions, peak VRAM and latency. Capability values and local
+fixture checks do not establish target CUDA or inference success; this feature
+remains experimental until those results are recorded.
+
+To roll back, change `ct_runtime_sdcpp_experimental_resolution_patch` to `false`
+in the experiment vars and rerun the same playbook. Keep the same revision to
+return to its unpatched build, or explicitly restore a previously accepted
+revision/profile. The role reuses a matching unpatched cache or builds it before
+installation, records the new build metadata and restarts on a binary change.
+Restore matching frontend limits when returning to a 4096-pixel server. The flag
+does not disable an independently invoked patch helper.
+
 ## P-H3-specific behavior
 
 The example uses a W4A8 diffusion transformer, a W4A8 bundled text encoder with

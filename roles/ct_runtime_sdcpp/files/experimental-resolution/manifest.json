@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "upstream_repository": "https://github.com/leejet/stable-diffusion.cpp",
+  "upstream_revision": "32d516c0197ed5ca31305b8575e14eb1451fad33",
+  "patch_file": "sdcpp-resolution.patch",
+  "patch_sha256": "1b499f01baa3f639c09118d59788bf43448902b62e8ce19911ce5d066f54965a",
+  "policy": {
+    "max_generation_dimension": 8192,
+    "max_generation_pixels": 20000000,
+    "generation_area_alignment": 32,
+    "max_adetailer_dimension": 4096
+  },
+  "files": [
+    {
+      "path": "examples/server/runtime.h",
+      "before_sha256": "9e2c3bcdfc66c4f20d39e952b033499822acc38b371ce4cc332a3629c1c1ae56",
+      "after_sha256": "686250e87a2acd983e275505caecca57fd283ffe1a6f71204f5d48503624c6d9"
+    },
+    {
+      "path": "examples/server/runtime.cpp",
+      "before_sha256": "21bf79f1330965321e9b86275186d39ccee16ee1132bb94a4306286af2bd24ac",
+      "after_sha256": "c5850294584c751cd0798599502998b3bfa8b9b89bfe528312cd8eb9e92701b8"
+    },
+    {
+      "path": "examples/server/routes_sdcpp.cpp",
+      "before_sha256": "b8bf4d7a1c6cb27ec298d9d073cdb9f97635a264a40db3cc4ff3cc9d6baa379d",
+      "after_sha256": "2b979b8ff2e69707f5fce2eae33d3b592168808af30e4d8a7e55fb2be10c9755"
+    }
+  ]
+}

@@ -51,9 +51,21 @@
     cacheable: false
   no_log: true
 
+- name: Include enabled resolution patch inputs in the build fingerprint
+  ansible.builtin.set_fact:
+    ct_runtime_sdcpp_build_spec: "{{ ct_runtime_sdcpp_build_spec | combine({'resolution_patch': ct_runtime_sdcpp_resolution_patch_spec}) }}"
+    cacheable: false
+  no_log: true
+  when: ct_runtime_sdcpp_experimental_resolution_patch
+
 - name: Resolve the fingerprinted sd.cpp build directory
   ansible.builtin.set_fact:
     ct_runtime_sdcpp_build_dir: "{{ ct_runtime_sdcpp_cache_dir }}/builds/{{ (ct_runtime_sdcpp_build_spec | to_json(sort_keys=true)) | hash('sha256') }}"
+    cacheable: false
+
+- name: Select the source tree for this build
+  ansible.builtin.set_fact:
+    ct_runtime_sdcpp_build_source_dir: "{{ ct_runtime_sdcpp_build_dir ~ '/source' if ct_runtime_sdcpp_experimental_resolution_patch else ct_runtime_sdcpp_cache_dir ~ '/source' }}"
     cacheable: false
 
 - name: Inspect the completed build marker
@@ -112,9 +124,13 @@
         path: "{{ ct_runtime_sdcpp_build_dir }}/.ansible-build-complete"
         state: absent
 
+    - name: Prepare the isolated experimental resolution source
+      ansible.builtin.include_tasks: resolution_patch.yml
+      when: ct_runtime_sdcpp_experimental_resolution_patch
+
     - name: Initialize the CMake command argument vector
       ansible.builtin.set_fact:
-        ct_runtime_sdcpp_cmake_argv: [cmake, -S, "{{ ct_runtime_sdcpp_cache_dir }}/source", -B, "{{ ct_runtime_sdcpp_build_dir }}", -G, Ninja]
+        ct_runtime_sdcpp_cmake_argv: [cmake, -S, "{{ ct_runtime_sdcpp_build_source_dir }}", -B, "{{ ct_runtime_sdcpp_build_dir }}", -G, Ninja]
         cacheable: false
 
     - name: Append CMake definitions without shell evaluation
@@ -163,7 +179,13 @@
 - name: Record the installed source and build fingerprint
   ansible.builtin.copy:
     dest: "{{ ct_runtime_sdcpp_install_dir }}/build.json"
-    content: "{{ {'revision': ct_runtime_sdcpp_revision, 'build_directory': ct_runtime_sdcpp_build_dir, 'cmake': ct_runtime_sdcpp_cmake_effective} | to_nice_json }}\n"
+    content: |
+      {{ {'revision': ct_runtime_sdcpp_revision, 'build_directory': ct_runtime_sdcpp_build_dir,
+          'cmake': ct_runtime_sdcpp_cmake_effective}
+         | combine({'resolution_patch': ct_runtime_sdcpp_resolution_patch_spec,
+                    'source_directory': ct_runtime_sdcpp_build_source_dir}
+                   if ct_runtime_sdcpp_experimental_resolution_patch else {})
+         | to_nice_json }}
     owner: root
     group: root
     mode: '0644'
