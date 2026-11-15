@@ -569,6 +569,12 @@ the build user's available CPU count inside the CT, or a positive integer to cap
 memory/CPU use. The role logs the selected count and retains the build cache when
 only this limit changes; see [build parallelism](roles/ct_runtime_sdcpp/README.md#build-parallelism).
 
+An experimental `ct_runtime_sdcpp_experimental_resolution_patch: true` flag applies
+the bundled resolution patch only with explicitly selected revision
+`32d516c0197ed5ca31305b8575e14eb1451fad33`. It permits edges up to 8192 px with a
+20,000,000-pixel aligned canvas limit; it defaults to `false`. See the
+[trial and rollback procedure](docs/sdcpp-deployment.md#experimental-resolution-patch).
+
 Service `PrivateTmp` isolation is opt-in (`ct_runtime_sdcpp_private_tmp: false` by
 default), because some LXC guests reject mount namespaces with `226/NAMESPACE`
 before execution. See [recovery steps](docs/sdcpp-deployment.md#recover-from-226namespace).

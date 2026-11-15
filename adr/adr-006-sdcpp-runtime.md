@@ -35,6 +35,20 @@ acceptance explicitly deferred until actual deployment tests.
    independent release ownership justify it. Such a collection must not depend
    back on PVE-specific runtime helpers.
 
+### Experimental resolution patch follow-up — 2026-11-15
+
+The user requested an opt-in flag for the previously prepared
+`sdcpp-resolution.patch`. Keep it disabled by default and require its supported
+source commit explicitly. Package this fixed server modification with the role;
+it changes shared request validation limits, while model files, precision and
+sampling remain caller inputs under decision 5. This is not a general patch
+management interface or a new model profile.
+
+Validate patch/source hashes, apply to an isolated source snapshot and include
+patch provenance in the build identity. Preserve the ordinary unpatched build
+path so disabling the flag selects that build again. Target CUDA build,
+rectangular generation and rollback still require deployment acceptance.
+
 ## Consequences
 
 Existing core/Omni behavior and common-role callers retain their defaults.

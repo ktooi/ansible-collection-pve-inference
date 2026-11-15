@@ -73,6 +73,7 @@ All variable names below have the `ct_runtime_sdcpp_` prefix.
 | --- | --- | --- |
 | `repository` | `https://github.com/leejet/stable-diffusion.cpp.git` | Git source URL/path; use trusted source |
 | `revision` | `fc350be2ceeeb859bcc201ac435591ed7d46821d` | Full lowercase 40-character commit SHA; moving branches/tags are rejected |
+| `experimental_resolution_patch` | `false` | Boolean opt-in for bundled `sdcpp-resolution.patch`; requires revision `32d516c0197ed5ca31305b8575e14eb1451fad33` |
 | `cuda` | `true` | Build CUDA; `false` selects the CPU build path |
 | `cuda_home` | `/usr/local/cuda` | Provisioned guest/toolkit root |
 | `nvcc` | `<cuda_home>/bin/nvcc` | Executable compiler path |
@@ -104,6 +105,42 @@ Custom compiler/toolkit replacement not reflected in those inputs may require
 Changing the pinned revision or build settings selects the corresponding cache;
 reverting them and rerunning the playbook is the binary rollback path. Model files
 and service configuration must also be restored if their compatibility changed.
+
+#### Experimental resolution patch
+
+Set both variables explicitly to enable the bundled patch:
+
+```yaml
+ct_runtime_sdcpp_revision: 32d516c0197ed5ca31305b8575e14eb1451fad33
+ct_runtime_sdcpp_experimental_resolution_patch: true
+```
+
+The patch allows image-generation dimensions up to **8192 px per edge** while
+limiting the canvas to **20,000,000 pixels after each edge is rounded up to a
+32-pixel grid**. The area check covers both base and Hires canvases. ADetailer
+retains its 4096-pixel edge and 100-step limits. The image-mode capabilities
+response includes `limits.max_pixels`. These are operational limits of the
+patched server's shared image-request validator, not automatically detected
+model capabilities or a guarantee that the request fits in GPU memory.
+
+The flag defaults to `false` and does not change the default source revision.
+An unsupported revision or non-boolean flag is rejected before deployment.
+The bundled patch and exact source file hashes are checked before application.
+The role patches an isolated source snapshot under the fingerprinted build
+directory, leaving `<cache_dir>/source` pristine. Patch, helper and manifest
+hashes participate in the patched build fingerprint; unchanged runs reuse the
+completed build. Installation occurs only after compilation succeeds, with
+patch provenance recorded in `build.json`.
+
+Setting the flag back to `false` and reapplying selects the ordinary unpatched
+build for the configured revision, reusing its cache when available. Remove any
+older standalone backend patch tasks/handlers from the playbook when adopting
+this flag; otherwise they can reapply the patch after the role runs. Frontend
+resolution limits must also match the intended server limits. See the
+[trial and rollback procedure](../../docs/sdcpp-deployment.md#experimental-resolution-patch).
+This feature remains experimental until target CUDA build and generation tests
+pass. Check mode validates declarations and bundled inputs, without applying the
+patch or compiling.
 
 #### Build parallelism
 

@@ -1,0 +1,103 @@
+diff --git a/examples/server/runtime.h b/examples/server/runtime.h
+--- a/examples/server/runtime.h
++++ b/examples/server/runtime.h
+@@ -94,7 +94,12 @@
+     }
+ };
+ 
+-constexpr int k_max_generation_dimension = 4096;
++// Operational limits for the dedicated MiniMax-H3-Image server.
++// The model supports non-square canvases with edges beyond 4096.
++constexpr int k_max_generation_dimension = 8192;
++constexpr int64_t k_max_generation_pixels = 20000000;
++constexpr int k_generation_area_alignment = 32;
++constexpr int k_max_adetailer_dimension = 4096;
+ constexpr int k_max_adetailer_steps      = 100;
+ 
+ bool validate_server_img_gen_request(const ServerRuntime& runtime,
+diff --git a/examples/server/runtime.cpp b/examples/server/runtime.cpp
+--- a/examples/server/runtime.cpp
++++ b/examples/server/runtime.cpp
+@@ -22,10 +22,25 @@
+ bool validate_server_img_gen_request(const ServerRuntime& runtime,
+                                      const ImgGenJobRequest& request,
+                                      std::string& error_message) {
+-    auto dimensions_valid = [&](double width, double height) {
++    auto dimensions_valid = [&](double width, double height, int maximum) {
+         if (!std::isfinite(width) || !std::isfinite(height) ||
+-            width < 1 || height < 1 || width > k_max_generation_dimension || height > k_max_generation_dimension) {
+-            error_message = "generation width and height must be between 1 and " + std::to_string(k_max_generation_dimension);
++            width < 1 || height < 1 || width > maximum || height > maximum) {
++            error_message = "generation width and height must be between 1 and " + std::to_string(maximum);
++            return false;
++        }
++        return true;
++    };
++    auto generation_dimensions_valid = [&](double width, double height) {
++        if (!dimensions_valid(width, height, k_max_generation_dimension)) {
++            return false;
++        }
++        // MiniMax-H3-Image rounds each edge upward to a 32-pixel grid.
++        // Account for that allocation before accepting an unaligned request.
++        const double aligned_width = std::ceil(width / k_generation_area_alignment) * k_generation_area_alignment;
++        const double aligned_height = std::ceil(height / k_generation_area_alignment) * k_generation_area_alignment;
++        if (aligned_width * aligned_height > static_cast<double>(k_max_generation_pixels)) {
++            error_message = "generation canvas area after 32-pixel alignment must not exceed " +
++                            std::to_string(k_max_generation_pixels) + " pixels";
+             return false;
+         }
+         return true;
+@@ -33,15 +48,18 @@
+     const auto& params = request.gen_params;
+     const int width    = params.get_resolved_width();
+     const int height   = params.get_resolved_height();
+-    if (!dimensions_valid(width, height)) {
++    if (!generation_dimensions_valid(width, height)) {
+         return false;
+     }
+     if (params.hires_enabled) {
++        // GenerationRequest aligns the base canvas before applying hires.scale.
++        const int aligned_width = ((width + k_generation_area_alignment - 1) / k_generation_area_alignment) * k_generation_area_alignment;
++        const int aligned_height = ((height + k_generation_area_alignment - 1) / k_generation_area_alignment) * k_generation_area_alignment;
+         const double hires_width  = params.hires_width > 0 ? params.hires_width : params.hires_height > 0 ? params.hires_height
+-                                                                                                          : std::round(width * params.hires_scale);
++                                                                                                          : std::round(aligned_width * params.hires_scale);
+         const double hires_height = params.hires_height > 0 ? params.hires_height : params.hires_width > 0 ? params.hires_width
+-                                                                                                           : std::round(height * params.hires_scale);
+-        if (!dimensions_valid(hires_width, hires_height)) {
++                                                                                                           : std::round(aligned_height * params.hires_scale);
++        if (!generation_dimensions_valid(hires_width, hires_height)) {
+             return false;
+         }
+     }
+@@ -49,7 +67,7 @@
+         return true;
+     }
+     auto pass_valid = [&](const ServerADetailerPass& pass) {
+-        if (!dimensions_valid(pass.width, pass.height)) {
++        if (!dimensions_valid(pass.width, pass.height, k_max_adetailer_dimension)) {
+             return false;
+         }
+         // Match the native key normalization, but leave full option parsing to ADetailer.
+@@ -71,7 +89,7 @@
+             }
+             const auto value  = trim(item.substr(equals + 1));
+             const int minimum = key == "steps" ? 0 : 1;
+-            const int maximum = key == "steps" ? k_max_adetailer_steps : k_max_generation_dimension;
++            const int maximum = key == "steps" ? k_max_adetailer_steps : k_max_adetailer_dimension;
+             try {
+                 size_t used      = 0;
+                 const int parsed = std::stoi(value, &used);
+diff --git a/examples/server/routes_sdcpp.cpp b/examples/server/routes_sdcpp.cpp
+--- a/examples/server/routes_sdcpp.cpp
++++ b/examples/server/routes_sdcpp.cpp
+@@ -427,6 +427,9 @@
+         {"max_upscale_width", k_max_upscale_dimension},
+         {"max_upscale_height", k_max_upscale_dimension},
+     };
++    if (current_mode == "img_gen") {
++        result["limits"]["max_pixels"] = k_max_generation_pixels;
++    }
+     result["samplers"]               = samplers;
+     result["schedulers"]             = schedulers;
+     result["output_formats"]         = top_level_output_formats;

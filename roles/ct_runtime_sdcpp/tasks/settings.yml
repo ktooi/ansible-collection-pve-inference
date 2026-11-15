@@ -10,6 +10,7 @@
       - ct_runtime_sdcpp_force_rebuild is boolean
       - ct_runtime_sdcpp_check_ready is boolean
       - ct_runtime_sdcpp_private_tmp is boolean
+      - ct_runtime_sdcpp_experimental_resolution_patch is boolean
       - ct_runtime_sdcpp_components is mapping
       - ct_runtime_sdcpp_cmake_options is mapping
       - ct_runtime_sdcpp_environment is mapping
@@ -18,7 +19,39 @@
       - ct_runtime_sdcpp_artifacts is sequence and ct_runtime_sdcpp_artifacts is not string
       - ct_runtime_sdcpp_cuda_packages is sequence and ct_runtime_sdcpp_cuda_packages is not string
       - ct_runtime_sdcpp_supplementary_groups is sequence and ct_runtime_sdcpp_supplementary_groups is not string
-    fail_msg: Use a full lowercase commit SHA, booleans for feature switches including private_tmp, mappings for component/environment/build settings, and argument/artifact lists.
+    fail_msg: Use a full lowercase commit SHA, booleans for feature switches including private_tmp and experimental_resolution_patch, mappings for component/environment/build settings, and argument/artifact lists.
+
+- name: Validate the optional resolution patch before target changes
+  when: ct_runtime_sdcpp_experimental_resolution_patch
+  block:
+    - name: Read the bundled resolution patch manifest and fingerprints
+      ansible.builtin.set_fact:
+        ct_runtime_sdcpp_resolution_manifest: "{{ lookup('ansible.builtin.file', role_path ~ '/files/experimental-resolution/manifest.json') | from_json }}"
+        ct_runtime_sdcpp_resolution_patch_sha256: "{{ lookup('ansible.builtin.file', role_path ~ '/files/experimental-resolution/sdcpp-resolution.patch', rstrip=false) | hash('sha256') }}"
+        ct_runtime_sdcpp_resolution_helper_sha256: "{{ lookup('ansible.builtin.file', role_path ~ '/files/experimental-resolution/apply_sdcpp_limits.py', rstrip=false) | hash('sha256') }}"
+        ct_runtime_sdcpp_resolution_manifest_sha256: "{{ lookup('ansible.builtin.file', role_path ~ '/files/experimental-resolution/manifest.json', rstrip=false) | hash('sha256') }}"
+        cacheable: false
+
+    - name: Require the exact source revision supported by the resolution patch
+      ansible.builtin.assert:
+        that:
+          - ct_runtime_sdcpp_resolution_manifest.schema_version | default(0) == 1
+          - ct_runtime_sdcpp_resolution_manifest.upstream_revision | default('') == ct_runtime_sdcpp_revision
+          - ct_runtime_sdcpp_resolution_manifest.patch_file | default('') == 'sdcpp-resolution.patch'
+          - ct_runtime_sdcpp_resolution_manifest.patch_sha256 | default('') == ct_runtime_sdcpp_resolution_patch_sha256
+        fail_msg: >-
+          experimental_resolution_patch requires ct_runtime_sdcpp_revision={{ ct_runtime_sdcpp_resolution_manifest.upstream_revision | default('unknown') }}
+          and an intact bundled sdcpp-resolution.patch. The role does not change the revision automatically.
+
+    - name: Describe the experimental resolution patch build inputs
+      ansible.builtin.set_fact:
+        ct_runtime_sdcpp_resolution_patch_spec:
+          id: minimax-h3-image-resolution-v1
+          revision: "{{ ct_runtime_sdcpp_resolution_manifest.upstream_revision }}"
+          patch_sha256: "{{ ct_runtime_sdcpp_resolution_patch_sha256 }}"
+          helper_sha256: "{{ ct_runtime_sdcpp_resolution_helper_sha256 }}"
+          manifest_sha256: "{{ ct_runtime_sdcpp_resolution_manifest_sha256 }}"
+        cacheable: false
 
 - name: Validate sd.cpp artifact checksums and destinations before build work
   ansible.builtin.set_fact:

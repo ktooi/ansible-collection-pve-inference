@@ -529,6 +529,11 @@ VRAM の均等使用や、LLM 向けの容量予約は保証しません。
 Role は選択した並列数をログに表示し、この値だけの変更ではビルドキャッシュを維持します。
 詳細は[ビルド並列数](roles/ct_runtime_sdcpp/README.md#build-parallelism)を参照してください。
 
+実験的フラグ `ct_runtime_sdcpp_experimental_resolution_patch: true` で、同梱の解像度パッチを
+適用できます。revision は `32d516c0197ed5ca31305b8575e14eb1451fad33` の明示指定が必要です。
+各辺を最大 8192 px に拡張し、32 px 単位への切り上げ後の面積を 20,000,000 画素以下に制限します。
+既定値は `false` です。[試験・切り戻し手順](docs/sdcpp-deployment.md#experimental-resolution-patch)を参照してください。
+
 Service の `PrivateTmp` は選択制で、既定値は `ct_runtime_sdcpp_private_tmp: false` です。
 LXC の制限によっては、実行前の mount namespace 作成が `226/NAMESPACE` で失敗します。
 該当時は[復旧手順](docs/sdcpp-deployment.md#recover-from-226namespace)を参照してください。
